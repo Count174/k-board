@@ -1,0 +1,29 @@
+.widget {
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 16px;
+    margin: 16px 0;
+  }
+  
+  .inputContainer {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  
+  .inputContainer input {
+    flex-grow: 1;
+    padding: 8px;
+  }
+  
+  .taskList {
+    list-style: none;
+    padding: 0;
+  }
+  
+  .taskList li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 0;
+  }
