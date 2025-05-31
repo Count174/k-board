@@ -1,29 +1,65 @@
 .widget {
-    border: 1px solid #ddd;
-    border-radius: 8px;
-    padding: 16px;
-    margin: 16px 0;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
   }
   
-  .inputContainer {
+  .title {
+    font-size: 16px;
+    margin: 0 0 12px 0;
+    color: #2c3e50;
+    font-weight: 600;
+  }
+  
+  .inputRow {
     display: flex;
     gap: 8px;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
   }
   
-  .inputContainer input {
-    flex-grow: 1;
-    padding: 8px;
+  .input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #e0e3e9;
+    border-radius: 6px;
+    font-size: 14px;
+    height: 36px;
   }
   
-  .taskList {
+  .addButton {
+    padding: 0 12px;
+    background: #4a6bdf;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    height: 36px;
+    min-width: 60px;
+  }
+  
+  .list {
     list-style: none;
     padding: 0;
+    margin: 0;
+    overflow-y: auto;
+    flex: 1;
   }
   
-  .taskList li {
+  .item {
     display: flex;
     align-items: center;
-    gap: 8px;
     padding: 8px 0;
+    border-bottom: 1px solid #f5f7fa;
+  }
+  
+  .checkbox {
+    margin-right: 8px;
+    width: 16px;
+    height: 16px;
+  }
+  
+  .completed {
+    text-decoration: line-through;
+    color: #95a5a6;
   }

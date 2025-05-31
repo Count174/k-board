@@ -1,4 +1,7 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+import httpx
+from urllib.parse import parse_qs
 from pydantic import BaseModel
 from typing import Optional
 import sqlite3
@@ -84,3 +87,31 @@ def delete_task(task_id: int):
     conn.commit()
     conn.close()
     return {"message": "Task deleted"}
+
+# Настройка CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # Или "*" для всех
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.post("/api/fatsecret")
+async def fatsecret_proxy(request: Request):
+    form_data = await request.form()
+    params = {
+        "method": form_data.get("method"),
+        "search_expression": form_data.get("search_expression"),
+        "format": "json"
+    }
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "https://platform.fatsecret.com/rest/server.api",
+            data=params,
+            headers={
+                "Authorization": request.headers.get("Authorization"),
+                "Content-Type": "application/x-www-form-urlencoded"
+            }
+        )
+        return response.json()

@@ -1,0 +1,67 @@
+.widget {
+    background: white;
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid #eee;
+    margin-bottom: 12px;
+  }
+  
+  .tab {
+    padding: 6px 12px;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    font-size: 14px;
+    color: #7f8c8d;
+    cursor: pointer;
+  }
+  
+  .tab.active {
+    color: #4a6bdf;
+    border-bottom-color: #4a6bdf;
+    font-weight: 500;
+  }
+  
+  .timeFilters {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  
+  .timeFilter {
+    padding: 4px 8px;
+    background: #f0f2f5;
+    border: none;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #555;
+    cursor: pointer;
+  }
+  
+  .timeFilter.active {
+    background: #4a6bdf;
+    color: white;
+  }
+  
+  .charts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+  }
+  
+  .chartContainer {
+    background: #f9fafc;
+    border-radius: 6px;
+    padding: 10px;
+  }
+  
+  .chartContainer h3 {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+    color: #444;
+  }

@@ -1,10 +1,48 @@
 body {
-    font-family: Arial, sans-serif;
     margin: 0;
-    padding: 20px;
+    font-family: 'Inter', -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
   }
   
-  .dashboard {
-    max-width: 800px;
-    margin: 0 auto;
+  * {
+    box-sizing: border-box;
+  }
+  
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+  
+  /* Единые стили для всех кнопок */
+  button {
+    padding: 10px 16px;
+    background: #4a6bdf;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+  
+  button:hover {
+    background: #3a5bd9;
+    transform: translateY(-1px);
+  }
+  
+  button.secondary {
+    background: #f0f2f5;
+    color: #555;
+  }
+  
+  button.secondary:hover {
+    background: #e0e3e9;
+  }
+  
+  button.small {
+    padding: 6px 12px;
+    font-size: 13px;
   }

@@ -1,0 +1,67 @@
+.dashboard {
+    padding: 16px;
+    max-width: 1400px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 16px;
+    background: #f5f7fa;
+    min-height: 100vh;
+    box-sizing: border-box;
+  }
+  
+  .widget {
+    background: white;
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  
+  /* Распределение виджетов */
+  .todo {
+    grid-column: span 1;
+    height: 260px;
+  }
+  
+  .health {
+    grid-column: span 1;
+    height: 260px;
+  }
+  
+  .nutrition {
+    grid-column: span 1;
+    height: 260px;
+  }
+  
+  .goalsWidget {
+    grid-column: span 12; /* Занимает всю ширину */
+    height: auto; /* Автоматическая высота */
+    min-height: 340px; /* Минимальная высота */
+  }
+  
+  .finance {
+    grid-column: span 1;
+    height: 300px;
+  }
+  
+  /* Адаптивность */
+  @media (max-width: 1024px) {
+    .dashboard {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .finance {
+      grid-column: span 2;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .dashboard {
+      grid-template-columns: 1fr;
+    }
+    
+    .widget {
+      grid-column: span 1 !important;
+      height: auto;
+    }
+  }

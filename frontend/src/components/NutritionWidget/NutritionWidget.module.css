@@ -1,0 +1,115 @@
+.widget {
+    background: white;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .searchContainer {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  
+  .searchInput {
+    flex: 1;
+    padding: 10px 15px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 16px;
+  }
+  
+  .searchButton {
+    padding: 10px 20px;
+    background: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+  }
+  
+  .searchButton:disabled {
+    background: #cccccc;
+  }
+  
+  .resultsContainer {
+    margin-bottom: 20px;
+  }
+  
+  .resultsList {
+    list-style: none;
+    padding: 0;
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #eee;
+    border-radius: 8px;
+  }
+  
+  .resultItem {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  
+  .resultItem:hover {
+    background: #f5f5f5;
+  }
+  
+  .foodName {
+    font-weight: 500;
+  }
+  
+  .foodType {
+    color: #666;
+    font-size: 0.9em;
+    margin-left: 10px;
+  }
+  
+  .consumedContainer {
+    margin-top: 20px;
+  }
+  
+  .emptyMessage {
+    color: #666;
+    text-align: center;
+    padding: 20px;
+  }
+  
+  .foodList {
+    list-style: none;
+    padding: 0;
+  }
+  
+  .foodItem {
+    padding: 15px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .foodHeader {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  
+  .foodTitle {
+    font-weight: 500;
+  }
+  
+  .foodCalories {
+    color: #e53935;
+    font-weight: bold;
+  }
+  
+  .foodDetails {
+    display: flex;
+    gap: 15px;
+    color: #666;
+    font-size: 0.9em;
+  }
+  
+  .serving {
+    margin-left: auto;
+    font-style: italic;
+  }

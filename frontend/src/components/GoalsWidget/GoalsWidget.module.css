@@ -1,0 +1,124 @@
+.widget {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    grid-column: span 4;
+    margin-bottom: 0;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  
+  .title {
+    font-size: 20px;
+    margin: 0 0 24px 0;
+    color: #2c3e50;
+    font-weight: 600;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .goalsGrid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 24px;
+  }
+  
+  .goalCard {
+    background: #f8fafc;
+    border-radius: 10px;
+    padding: 20px;
+    transition: all 0.2s ease;
+  }
+  
+  .goalCard:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  }
+  
+  .goalHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  
+  .goalHeader h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #2c3e50;
+    font-weight: 500;
+  }
+  
+  .progressValue {
+    font-size: 16px;
+    font-weight: 600;
+    color: #4a6bdf;
+  }
+  
+  .progressContainer {
+    margin-bottom: 16px;
+  }
+  
+  .progressBar {
+    height: 10px;
+    background: #e0e3e9;
+    border-radius: 5px;
+    margin-bottom: 8px;
+    overflow: hidden;
+  }
+  
+  .progressFill {
+    height: 100%;
+    background: linear-gradient(90deg, #4a6bdf, #6a11cb);
+    border-radius: 5px;
+    transition: width 0.3s ease;
+  }
+  
+  .numbers {
+    display: block;
+    text-align: right;
+    font-size: 14px;
+    color: #7f8c8d;
+  }
+  
+  .slider {
+    width: 100%;
+    height: 8px;
+    -webkit-appearance: none;
+    background: #dfe6e9;
+    border-radius: 4px;
+    outline: none;
+  }
+  
+  .slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 22px;
+    height: 22px;
+    background: #4a6bdf;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    border: 2px solid white;
+  }
+  
+  /* Адаптивность */
+  @media (max-width: 1024px) {
+    .goalsGrid {
+      grid-template-columns: 1fr;
+      gap: 16px;
+    }
+    
+    .goalCard {
+      padding: 16px;
+    }
+  }
+  
+  @media (max-width: 768px) {
+    .widget {
+      padding: 16px;
+    }
+    
+    .title {
+      font-size: 18px;
+      margin-bottom: 16px;
+    }
+  }
