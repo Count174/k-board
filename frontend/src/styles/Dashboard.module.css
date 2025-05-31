@@ -2,9 +2,11 @@
     padding: 16px;
     max-width: 1400px;
     margin: 0 auto;
-    display: grid;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: start;
     grid-template-columns: repeat(12, 1fr);
-    gap: 16px;
+    gap: 24px;
     background: #f5f7fa;
     min-height: 100vh;
     box-sizing: border-box;

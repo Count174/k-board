@@ -1,57 +1,57 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
+import CardContainer from '../CardContainer/CardContainer';
 import styles from './ToDoWidget.module.css';
 
-export default function ToDoWidget() {
-  const [tasks, setTasks] = useState([
-    { id: 1, text: 'Завершить проект K-Board', completed: false },
-    { id: 2, text: 'Купить продукты', completed: false }
-  ]);
+const ToDoWidget = () => {
+  const [tasks, setTasks] = useState([]);
   const [newTask, setNewTask] = useState('');
 
   const addTask = () => {
     if (newTask.trim()) {
-      setTasks([...tasks, { id: Date.now(), text: newTask, completed: false }]);
+      setTasks([...tasks, { id: Date.now(), text: newTask, done: false }]);
       setNewTask('');
     }
   };
 
   const toggleTask = (id) => {
-    setTasks(tasks.map(task => 
-      task.id === id ? { ...task, completed: !task.completed } : task
-    ));
+    setTasks(
+      tasks.map((task) =>
+        task.id === id ? { ...task, done: !task.done } : task
+      )
+    );
   };
 
   return (
-    <div className={`${styles.widget} ${styles.todo}`}>
-      <h2 className={styles.title}>To-Do List</h2>
-      <div className={styles.inputRow}>
-        <input
-          type="text"
-          value={newTask}
-          onChange={(e) => setNewTask(e.target.value)}
-          placeholder="Add new task..."
-          className={styles.input}
-          onKeyPress={(e) => e.key === 'Enter' && addTask()}
-        />
-        <button onClick={addTask} className={styles.addButton}>
-          Add
-        </button>
+    <CardContainer title="To-Do">
+      <div className={styles.todo}>
+        <div className={styles.inputGroup}>
+          <input
+            type="text"
+            value={newTask}
+            onChange={(e) => setNewTask(e.target.value)}
+            placeholder="Новая задача"
+          />
+          <button onClick={addTask}>+</button>
+        </div>
+
+        <ul className={styles.taskList}>
+          {tasks.map((task) => (
+            <li key={task.id}>
+              <label className={styles.checkboxContainer}>
+                <input
+                  type="checkbox"
+                  checked={task.done}
+                  onChange={() => toggleTask(task.id)}
+                />
+                <span className={styles.checkmark}></span>
+                <span className={task.done ? styles.done : ''}>{task.text}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
       </div>
-      <ul className={styles.list}>
-        {tasks.map(task => (
-          <li key={task.id} className={styles.item}>
-            <input
-              type="checkbox"
-              checked={task.completed}
-              onChange={() => toggleTask(task.id)}
-              className={styles.checkbox}
-            />
-            <span className={task.completed ? styles.completed : ''}>
-              {task.text}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
+    </CardContainer>
   );
-}
+};
+
+export default ToDoWidget;

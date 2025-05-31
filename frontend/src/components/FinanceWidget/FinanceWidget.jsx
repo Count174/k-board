@@ -1,66 +1,118 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
+import CardContainer from '../CardContainer/CardContainer';
 import styles from './FinanceWidget.module.css';
 
-export default function FinanceWidget() {
-  const [activeTab, setActiveTab] = useState('transactions');
-  const [timeRange, setTimeRange] = useState('month');
+const FinanceWidget = () => {
+  const [transactions, setTransactions] = useState([]);
+  const [amount, setAmount] = useState('');
+  const [type, setType] = useState('income');
+  const [category, setCategory] = useState('');
+  const [tab, setTab] = useState('add'); // 'add' или 'analytics'
+
+  const addTransaction = () => {
+    const value = parseFloat(amount);
+    if (!isNaN(value) && category.trim() !== '') {
+      setTransactions([
+        ...transactions,
+        {
+          id: Date.now(),
+          type,
+          amount: value,
+          category,
+        },
+      ]);
+      setAmount('');
+      setCategory('');
+    }
+  };
+
+  const totalIncome = transactions
+    .filter(t => t.type === 'income')
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const totalExpense = transactions
+    .filter(t => t.type === 'expense')
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const balance = totalIncome - totalExpense;
+
+  const groupedByCategory = transactions.reduce((acc, t) => {
+    if (!acc[t.category]) acc[t.category] = 0;
+    acc[t.category] += t.type === 'income' ? t.amount : -t.amount;
+    return acc;
+  }, {});
 
   return (
-    <div className={styles.widget}>
+    <CardContainer title="Финансы">
       <div className={styles.tabs}>
-        <button 
-          className={`${styles.tab} ${activeTab === 'transactions' ? styles.active : ''}`}
-          onClick={() => setActiveTab('transactions')}
+        <button
+          className={tab === 'add' ? styles.activeTab : ''}
+          onClick={() => setTab('add')}
         >
-          Операции
+          Добавление
         </button>
-        <button 
-          className={`${styles.tab} ${activeTab === 'analytics' ? styles.active : ''}`}
-          onClick={() => setActiveTab('analytics')}
+        <button
+          className={tab === 'analytics' ? styles.activeTab : ''}
+          onClick={() => setTab('analytics')}
         >
           Аналитика
         </button>
       </div>
 
-      {activeTab === 'transactions' ? (
-        <div className={styles.transactions}>
-          {/* Форма добавления операций */}
-        </div>
-      ) : (
-        <div className={styles.analytics}>
-          <div className={styles.timeFilters}>
-            <button 
-              className={`${styles.timeFilter} ${timeRange === 'week' ? styles.active : ''}`}
-              onClick={() => setTimeRange('week')}
-            >
-              Неделя
-            </button>
-            <button 
-              className={`${styles.timeFilter} ${timeRange === 'month' ? styles.active : ''}`}
-              onClick={() => setTimeRange('month')}
-            >
-              Месяц
-            </button>
-            <button 
-              className={`${styles.timeFilter} ${timeRange === 'year' ? styles.active : ''}`}
-              onClick={() => setTimeRange('year')}
-            >
-              Год
-            </button>
+      {tab === 'add' && (
+        <div className={styles.finance}>
+          <div className={styles.total}>Баланс: {balance.toFixed(2)} ₽</div>
+
+          <div className={styles.inputGroup}>
+            <select value={type} onChange={(e) => setType(e.target.value)}>
+              <option value="income">Доход</option>
+              <option value="expense">Расход</option>
+            </select>
+            <input
+              type="text"
+              placeholder="Категория"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+            />
+            <input
+              type="number"
+              placeholder="Сумма"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+            />
+            <button onClick={addTransaction}>+</button>
           </div>
 
-          <div className={styles.charts}>
-            <div className={styles.chartContainer}>
-              <h3>Расходы по категориям</h3>
-              {/* График будет здесь */}
-            </div>
-            <div className={styles.chartContainer}>
-              <h3>Динамика</h3>
-              {/* График будет здесь */}
-            </div>
+          <ul className={styles.transactions}>
+            {transactions.map((t) => (
+              <li key={t.id} className={styles[t.type]}>
+                {t.type === 'income' ? '⬆' : '⬇'} {t.amount} ₽ — {t.category}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {tab === 'analytics' && (
+        <div className={styles.analytics}>
+          <p>Доходы: <strong>{totalIncome.toFixed(2)} ₽</strong></p>
+          <p>Расходы: <strong>{totalExpense.toFixed(2)} ₽</strong></p>
+          <p>Баланс: <strong>{balance.toFixed(2)} ₽</strong></p>
+          <p>Транзакций: {transactions.length}</p>
+          <div className={styles.categoryList}>
+            <h4>По категориям:</h4>
+            <ul>
+              {Object.entries(groupedByCategory).map(([cat, val]) => (
+                <li key={cat}>
+                  {cat}: <strong>{val.toFixed(2)} ₽</strong>
+                </li>
+              ))}
+            </ul>
           </div>
         </div>
       )}
-    </div>
+    </CardContainer>
   );
-}
+};
+
+export default FinanceWidget;

@@ -1,67 +1,80 @@
-.widget {
-    background: white;
-    border-radius: 8px;
-    padding: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  }
-  
-  .tabs {
-    display: flex;
-    border-bottom: 1px solid #eee;
-    margin-bottom: 12px;
-  }
-  
-  .tab {
-    padding: 6px 12px;
-    background: none;
-    border: none;
-    border-bottom: 2px solid transparent;
-    font-size: 14px;
-    color: #7f8c8d;
-    cursor: pointer;
-  }
-  
-  .tab.active {
-    color: #4a6bdf;
-    border-bottom-color: #4a6bdf;
-    font-weight: 500;
-  }
-  
-  .timeFilters {
-    display: flex;
-    gap: 6px;
-    margin-bottom: 12px;
-  }
-  
-  .timeFilter {
-    padding: 4px 8px;
-    background: #f0f2f5;
-    border: none;
-    border-radius: 4px;
-    font-size: 12px;
-    color: #555;
-    cursor: pointer;
-  }
-  
-  .timeFilter.active {
-    background: #4a6bdf;
-    color: white;
-  }
-  
-  .charts {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-  }
-  
-  .chartContainer {
-    background: #f9fafc;
-    border-radius: 6px;
-    padding: 10px;
-  }
-  
-  .chartContainer h3 {
-    margin: 0 0 8px 0;
-    font-size: 14px;
-    color: #444;
-  }
+.tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.tabs button {
+  padding: 8px 16px;
+  border-radius: 12px;
+  border: none;
+  background: #f1f3f5;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.activeTab {
+  background: linear-gradient(135deg, #4e54c8, #8f94fb);
+  color: white;
+}
+
+.inputGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.inputGroup select,
+.inputGroup input {
+  padding: 10px 12px;
+  border: none;
+  border-radius: 10px;
+  background: #f1f3f5;
+  font-size: 14px;
+  outline: none;
+  flex: 1;
+  min-width: 120px;
+}
+
+.inputGroup button {
+  background: linear-gradient(135deg, #4e54c8, #8f94fb);
+  border: none;
+  padding: 10px 16px;
+  border-radius: 10px;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.transactions {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.transactions li {
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.income {
+  background: #e6f4ea;
+  color: #2e7d32;
+}
+
+.expense {
+  background: #fdecea;
+  color: #c62828;
+}
+
+.analytics p {
+  margin: 6px 0;
+}
+
+.categoryList ul {
+  list-style: none;
+  padding-left: 0;
+}

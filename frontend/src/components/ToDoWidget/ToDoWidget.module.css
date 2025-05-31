@@ -1,65 +1,67 @@
-.widget {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-  }
-  
-  .title {
-    font-size: 16px;
-    margin: 0 0 12px 0;
-    color: #2c3e50;
-    font-weight: 600;
-  }
-  
-  .inputRow {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 12px;
-  }
-  
-  .input {
-    flex: 1;
-    padding: 8px 12px;
-    border: 1px solid #e0e3e9;
-    border-radius: 6px;
-    font-size: 14px;
-    height: 36px;
-  }
-  
-  .addButton {
-    padding: 0 12px;
-    background: #4a6bdf;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    font-size: 14px;
-    cursor: pointer;
-    height: 36px;
-    min-width: 60px;
-  }
-  
-  .list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    overflow-y: auto;
-    flex: 1;
-  }
-  
-  .item {
-    display: flex;
-    align-items: center;
-    padding: 8px 0;
-    border-bottom: 1px solid #f5f7fa;
-  }
-  
-  .checkbox {
-    margin-right: 8px;
-    width: 16px;
-    height: 16px;
-  }
-  
-  .completed {
-    text-decoration: line-through;
-    color: #95a5a6;
-  }
+.todo {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.inputGroup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.inputGroup input {
+  flex: 1;
+  padding: 10px 14px;
+  border: none;
+  border-radius: 10px;
+  background: #f1f3f5;
+  font-size: 14px;
+  outline: none;
+}
+
+.inputGroup button {
+  background: linear-gradient(135deg, #4e54c8, #8f94fb);
+  border: none;
+  padding: 10px 16px;
+  border-radius: 10px;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.inputGroup button:hover {
+  opacity: 0.9;
+}
+
+.taskList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.checkboxContainer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.checkboxContainer:hover {
+  background-color: #f5f7fa;
+}
+
+.checkboxContainer input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: #4e54c8;
+}
+
+.done {
+  text-decoration: line-through;
+  color: #aaa;
+}
