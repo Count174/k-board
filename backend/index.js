@@ -16,6 +16,6 @@ app.use('/api/goals', goalsRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/nutrition', nutritionRoutes);
 
-app.listen(3001, () => {
-  console.log('Backend запущен на http://localhost:3001');
+app.listen(3002, () => {
+  console.log('Backend запущен на http://localhost:3002');
 });

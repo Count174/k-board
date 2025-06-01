@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
-const controller = require('../controllers/todosController');
+const todosController = require('../controllers/todosController');
 
-router.get('/', controller.getAll);
-router.post('/', controller.create);
-router.put('/:id', controller.toggle);
-router.delete('/:id', controller.remove);
+router.get('/', todosController.getAll);
+router.post('/', todosController.create); 
+router.post('/:id/toggle', todosController.toggle);
+router.delete('/:id', todosController.remove);
 
 module.exports = router;

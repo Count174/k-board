@@ -1,4 +1,5 @@
-const db = require('../db/database.sqlite');
+const sqlite3 = require('sqlite3').verbose();
+const db = new sqlite3.Database('./db/database.sqlite');
 
 // Получить все записи питания
 exports.getNutritionData = async (req, res) => {
