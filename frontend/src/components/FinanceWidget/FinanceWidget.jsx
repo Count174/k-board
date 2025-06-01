@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import CardContainer from '../CardContainer/CardContainer';
 import styles from './FinanceWidget.module.css';
 
-const FinanceWidget = () => {
+export const FinanceWidget = () => {
   const [transactions, setTransactions] = useState([]);
   const [amount, setAmount] = useState('');
   const [type, setType] = useState('income');

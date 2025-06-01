@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import CardContainer from '../CardContainer/CardContainer';
 import styles from './ToDoWidget.module.css';
 
-const ToDoWidget = () => {
+export const ToDoWidget = () => {
   const [tasks, setTasks] = useState([]);
   const [newTask, setNewTask] = useState('');
 
@@ -12,6 +12,7 @@ const ToDoWidget = () => {
       setNewTask('');
     }
   };
+
 
   const toggleTask = (id) => {
     setTasks(

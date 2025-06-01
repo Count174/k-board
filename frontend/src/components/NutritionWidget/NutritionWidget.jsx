@@ -3,7 +3,7 @@ import OAuth from 'oauth-1.0a';
 import CryptoJS from 'crypto-js';
 import styles from './NutritionWidget.module.css';
 
-const FatSecretWidget = () => {
+export const FatSecretWidget = () => {
   const [foods, setFoods] = useState([]);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
