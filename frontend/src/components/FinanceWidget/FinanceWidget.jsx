@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import CardContainer from '../CardContainer/CardContainer';
 import styles from './FinanceWidget.module.css';
+import { get, post } from '../../api/api';
 
 export const FinanceWidget = () => {
   const [transactions, setTransactions] = useState([]);
@@ -8,19 +9,30 @@ export const FinanceWidget = () => {
   const [type, setType] = useState('income');
   const [category, setCategory] = useState('');
   const [tab, setTab] = useState('add'); // 'add' или 'analytics'
+  const [monthlyStats, setMonthlyStats] = useState({});
 
-  const addTransaction = () => {
+  useEffect(() => {
+    fetchTransactions();
+    fetchMonthlyStats();
+  }, []);
+
+  const fetchTransactions = async () => {
+    const data = await get('finances');
+    setTransactions(data);
+  };
+
+  const fetchMonthlyStats = async () => {
+    const data = await get('finances/monthly');
+    setMonthlyStats(data);
+  };
+
+  const addTransaction = async () => {
     const value = parseFloat(amount);
     if (!isNaN(value) && category.trim() !== '') {
-      setTransactions([
-        ...transactions,
-        {
-          id: Date.now(),
-          type,
-          amount: value,
-          category,
-        },
-      ]);
+      const newTx = { type, category, amount: value };
+      await post('finances', newTx);
+      await fetchTransactions();
+      await fetchMonthlyStats();
       setAmount('');
       setCategory('');
     }
@@ -86,7 +98,7 @@ export const FinanceWidget = () => {
           <ul className={styles.transactions}>
             {transactions.map((t) => (
               <li key={t.id} className={styles[t.type]}>
-                {t.type === 'income' ? '⬆' : '⬇'} {t.amount} ₽ — {t.category}
+                {t.type === 'income' ? '⬆' : '⬇'} {t.amount} ₽ — {t.category} ({new Date(t.date).toLocaleDateString()})
               </li>
             ))}
           </ul>
@@ -105,6 +117,16 @@ export const FinanceWidget = () => {
               {Object.entries(groupedByCategory).map(([cat, val]) => (
                 <li key={cat}>
                   {cat}: <strong>{val.toFixed(2)} ₽</strong>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className={styles.monthlyStats}>
+            <h4>По месяцам:</h4>
+            <ul>
+              {Object.entries(monthlyStats).map(([month, stats]) => (
+                <li key={month}>
+                  {month}: ⬆ {stats.income?.toFixed(2) || 0} ₽ / ⬇ {stats.expense?.toFixed(2) || 0} ₽
                 </li>
               ))}
             </ul>
