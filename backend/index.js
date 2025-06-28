@@ -2,6 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const app = express();
 const PORT = 3002;
+const path = require('path');
+const basicAuth = require('express-basic-auth');
 const financesRoutes = require('./routes/finances');
 const todosRoutes = require('./routes/todos');
 const goalsRoutes = require('./routes/goals');
@@ -16,10 +18,10 @@ app.use('/k-board', basicAuth({
   challenge: true
 }));
 
-app.use('/k-board', express.static(path.join(__dirname, 'frontend/build')));
+app.use('/k-board', express.static(path.join(__dirname, 'frontend/dist')));
 
 app.get('/k-board/*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'frontend/index.html'));
+  res.sendFile(path.join(__dirname, 'frontend/dist/index.html'));
 });
 
 
