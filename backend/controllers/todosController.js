@@ -5,7 +5,7 @@ exports.getAll = (req, res) => {
     if (err) return res.status(500).send(err);
     const normalized = rows.map(row => ({
       id: row.id,
-      text: row.text,
+      text: row.task, // <-- берем task, но возвращаем как text
       done: !!row.completed
     }));
     res.json(normalized);
@@ -13,16 +13,19 @@ exports.getAll = (req, res) => {
 };
 
 exports.create = (req, res) => {
-    const { text, done } = req.body;
-    if (!text) {
-      return res.status(400).json({ error: 'Поле "text" обязательно' });
-    }
-    const completed = done ? 1 : 0;
-    db.run("INSERT INTO todos (text, completed) VALUES (?, ?)", [text, completed], function (err) {
+  const { text, done } = req.body;
+  if (!text) {
+    return res.status(400).json({ error: 'Поле "text" обязательно' });
+  }
+  const completed = done ? 1 : 0;
+  db.run(
+    "INSERT INTO todos (task, completed) VALUES (?, ?)", // <-- task
+    [text, completed],
+    function (err) {
       if (err) return res.status(500).send(err);
       res.status(201).json({
         id: this.lastID,
-        text,
+        text,              // <-- отправляем как text
         done: !!completed
       });
         console.log("Добавление задачи:", req.body);

@@ -89,7 +89,7 @@ export const ToDoWidget = () => {
                   onChange={() => toggleTask(task.id)}
                 />
                 <span className={styles.checkmark}></span>
-                <span className={task.done ? styles.done : ''}>{task.task}</span>
+                <span className={task.done ? styles.done : ''}>{task.text}</span>
               </label>
             </li>
           ))}
