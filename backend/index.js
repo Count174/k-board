@@ -16,30 +16,27 @@ const nutritionRoutes = require('./routes/nutrition');
 app.use(cors());
 app.use(express.json());
 
-// Basic auth защита
+// Basic auth
 app.use('/k-board', basicAuth({
   users: { 'root': 'root' },
   challenge: true
 }));
 
-// Статика
-app.use('/', express.static(frontendPath));
-
-// SPA-роутинг
-app.get('/*', (req, res, next) => {
-  if (path.extname(req.path)) {
-    return res.status(404).send('Not found');
-  }
-  res.sendFile(path.join(frontendPath, 'index.html'));
-});
-
-// API
+// API маршруты — должны быть раньше статики и SPA
 app.use('/k-board/api/finances', financesRoutes);
 app.use('/k-board/api/todos', todosRoutes);
 app.use('/k-board/api/goals', goalsRoutes);
 app.use('/k-board/api/health', healthRoutes);
 app.use('/k-board/api/nutrition', nutritionRoutes);
 
+// Статика фронта
+app.use('/k-board', express.static(frontendPath));
+
+// ⚠️ SPA-роутинг должен быть ПОСЛЕ API и статики
+app.get('/k-board/*', (req, res) => {
+  res.sendFile(path.join(frontendPath, 'index.html'));
+});
+
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
