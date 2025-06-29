@@ -5,7 +5,7 @@ exports.getAll = (req, res) => {
     if (err) return res.status(500).send(err);
     const normalized = rows.map(row => ({
       id: row.id,
-      text: row.task,
+      text: row.text,
       done: !!row.completed
     }));
     res.json(normalized);
@@ -18,12 +18,12 @@ exports.create = (req, res) => {
       return res.status(400).json({ error: 'Поле "text" обязательно' });
     }
     const completed = done ? 1 : 0;
-    db.run("INSERT INTO todos (task, completed) VALUES (?, ?)", [text, completed], function (err) {
+    db.run("INSERT INTO todos (text, completed) VALUES (?, ?)", [text, completed], function (err) {
       if (err) return res.status(500).send(err);
       res.status(201).json({
         id: this.lastID,
         text,
-        completed
+        done: !!completed
       });
         console.log("Добавление задачи:", req.body);
         console.error("Ошибка при вставке:", err);
