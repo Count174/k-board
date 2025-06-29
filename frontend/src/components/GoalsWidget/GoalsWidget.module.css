@@ -24,26 +24,31 @@
   
   .goalCard {
     position: relative;
-    height: 220px;
     border-radius: 16px;
     overflow: hidden;
+    min-height: 180px;
     display: flex;
     align-items: flex-end;
-    background-color: #ccc;
-    background-size: cover;
-    background-position: center;
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+    justify-content: center;
+    padding: 0;
+    background-color: #eee;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transition: transform 0.2s ease;
   }
   
   .overlay {
     width: 100%;
     padding: 16px;
-    backdrop-filter: blur(12px);
-    background: rgba(0, 0, 0, 0.4);
-    border-top-left-radius: 16px;
-    border-top-right-radius: 16px;
-    color: #fff;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0));
+    backdrop-filter: blur(3px);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    height: 100%;
+    box-sizing: border-box;
   }
+  
   
   .goalHeader h3 {
     color: #fff;
@@ -59,38 +64,38 @@
   
   .goalCard:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
   }
   
   .goalHeader {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
+    margin-bottom: 8px;
   }
   
   .goalHeader h3 {
     margin: 0;
     font-size: 16px;
-    color: #2c3e50;
+    color: #fff;
     font-weight: 500;
-  }
+  }  
   
+
   .progressValue {
     font-size: 16px;
     font-weight: 600;
-    color: #4a6bdf;
+    color: #4a90e2;
   }
   
   .progressContainer {
-    margin-bottom: 16px;
+    margin-bottom: 12px;
   }
   
   .progressBar {
     height: 10px;
-    background: #e0e3e9;
+    background: rgba(255, 255, 255, 0.2);
     border-radius: 5px;
-    margin-bottom: 8px;
+    margin-bottom: 4px;
     overflow: hidden;
   }
   
@@ -102,10 +107,9 @@
   }
   
   .numbers {
-    display: block;
     text-align: right;
-    font-size: 14px;
-    color: #7f8c8d;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.8);
   }
   
   .slider {
