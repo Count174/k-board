@@ -5,7 +5,7 @@ exports.getAll = (req, res) => {
     if (err) return res.status(500).send(err);
     const normalized = rows.map(row => ({
       id: row.id,
-      text: row.task, // <-- берем task, но возвращаем как text
+      text: row.text, 
       done: !!row.completed
     }));
     res.json(normalized);
@@ -19,7 +19,7 @@ exports.create = (req, res) => {
   }
   const completed = done ? 1 : 0;
   db.run(
-    "INSERT INTO todos (task, completed) VALUES (?, ?)", // <-- task
+    "INSERT INTO todos (text, completed) VALUES (?, ?)", // <-- task
     [text, completed],
     function (err) {
       if (err) return res.status(500).send(err);
