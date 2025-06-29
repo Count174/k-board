@@ -15,12 +15,8 @@ export const ToDoWidget = () => {
   const fetchTasks = async () => {
     try {
       const data = await get('todos');
-      // Приводим completed (из 0/1) в Boolean
-      const normalized = data.map((t) => ({
-        ...t,
-        done: !!t.completed
-      }));
-      setTasks(normalized);
+      console.log("Полученные задачи:", data); // Для отладки
+      setTasks(data); // 🔥 не нужно дополнительно нормализовать, всё уже нормализовано на бэке
     } catch (error) {
       console.error('Ошибка при загрузке задач:', error);
     }

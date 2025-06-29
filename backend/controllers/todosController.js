@@ -1,7 +1,7 @@
 const db = require('../db/db');
 
 exports.getAll = (req, res) => {
-  db.all("SELECT * FROM todos", [], (err, rows) => {
+  db.all("SELECT * FROM todos where completed = 0", [], (err, rows) => {
     if (err) return res.status(500).send(err);
     const normalized = rows.map(row => ({
       id: row.id,
