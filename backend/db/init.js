@@ -1,5 +1,9 @@
+const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database('./db/database.sqlite');
+
+// Абсолютный путь относительно этого файла
+const dbPath = path.resolve(__dirname, 'database.sqlite');
+const db = new sqlite3.Database(dbPath);
 
 db.serialize(() => {
   db.run(`
