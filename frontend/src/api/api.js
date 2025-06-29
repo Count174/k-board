@@ -2,6 +2,7 @@ const BASE_URL = '/k-board/api';
 
 export const get = async (endpoint) => {
   const res = await fetch(`${BASE_URL}/${endpoint}`);
+  if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
   return res.json();
 };
 
