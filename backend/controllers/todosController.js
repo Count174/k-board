@@ -3,7 +3,12 @@ const db = require('../db/db');
 exports.getAll = (req, res) => {
   db.all("SELECT * FROM todos", [], (err, rows) => {
     if (err) return res.status(500).send(err);
-    res.json(rows);
+    const normalized = rows.map(row => ({
+      id: row.id,
+      text: row.task,
+      done: !!row.completed
+    }));
+    res.json(normalized);
   });
 };
 
@@ -17,7 +22,7 @@ exports.create = (req, res) => {
       if (err) return res.status(500).send(err);
       res.status(201).json({
         id: this.lastID,
-        task: text,
+        text,
         completed
       });
         console.log("Добавление задачи:", req.body);
