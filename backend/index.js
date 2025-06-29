@@ -34,11 +34,11 @@ app.get('/*', (req, res, next) => {
 });
 
 // API
-app.use('/k-board/api/finances', financesRoutes);
-app.use('/k-board/api/todos', todosRoutes);
-app.use('/k-board/api/goals', goalsRoutes);
-app.use('/k-board/api/health', healthRoutes);
-app.use('/k-board/api/nutrition', nutritionRoutes);
+app.use('/api/finances', financesRoutes);
+app.use('/api/todos', todosRoutes);
+app.use('/api/goals', goalsRoutes);
+app.use('/api/health', healthRoutes);
+app.use('/api/nutrition', nutritionRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
