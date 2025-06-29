@@ -23,10 +23,38 @@
   }
   
   .goalCard {
-    background: #f8fafc;
-    border-radius: 10px;
-    padding: 20px;
-    transition: all 0.2s ease;
+    position: relative;
+    height: 220px;
+    border-radius: 16px;
+    overflow: hidden;
+    display: flex;
+    align-items: flex-end;
+    background-color: #ccc;
+    background-size: cover;
+    background-position: center;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
+  }
+  
+  .overlay {
+    width: 100%;
+    padding: 16px;
+    backdrop-filter: blur(12px);
+    background: rgba(0, 0, 0, 0.4);
+    border-top-left-radius: 16px;
+    border-top-right-radius: 16px;
+    color: #fff;
+  }
+  
+  .goalHeader h3 {
+    color: #fff;
+  }
+  
+  .progressValue {
+    color: #fff;
+  }
+  
+  .numbers {
+    color: #eee;
   }
   
   .goalCard:hover {

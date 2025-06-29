@@ -8,29 +8,33 @@ export default function GoalsWidget() {
       title: 'Заработок 300 000₽/мес',
       current: 264000,
       target: 300000,
-      unit: '₽'
+      unit: '₽',
+      backgroundImage: '../../public/images/moscow.jpg'
     },
     {
       id: 2,
-      title: 'Прочитать "Атомные привычки"',
+      title: 'Прочитать "Дифферинцируйся или умри"',
       current: 65,
       target: 100,
-      unit: '%'
+      unit: '%',
+      backgroundImage: '../../public/images/different.jpg'
     },
     {
       id: 3,
       title: 'Накопить 1 000 000₽',
       current: 420000,
       target: 1000000,
-      unit: '₽'
+      unit: '₽',
+      backgroundImage: '../../public/images/money.jpg'
     },
     {
       id: 4,
-      title: 'Переехать в новую квартиру',
+      title: 'BMW 3-Series',
       current: 0,
       target: 1,
       unit: '',
-      isBinary: true
+      isBinary: true,
+      backgroundImage: '../../public/images/bmw.jpg'
     }
   ]);
 
@@ -51,36 +55,47 @@ export default function GoalsWidget() {
             : (goal.current / goal.target) * 100;
             
           return (
-            <div key={goal.id} className={styles.goalCard}>
-              <div className={styles.goalHeader}>
-                <h3>{goal.title}</h3>
-                <span className={styles.progressValue}>
-                  {Math.round(progress)}%
-                </span>
-              </div>
-              
-              <div className={styles.progressContainer}>
-                <div className={styles.progressBar}>
-                  <div 
-                    className={styles.progressFill}
-                    style={{ width: `${progress}%` }}
-                  ></div>
+            <div 
+              key={goal.id} 
+              className={styles.goalCard}
+              style={{
+                backgroundImage: `url(${goal.backgroundImage})`,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center',
+                position: 'relative',
+              }}
+            >
+              <div className={styles.overlay}>
+                <div className={styles.goalHeader}>
+                  <h3>{goal.title}</h3>
+                  <span className={styles.progressValue}>
+                    {Math.round(progress)}%
+                  </span>
                 </div>
-                <span className={styles.numbers}>
-                  {goal.current}{goal.unit} / {goal.target}{goal.unit}
-                </span>
+
+              <div className={styles.progressContainer}>
+              <div className={styles.progressBar}>
+                <div 
+                  className={styles.progressFill}
+                  style={{ width: `${progress}%` }}
+                ></div>
               </div>
-              
-              <input
-                type="range"
-                min="0"
-                max={goal.isBinary ? 1 : goal.target}
-                value={goal.current}
-                onChange={(e) => updateProgress(goal.id, e.target.value)}
-                className={styles.slider}
-                step={goal.isBinary ? 1 : goal.target/100}
-              />
+              <span className={styles.numbers}>
+                {goal.current}{goal.unit} / {goal.target}{goal.unit}
+              </span>
             </div>
+
+            <input
+              type="range"
+              min="0"
+              max={goal.isBinary ? 1 : goal.target}
+              value={goal.current}
+              onChange={(e) => updateProgress(goal.id, e.target.value)}
+              className={styles.slider}
+              step={goal.isBinary ? 1 : goal.target/100}
+            />
+        </div>
+      </div>
           );
         })}
       </div>
