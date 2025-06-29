@@ -8,23 +8,23 @@ import GoalsWidget from '../components/GoalsWidget/GoalsWidget';
 export default function Dashboard() {
   return (
     <div className={styles.dashboard}>
-      <div className={`${styles.widget} ${styles.todoWidget}`}>
+      <div className={`${styles.widget} ${styles.todo}`}>
         <ToDoWidget />
       </div>
       
-      <div className={`${styles.widget} ${styles.healthWidget}`}>
+      <div className={`${styles.widget} ${styles.health}`}>
         <HealthWidget />
       </div>
       
-      <div className={`${styles.widget} ${styles.nutritionWidget}`}>
+      <div className={`${styles.widget} ${styles.nutrition}`}>
         <NutritionWidget />
       </div>
       
-      <div className={`${styles.widget} ${styles.goalsWidget}`}>
+      <div className={`${styles.widget} ${styles.goals}`}>
         <GoalsWidget />
       </div>
       
-      <div className={`${styles.widget} ${styles.financeWidget}`}>
+      <div className={`${styles.widget} ${styles.finance}`}>
         <FinanceWidget />
       </div>
     </div>

@@ -9,7 +9,7 @@ export default function GoalsWidget() {
       current: 264000,
       target: 300000,
       unit: '₽',
-      backgroundImage: '../../public/images/moscow.jpg'
+      backgroundImage: '/images/moscow.jpg'
     },
     {
       id: 2,
@@ -17,7 +17,7 @@ export default function GoalsWidget() {
       current: 65,
       target: 100,
       unit: '%',
-      backgroundImage: '../../public/images/different.jpg'
+      backgroundImage: '/images/different.jpg'
     },
     {
       id: 3,
@@ -25,7 +25,7 @@ export default function GoalsWidget() {
       current: 420000,
       target: 1000000,
       unit: '₽',
-      backgroundImage: '../../public/images/money.jpg'
+      backgroundImage: '/images/money.jpg'
     },
     {
       id: 4,
@@ -34,7 +34,7 @@ export default function GoalsWidget() {
       target: 1,
       unit: '',
       isBinary: true,
-      backgroundImage: '../../public/images/bmw.jpg'
+      backgroundImage: '/images/bmw.jpg'
     }
   ]);
 

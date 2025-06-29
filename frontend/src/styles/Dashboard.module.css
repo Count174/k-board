@@ -2,8 +2,7 @@
     padding: 16px;
     max-width: 1400px;
     margin: 0 auto;
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
     justify-content: start;
     grid-template-columns: repeat(12, 1fr);
     gap: 24px;
