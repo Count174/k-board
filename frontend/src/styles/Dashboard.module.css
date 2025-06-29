@@ -2,12 +2,19 @@
   padding: 16px;
   max-width: 1400px;
   margin: 0 auto;
-  display: grid;
-  grid-template-columns: repeat(12, 1fr);
-  gap: 24px;
   background: #f5f7fa;
   min-height: 100vh;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.row {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  justify-content: space-between;
 }
 
 .widget {
@@ -15,50 +22,21 @@
   border-radius: 8px;
   padding: 12px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  flex: 1;
+  min-width: 280px;
 }
 
-/* Распределение по колонкам */
-.todo {
-  grid-column: span 3;
-}
-
-.health {
-  grid-column: span 3;
-}
-
-.nutrition {
-  grid-column: span 3;
-}
-
-.finance {
-  grid-column: span 3;
-}
-
-.goals {
-  grid-column: span 12;
+.full {
+  width: 100%;
 }
 
 /* Адаптивность */
 @media (max-width: 1024px) {
-  .dashboard {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .todo, .health, .nutrition, .finance {
-    grid-column: span 1;
-  }
-
-  .goals {
-    grid-column: span 2;
-  }
-}
-
-@media (max-width: 768px) {
-  .dashboard {
-    grid-template-columns: 1fr;
+  .row {
+    flex-direction: column;
   }
 
   .widget {
-    grid-column: span 1 !important;
+    width: 100%;
   }
 }

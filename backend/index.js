@@ -31,7 +31,7 @@ app.use('/api/health', healthRoutes);
 app.use('/api/nutrition', nutritionRoutes);
 
 // Статика фронта
-app.use('/images', express.static(path.join(publicPath, 'images')));
+app.use('/k-board/images', express.static(path.join(publicPath, 'images')));
 
 app.use('/k-board', express.static(frontendPath));
 
