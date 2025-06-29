@@ -1,4 +1,4 @@
-const BASE_URL = 'http://localhost:3002/api';
+const BASE_URL = '/k-board/api'; 
 
 export const get = async (endpoint) => {
   const res = await fetch(`${BASE_URL}/${endpoint}`);
