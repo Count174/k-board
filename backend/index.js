@@ -6,6 +6,7 @@ const path = require('path');
 const basicAuth = require('express-basic-auth');
 
 const frontendPath = path.join(__dirname, '../frontend/dist');
+const publicPath = path.join(__dirname, '../public');
 
 const financesRoutes = require('./routes/finances');
 const todosRoutes = require('./routes/todos');
@@ -30,6 +31,8 @@ app.use('/api/health', healthRoutes);
 app.use('/api/nutrition', nutritionRoutes);
 
 // Статика фронта
+app.use('/images', express.static(path.join(publicPath, 'images')));
+
 app.use('/k-board', express.static(frontendPath));
 
 // ⚠️ SPA-роутинг должен быть ПОСЛЕ API и статики
