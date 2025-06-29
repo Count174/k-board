@@ -23,10 +23,10 @@ app.use('/k-board', basicAuth({
 }));
 
 // Статика
-app.use('/k-board', express.static(frontendPath));
+app.use('/', express.static(frontendPath));
 
 // SPA-роутинг
-app.get('/k-board/*', (req, res, next) => {
+app.get('/*', (req, res, next) => {
   if (path.extname(req.path)) {
     return res.status(404).send('Not found');
   }
