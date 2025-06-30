@@ -36,12 +36,15 @@ db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS health (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT NOT NULL,
       date TEXT NOT NULL,
-      mood INTEGER,
-      energy INTEGER,
-      symptoms TEXT
-    )
+      time TEXT NOT NULL,
+      place TEXT,
+      activity TEXT,
+      notes TEXT
+    );
   `);
+
 
   db.run(`
     CREATE TABLE IF NOT EXISTS nutrition (

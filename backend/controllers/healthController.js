@@ -1,25 +1,25 @@
 const db = require('../db/db');
 
-// Получить все записи здоровья
-exports.getHealthData = async (req, res) => {
-  try {
-    const data = await db.all('SELECT * FROM health ORDER BY date DESC');
-    res.json(data);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+exports.getHealthData = (req, res) => {
+  db.all('SELECT * FROM health ORDER BY date DESC, time DESC', [], (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
 };
 
-// Добавить запись о здоровье
-exports.addHealthEntry = async (req, res) => {
-  const { date, mood, energy, symptoms } = req.body;
-  try {
-    await db.run(
-      'INSERT INTO health (date, mood, energy, symptoms) VALUES (?, ?, ?, ?)',
-      [date, mood, energy, symptoms]
-    );
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
+exports.addHealthEntry = (req, res) => {
+  const { type, date, time, place, activity, notes } = req.body;
+
+  if (!type || !date || !time) {
+    return res.status(400).json({ error: 'Обязательные поля: type, date, time' });
   }
+
+  db.run(
+    'INSERT INTO health (type, date, time, place, activity, notes) VALUES (?, ?, ?, ?, ?, ?)',
+    [type, date, time, place, activity, notes],
+    function (err) {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true, id: this.lastID });
+    }
+  );
 };
