@@ -126,14 +126,18 @@ function handleTrainingSteps(chatId, text) {
     state.step = 'place';
     bot.sendMessage(chatId, 'Введите место:');
   } else if (step === 'place') {
+    data.place = text;
+    state.step = 'activity';
+    bot.sendMessage(chatId, 'Введите тип тренировки / описание:');
+  } else if (step === 'activity') {
     data.activity = text;
     state.step = 'notes';
     bot.sendMessage(chatId, 'Введите заметки (или "-" если нет):');
   } else if (step === 'notes') {
     data.notes = text === '-' ? '' : text;
     db.run(
-      'INSERT INTO health (type, date, time, activity, notes) VALUES (?, ?, ?, ?, ?)',
-      [data.type, data.date, data.time, data.activity, data.notes],
+      'INSERT INTO health (type, date, time, place, activity, notes) VALUES (?, ?, ?, ?, ?, ?)',
+      [data.type, data.date, data.time, data.place, data.activity, data.notes],
       (err) => {
         if (err) {
           console.error(err);
