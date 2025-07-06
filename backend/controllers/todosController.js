@@ -1,37 +1,39 @@
 const db = require('../db/db');
 
 exports.getAll = (req, res) => {
-  db.all("SELECT * FROM todos where completed = 0", [], (err, rows) => {
+  db.all("SELECT * FROM todos WHERE completed = 0 ORDER BY due_date IS NULL, due_date ASC", [], (err, rows) => {
     if (err) return res.status(500).send(err);
     const normalized = rows.map(row => ({
       id: row.id,
-      text: row.text, 
-      done: !!row.completed
+      text: row.text,
+      done: !!row.completed,
+      dueDate: row.due_date || null
     }));
     res.json(normalized);
   });
 };
 
 exports.create = (req, res) => {
-  const { text, done } = req.body;
+  const { text, done, dueDate } = req.body;
   if (!text) {
     return res.status(400).json({ error: 'Поле "text" обязательно' });
   }
+
   const completed = done ? 1 : 0;
   db.run(
-    "INSERT INTO todos (text, completed) VALUES (?, ?)", // <-- task
-    [text, completed],
+    "INSERT INTO todos (text, completed, due_date) VALUES (?, ?, ?)",
+    [text, completed, dueDate || null],
     function (err) {
       if (err) return res.status(500).send(err);
       res.status(201).json({
         id: this.lastID,
-        text,              // <-- отправляем как text
-        done: !!completed
+        text,
+        done: !!completed,
+        dueDate: dueDate || null
       });
-        console.log("Добавление задачи:", req.body);
-        console.error("Ошибка при вставке:", err);
-    });
-  };
+    }
+  );
+};
 
 exports.toggle = (req, res) => {
   const { id } = req.params;

@@ -6,8 +6,9 @@ import styles from './ToDoWidget.module.css';
 export const ToDoWidget = () => {
   const [tasks, setTasks] = useState([]);
   const [newTask, setNewTask] = useState('');
+  const [dueDate, setDueDate] = useState('');
+  const [dueTime, setDueTime] = useState('12:00');
 
-  // Получить задачи при монтировании
   useEffect(() => {
     fetchTasks();
   }, []);
@@ -18,29 +19,33 @@ export const ToDoWidget = () => {
       const normalized = data.map((t) => ({
         id: t.id,
         text: t.text,
-        done: !!t.done // уже приходит с бэка как done
+        done: !!t.done,
+        dueDate: t.dueDate || null
       }));
       setTasks(normalized);
     } catch (error) {
       console.error('Ошибка при загрузке задач:', error);
     }
   };
+
   const addTask = async () => {
     if (newTask.trim()) {
       try {
+        const fullDueDate = dueDate ? `${dueDate} ${dueTime}` : null;
         const newTaskData = await post('todos', {
           text: newTask,
           done: false,
+          dueDate: fullDueDate
         });
-  
-        const normalized = {
+
+        setTasks([...tasks, {
           ...newTaskData,
           done: !!newTaskData.completed
-        };
-  
-        setTasks([...tasks, normalized]);
-        setNewTask('');
+        }]);
 
+        setNewTask('');
+        setDueDate('');
+        setDueTime('12:00');
       } catch (error) {
         console.error('Ошибка при добавлении задачи:', error);
       }
@@ -48,18 +53,9 @@ export const ToDoWidget = () => {
   };
 
   const toggleTask = async (id) => {
-    const taskToUpdate = tasks.find((task) => task.id === id);
-    if (!taskToUpdate) return;
-  
-    const updated = {
-      ...taskToUpdate,
-      done: !taskToUpdate.done,
-      completed: !taskToUpdate.done ? 1 : 0 // 👈 чтобы локально оно соответствовало базе
-    };
-  
     try {
       await post(`todos/${id}/toggle`);
-      fetchTasks(); // 👈 актуализируем список
+      fetchTasks();
     } catch (error) {
       console.error('Ошибка при обновлении задачи:', error);
     }
@@ -75,6 +71,16 @@ export const ToDoWidget = () => {
             onChange={(e) => setNewTask(e.target.value)}
             placeholder="Новая задача"
           />
+          <input
+            type="date"
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
+          />
+          <input
+            type="time"
+            value={dueTime}
+            onChange={(e) => setDueTime(e.target.value)}
+          />
           <button onClick={addTask}>+</button>
         </div>
 
@@ -89,6 +95,11 @@ export const ToDoWidget = () => {
                 />
                 <span className={styles.checkmark}></span>
                 <span className={task.done ? styles.done : ''}>{task.text}</span>
+                {task.dueDate && (
+                  <span className={styles.dueDate}>
+                    {' '}— {new Date(task.dueDate).toLocaleString()}
+                  </span>
+                )}
               </label>
             </li>
           ))}
