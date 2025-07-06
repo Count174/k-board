@@ -164,11 +164,24 @@ const motivationalQuotes = [
 
 // Cron: каждый день в 8 утра по МСК (05:00 UTC)
 cron.schedule('0 5 * * *', () => {
-  const chatId = process.env.CHAT_ID; // задай свой chatId в .env
-  db.all('SELECT title, progress, target FROM goals', [], (err, rows) => {
-    if (err || !rows.length) return;
-    const list = rows.map(g => `🎯 ${g.title} — ${Math.round((g.progress / g.target) * 100)}%`).join('\n');
-    const quote = motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)];
-    bot.sendMessage(chatId, `${quote}\n\n${list}`);
+    const chatId = process.env.CHAT_ID;
+    if (!chatId) return console.error('❌ CHAT_ID не задан в .env');
+  
+    db.all('SELECT title, progress, target FROM goals', [], (err, rows) => {
+      if (err) {
+        console.error('❌ Ошибка получения целей из БД:', err);
+        return;
+      }
+      if (!rows.length) {
+        console.log('📭 Нет целей для напоминания');
+        return;
+      }
+  
+      const list = rows.map(g => `🎯 ${g.title} — ${Math.round((g.progress / g.target) * 100)}%`).join('\n');
+      const quote = motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)];
+  
+      bot.sendMessage(chatId, `${quote}\n\n${list}`)
+        .then(() => console.log('✅ Напоминание по целям отправлено'))
+        .catch((err) => console.error('❌ Ошибка отправки сообщения:', err));
+    });
   });
-});
