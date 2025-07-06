@@ -41,8 +41,9 @@ db.serialize(() => {
       time TEXT NOT NULL,
       place TEXT,
       activity TEXT,
-      notes TEXT
-    );
+      notes TEXT,
+      completed INTEGER DEFAULT 0
+    )
   `);
 
 

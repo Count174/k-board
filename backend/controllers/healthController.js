@@ -23,3 +23,13 @@ exports.addHealthEntry = (req, res) => {
     }
   );
 };
+
+exports.markCompleted = async (req, res) => {
+  const { id } = req.params;
+  try {
+    await db.run('UPDATE health SET completed = 1 WHERE id = ?', [id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};

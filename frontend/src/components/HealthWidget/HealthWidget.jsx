@@ -20,7 +20,6 @@ export default function HealthWidget() {
     notes: ''
   });
 
-  // Загрузка из БД
   useEffect(() => {
     fetchHealthData();
   }, []);
@@ -45,10 +44,9 @@ export default function HealthWidget() {
         activity: formData.description,
         notes: formData.notes
       };
-
       const result = await post('health', payload);
       if (result.success) {
-        fetchHealthData(); // перезагрузим список
+        fetchHealthData();
         setFormData({
           type: 'training',
           date: new Date().toISOString().split('T')[0],
@@ -60,6 +58,15 @@ export default function HealthWidget() {
       }
     } catch (error) {
       console.error('Ошибка при добавлении события:', error);
+    }
+  };
+
+  const markAsDone = async (id) => {
+    try {
+      await post(`health/complete/${id}`);
+      fetchHealthData();
+    } catch (err) {
+      console.error('Ошибка при отметке как выполненного', err);
     }
   };
 
@@ -156,6 +163,12 @@ export default function HealthWidget() {
             <div className={styles.eventDetails}>
               <div><strong>Место:</strong> {event.place}</div>
               {event.notes && <div><strong>Заметки:</strong> {event.notes}</div>}
+              {!event.completed && (
+                <button onClick={() => markAsDone(event.id)}>✅ Выполнено</button>
+              )}
+              {event.completed && (
+                <span className={styles.completedLabel}>✔ Завершено</span>
+              )}
             </div>
           </div>
         ))}

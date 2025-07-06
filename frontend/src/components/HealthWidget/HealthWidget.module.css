@@ -100,3 +100,9 @@
   .eventDetails div {
     margin-bottom: 5px;
   }
+
+  .completedLabel {
+    color: green;
+    font-weight: bold;
+    margin-left: 8px;
+  }
