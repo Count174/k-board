@@ -147,7 +147,7 @@ export default function HealthWidget() {
       </form>
 
       <div className={styles.events}>
-        {events.map(event => (
+        {events.filter(e => !e.completed).map(event => (
           <div key={event.id} className={styles.event}>
             <div className={styles.eventHeader}>
               <span className={styles.eventIcon}>
@@ -163,12 +163,9 @@ export default function HealthWidget() {
             <div className={styles.eventDetails}>
               <div><strong>Место:</strong> {event.place}</div>
               {event.notes && <div><strong>Заметки:</strong> {event.notes}</div>}
-              {!event.completed && (
-                <button onClick={() => markAsDone(event.id)}>✅ Выполнено</button>
-              )}
-              {event.completed && (
-                <span className={styles.completedLabel}>✔ Завершено</span>
-              )}
+              <button type="button" onClick={() => markAsDone(event.id)}>
+                ✅ Выполнено
+              </button>
             </div>
           </div>
         ))}
