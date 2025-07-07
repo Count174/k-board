@@ -97,7 +97,7 @@ const FinanceWidget = () => {
           <div className={styles.charts}>
             <div className={styles.chartBox}>
               <h4>Топ расходов</h4>
-              <ResponsiveContainer width="100%" height={180}>
+              <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
                   <Pie
                     data={categoryData}
@@ -119,7 +119,7 @@ const FinanceWidget = () => {
 
             <div className={styles.chartBox}>
               <h4>Динамика по месяцам</h4>
-              <ResponsiveContainer width="100%" height={180}>
+              <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={monthlyChartData}>
                   <XAxis dataKey="month" />
                   <YAxis />

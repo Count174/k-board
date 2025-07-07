@@ -56,18 +56,22 @@
 
 .charts {
   display: flex;
-  gap: 20px;
+  gap: 24px;
+  margin-top: 24px;
   flex-wrap: wrap;
 }
 
 .chartBox {
+  flex: 1;
+  min-width: 300px;
   background: white;
   border-radius: 20px;
-  padding: 20px;
-  box-shadow: 0px 10px 20px rgba(0, 0, 0, 0.05);
-  flex: 1;
-  min-height: 260px; /* фиксируем высоту */
-  overflow: hidden;
+  padding: 24px;
+  box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.05);
+  min-height: 300px; /* увеличена высота */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .chartBox h4 {
