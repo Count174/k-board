@@ -1,20 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import CardContainer from '../CardContainer/CardContainer';
-import styles from './FinanceWidget.module.css';
 import { get, post } from '../../api/api';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
-  PieChart, Pie, Cell
+  PieChart, Pie, Cell,
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
+import styles from './FinanceWidget.module.css';
 
-const COLORS = ['#8f94fb', '#4e54c8', '#ffbc42', '#6fcf97', '#e76f51'];
+const COLORS = ['#4e54c8', '#8f94fb', '#7ED6DF', '#FEBE8C', '#FEC260'];
 
-export const FinanceWidget = () => {
+const FinanceWidget = () => {
   const [transactions, setTransactions] = useState([]);
   const [amount, setAmount] = useState('');
   const [type, setType] = useState('income');
   const [category, setCategory] = useState('');
-  const [tab, setTab] = useState('analytics');
+  const [tab, setTab] = useState('overview');
   const [monthlyStats, setMonthlyStats] = useState({});
 
   useEffect(() => {
@@ -35,8 +34,7 @@ export const FinanceWidget = () => {
   const addTransaction = async () => {
     const value = parseFloat(amount);
     if (!isNaN(value) && category.trim() !== '') {
-      const newTx = { type, category, amount: value };
-      await post('finances', newTx);
+      await post('finances', { type, category, amount: value });
       await fetchTransactions();
       await fetchMonthlyStats();
       setAmount('');
@@ -44,139 +42,128 @@ export const FinanceWidget = () => {
     }
   };
 
-  const totalIncome = transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + t.amount, 0);
-  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((acc, t) => acc + t.amount, 0);
+  const totalIncome = transactions.filter(t => t.type === 'income')
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const totalExpense = transactions.filter(t => t.type === 'expense')
+    .reduce((acc, t) => acc + t.amount, 0);
+
   const balance = totalIncome - totalExpense;
 
-  const expenseCategories = transactions.filter(t => t.type === 'expense')
-    .reduce((acc, t) => {
+  const categoryData = Object.entries(transactions.reduce((acc, t) => {
+    if (t.type === 'expense') {
       acc[t.category] = (acc[t.category] || 0) + t.amount;
-      return acc;
-    }, {});
-
-  const topCategories = Object.entries(expenseCategories)
+    }
+    return acc;
+  }, {}))
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 3);
+    .map(([name, value], index) => ({
+      name: index < 3 ? name : 'Прочее',
+      value
+    }))
+    .reduce((acc, curr) => {
+      const found = acc.find(item => item.name === curr.name);
+      if (found) {
+        found.value += curr.value;
+      } else {
+        acc.push({ ...curr });
+      }
+      return acc;
+    }, []);
 
-  const otherTotal = Object.entries(expenseCategories)
-    .slice(3)
-    .reduce((acc, [, value]) => acc + value, 0);
-
-  if (otherTotal > 0) topCategories.push(['Прочее', otherTotal]);
-
-  const pieData = topCategories.map(([name, value]) => ({ name, value }));
-
-  const barData = Object.entries(monthlyStats).map(([month, stats]) => ({
+  const monthlyChartData = Object.entries(monthlyStats).map(([month, values]) => ({
     month,
-    income: stats.income || 0,
-    expense: stats.expense || 0
+    income: values.income || 0,
+    expense: values.expense || 0
   })).reverse();
 
   return (
-    <CardContainer title="Финансы">
-      <div className={styles.tabs}>
-        <button
-          className={tab === 'add' ? styles.activeTab : ''}
-          onClick={() => setTab('add')}
-        >Добавление</button>
-        <button
-          className={tab === 'analytics' ? styles.activeTab : ''}
-          onClick={() => setTab('analytics')}
-        >Аналитика</button>
+    <div className={styles.widget}>
+      <div className={styles.tabButtons}>
+        <button className={tab === 'overview' ? styles.active : ''} onClick={() => setTab('overview')}>💼 Обзор</button>
+        <button className={tab === 'add' ? styles.active : ''} onClick={() => setTab('add')}>➕ Добавить</button>
+        <button className={tab === 'list' ? styles.active : ''} onClick={() => setTab('list')}>📄 Список</button>
       </div>
 
+      {tab === 'overview' && (
+        <div className={styles.overview}>
+          <div className={styles.balanceCard}>
+            <span className={styles.balanceLabel}>Текущий баланс</span>
+            <span className={styles.balanceValue}>{balance.toFixed(0)} ₽</span>
+          </div>
+
+          <div className={styles.charts}>
+            <div className={styles.chartBox}>
+              <h4>Топ расходов</h4>
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie
+                    data={categoryData}
+                    dataKey="value"
+                    nameKey="name"
+                    innerRadius={50}
+                    outerRadius={80}
+                    label
+                  >
+                    {categoryData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                  <Legend />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className={styles.chartBox}>
+              <h4>Динамика по месяцам</h4>
+              <ResponsiveContainer width="100%" height={180}>
+                <LineChart data={monthlyChartData}>
+                  <XAxis dataKey="month" />
+                  <YAxis />
+                  <Tooltip />
+                  <Legend />
+                  <Line type="monotone" dataKey="income" stroke="#4e54c8" name="Доходы" />
+                  <Line type="monotone" dataKey="expense" stroke="#c62828" name="Расходы" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      )}
+
       {tab === 'add' && (
-        <div className={styles.finance}>
-          <div className={styles.total}>Баланс: {balance.toFixed(2)} ₽</div>
-          <div className={styles.inputGroup}>
-            <select value={type} onChange={(e) => setType(e.target.value)}>
-              <option value="income">Доход</option>
-              <option value="expense">Расход</option>
-            </select>
-            <input
-              type="text"
-              placeholder="Категория"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-            />
-            <input
-              type="number"
-              placeholder="Сумма"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-            <button onClick={addTransaction}>+</button>
-          </div>
+        <div className={styles.addForm}>
+          <select value={type} onChange={(e) => setType(e.target.value)}>
+            <option value="income">Доход</option>
+            <option value="expense">Расход</option>
+          </select>
+          <input
+            type="text"
+            placeholder="Категория"
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+          />
+          <input
+            type="number"
+            placeholder="Сумма"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+          />
+          <button onClick={addTransaction}>Добавить</button>
         </div>
       )}
 
-      {tab === 'analytics' && (
-        <div className={styles.analytics}>
-          <p>💰 <strong>Баланс:</strong> {balance.toFixed(2)} ₽</p>
-          <p>📈 <strong>Доходы:</strong> {totalIncome.toFixed(2)} ₽</p>
-          <p>📉 <strong>Расходы:</strong> {totalExpense.toFixed(2)} ₽</p>
-
-          <div className={styles.chartWrapper}>
-            <h4>📊 Расходы по категориям</h4>
-            <ResponsiveContainer width="100%" height={200}>
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={60}
-                  fill="#8884d8"
-                  label
-                >
-                  {pieData.map((_, index) => (
-                    <Cell key={index} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-
-          <div className={styles.chartWrapper}>
-            <h4>📆 Динамика по месяцам</h4>
-            <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={barData}>
-                <defs>
-                  <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#8f94fb" />
-                    <stop offset="100%" stopColor="#4e54c8" />
-                  </linearGradient>
-                  <linearGradient id="expenseGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#ff758c" />
-                    <stop offset="100%" stopColor="#ff7eb3" />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Bar
-                  dataKey="income"
-                  fill="url(#incomeGradient)"
-                  radius={[8, 8, 0, 0]}
-                  animationDuration={1000}
-                  animationEasing="ease-out"
-                />
-                <Bar
-                  dataKey="expense"
-                  fill="url(#expenseGradient)"
-                  radius={[8, 8, 0, 0]}
-                  animationDuration={1000}
-                  animationEasing="ease-out"
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+      {tab === 'list' && (
+        <ul className={styles.transactionList}>
+          {transactions.map(t => (
+            <li key={t.id} className={t.type === 'income' ? styles.income : styles.expense}>
+              {t.type === 'income' ? '⬆' : '⬇'} {t.amount} ₽ — {t.category} ({new Date(t.date).toLocaleDateString()})
+            </li>
+          ))}
+        </ul>
       )}
-    </CardContainer>
+    </div>
   );
 };
 
