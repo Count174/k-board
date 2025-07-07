@@ -1,45 +1,105 @@
 .tabs {
   display: flex;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+  justify-content: center;
 }
 
 .tabs button {
-  padding: 8px 16px;
+  padding: 8px 20px;
   border-radius: 12px;
   border: none;
-  background: #f1f3f5;
+  background: #1e1e2f;
   cursor: pointer;
-  font-weight: bold;
-  transition: background 0.3s;
+  font-weight: 600;
+  color: #aaa;
+  transition: 0.2s;
+}
+
+.tabs button:hover {
+  background: #2c2c40;
 }
 
 .activeTab {
-  background: linear-gradient(135deg, #4e54c8, #8f94fb);
+  background: linear-gradient(135deg, #6a5acd, #8a75ff);
+  color: white;
+}
+
+.analytics {
+  padding: 8px 0;
+  color: #f1f1f1;
+  font-family: 'Inter', sans-serif;
+}
+
+.analytics p {
+  margin: 6px 0;
+  font-size: 15px;
+}
+
+.analytics h3 {
+  margin-top: 16px;
+  margin-bottom: 10px;
+  font-size: 16px;
+  color: white;
+}
+
+.analytics h4 {
+  margin-top: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  color: #ddd;
+}
+
+.analytics ul {
+  padding-left: 0;
+  list-style: none;
+  margin-top: 6px;
+}
+
+.analytics li {
+  font-size: 14px;
+  color: #ccc;
+}
+
+.finance {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.total {
+  font-size: 22px;
+  font-weight: 600;
+  margin-bottom: 8px;
   color: white;
 }
 
 .inputGroup {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
 }
 
 .inputGroup select,
 .inputGroup input {
-  padding: 10px 12px;
+  padding: 10px 14px;
   border: none;
-  border-radius: 10px;
-  background: #f1f3f5;
+  border-radius: 12px;
+  background: #2a2a3f;
   font-size: 14px;
+  color: white;
   outline: none;
   flex: 1;
   min-width: 120px;
 }
 
+.inputGroup input::placeholder {
+  color: #777;
+}
+
 .inputGroup button {
-  background: linear-gradient(135deg, #4e54c8, #8f94fb);
+  background: linear-gradient(135deg, #6a5acd, #8a75ff);
   border: none;
   padding: 10px 16px;
   border-radius: 10px;
@@ -53,65 +113,44 @@
   list-style: none;
   padding: 0;
   margin: 0;
-  margin-top: 12px;
-  max-height: 200px;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .transactions li {
-  padding: 6px 10px;
-  border-radius: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
   font-size: 14px;
-  margin-bottom: 4px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  background: #1e1e2f;
+  color: white;
 }
 
 .income {
-  background: #e6f4ea;
-  color: #2e7d32;
+  border-left: 4px solid #5dd292;
 }
 
 .expense {
-  background: #fdecea;
-  color: #c62828;
-}
-
-.analytics,
-.tableView {
-  margin-top: 16px;
+  border-left: 4px solid #e57373;
 }
 
 .chartContainer {
-  margin-bottom: 24px;
-}
-
-.chartTitle {
-  font-weight: bold;
-  margin-bottom: 8px;
-}
-
-.categoryList {
+  background-color: #1a1a2e;
+  padding: 12px;
+  border-radius: 16px;
   margin-top: 16px;
+  color: white;
 }
 
-.categoryList ul {
-  list-style: none;
-  padding-left: 0;
-  font-size: 14px;
+.chartContainer h3 {
+  margin-bottom: 10px;
+  font-size: 16px;
+  color: white;
+  font-weight: 600;
 }
 
-.categoryList li {
-  margin-bottom: 4px;
-}
-
-.monthlyStats ul {
-  list-style: none;
-  padding-left: 0;
-  font-size: 14px;
-}
-
-.monthlyStats li {
-  margin-bottom: 4px;
+@media (max-width: 768px) {
+  .inputGroup {
+    flex-direction: column;
+  }
 }
