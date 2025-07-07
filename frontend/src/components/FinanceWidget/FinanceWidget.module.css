@@ -11,6 +11,7 @@
   background: #f1f3f5;
   cursor: pointer;
   font-weight: bold;
+  transition: background 0.3s;
 }
 
 .activeTab {
@@ -52,12 +53,19 @@
   list-style: none;
   padding: 0;
   margin: 0;
+  margin-top: 12px;
+  max-height: 200px;
+  overflow-y: auto;
 }
 
 .transactions li {
   padding: 6px 10px;
   border-radius: 8px;
   font-size: 14px;
+  margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .income {
@@ -70,11 +78,40 @@
   color: #c62828;
 }
 
-.analytics p {
-  margin: 6px 0;
+.analytics,
+.tableView {
+  margin-top: 16px;
+}
+
+.chartContainer {
+  margin-bottom: 24px;
+}
+
+.chartTitle {
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.categoryList {
+  margin-top: 16px;
 }
 
 .categoryList ul {
   list-style: none;
   padding-left: 0;
+  font-size: 14px;
+}
+
+.categoryList li {
+  margin-bottom: 4px;
+}
+
+.monthlyStats ul {
+  list-style: none;
+  padding-left: 0;
+  font-size: 14px;
+}
+
+.monthlyStats li {
+  margin-bottom: 4px;
 }

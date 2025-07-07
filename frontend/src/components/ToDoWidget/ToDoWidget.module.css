@@ -65,3 +65,11 @@
   text-decoration: line-through;
   color: #aaa;
 }
+
+.dateInput {
+  width: 100px;
+}
+
+.timeInput {
+  width: 80px;
+}

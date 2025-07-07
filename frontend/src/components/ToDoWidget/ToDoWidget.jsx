@@ -7,7 +7,7 @@ export const ToDoWidget = () => {
   const [tasks, setTasks] = useState([]);
   const [newTask, setNewTask] = useState('');
   const [dueDate, setDueDate] = useState('');
-  const [dueTime, setDueTime] = useState('12:00');
+  const [dueTime, setDueTime] = useState('');
 
   useEffect(() => {
     fetchTasks();
@@ -19,8 +19,9 @@ export const ToDoWidget = () => {
       const normalized = data.map((t) => ({
         id: t.id,
         text: t.text,
-        done: !!t.done,
-        dueDate: t.dueDate || null
+        dueDate: t.dueDate,
+        dueTime: t.dueTime,
+        done: !!t.done
       }));
       setTasks(normalized);
     } catch (error) {
@@ -31,21 +32,24 @@ export const ToDoWidget = () => {
   const addTask = async () => {
     if (newTask.trim()) {
       try {
-        const fullDueDate = dueDate ? `${dueDate} ${dueTime}` : null;
         const newTaskData = await post('todos', {
           text: newTask,
+          dueDate,
+          dueTime,
           done: false,
-          dueDate: fullDueDate
         });
 
         setTasks([...tasks, {
-          ...newTaskData,
-          done: !!newTaskData.completed
+          id: newTaskData.id,
+          text: newTask,
+          dueDate,
+          dueTime,
+          done: false,
         }]);
 
         setNewTask('');
         setDueDate('');
-        setDueTime('12:00');
+        setDueTime('');
       } catch (error) {
         console.error('Ошибка при добавлении задачи:', error);
       }
@@ -70,16 +74,19 @@ export const ToDoWidget = () => {
             value={newTask}
             onChange={(e) => setNewTask(e.target.value)}
             placeholder="Новая задача"
+            className={styles.taskInput}
           />
           <input
             type="date"
             value={dueDate}
             onChange={(e) => setDueDate(e.target.value)}
+            className={styles.dateInput}
           />
           <input
             type="time"
             value={dueTime}
             onChange={(e) => setDueTime(e.target.value)}
+            className={styles.timeInput}
           />
           <button onClick={addTask}>+</button>
         </div>
@@ -94,12 +101,9 @@ export const ToDoWidget = () => {
                   onChange={() => toggleTask(task.id)}
                 />
                 <span className={styles.checkmark}></span>
-                <span className={task.done ? styles.done : ''}>{task.text}</span>
-                {task.dueDate && (
-                  <span className={styles.dueDate}>
-                    {' '}— {new Date(task.dueDate).toLocaleString()}
-                  </span>
-                )}
+                <span className={task.done ? styles.done : ''}>
+                  {task.text} {task.dueDate && `(${task.dueDate}${task.dueTime ? ' ' + task.dueTime : ''})`}
+                </span>
               </label>
             </li>
           ))}
