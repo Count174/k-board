@@ -61,11 +61,13 @@
 }
 
 .chartBox {
-  flex: 1 1 48%;
-  background: #fff;
+  background: white;
+  border-radius: 20px;
   padding: 20px;
-  border-radius: 16px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+  box-shadow: 0px 10px 20px rgba(0, 0, 0, 0.05);
+  flex: 1;
+  min-height: 260px; /* фиксируем высоту */
+  overflow: hidden;
 }
 
 .chartBox h4 {

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { get, post } from '../../api/api';
 import {
   PieChart, Pie, Cell,
-  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, BarChart, Bar
 } from 'recharts';
 import styles from './FinanceWidget.module.css';
 
@@ -89,7 +89,9 @@ const FinanceWidget = () => {
         <div className={styles.overview}>
           <div className={styles.balanceCard}>
             <span className={styles.balanceLabel}>Текущий баланс</span>
-            <span className={styles.balanceValue}>{balance.toFixed(0)} ₽</span>
+            <span className={styles.balanceValue}>
+              {balance.toLocaleString('ru-RU')} ₽
+            </span>
           </div>
 
           <div className={styles.charts}>
@@ -118,14 +120,14 @@ const FinanceWidget = () => {
             <div className={styles.chartBox}>
               <h4>Динамика по месяцам</h4>
               <ResponsiveContainer width="100%" height={180}>
-                <LineChart data={monthlyChartData}>
+                <BarChart data={monthlyChartData}>
                   <XAxis dataKey="month" />
                   <YAxis />
                   <Tooltip />
                   <Legend />
-                  <Line type="monotone" dataKey="income" stroke="#4e54c8" name="Доходы" />
-                  <Line type="monotone" dataKey="expense" stroke="#c62828" name="Расходы" />
-                </LineChart>
+                  <Bar dataKey="income" fill="#4e54c8" name="Доходы" radius={[8, 8, 0, 0]} />
+                  <Bar dataKey="expense" fill="#c62828" name="Расходы" radius={[8, 8, 0, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </div>
