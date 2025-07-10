@@ -6,8 +6,11 @@ import styles from './ToDoWidget.module.css';
 export const ToDoWidget = () => {
   const [tasks, setTasks] = useState([]);
   const [newTask, setNewTask] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [dueTime, setDueTime] = useState('');
+  const today = new Date();
+  const defaultDate = today.toISOString().split('T')[0];
+  const defaultTime = '12:00';
+  const [dueDate, setDueDate] = useState(defaultDate);
+  const [dueTime, setDueTime] = useState(defaultTime);
 
   useEffect(() => {
     fetchTasks();
@@ -78,17 +81,17 @@ export const ToDoWidget = () => {
           />
           <input
             type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
+            value={formData.date}
+            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
             className={styles.dateInput}
           />
           <input
             type="time"
-            value={dueTime}
-            onChange={(e) => setDueTime(e.target.value)}
+            value={formData.time}
+            onChange={(e) => setFormData({ ...formData, time: e.target.value })}
             className={styles.timeInput}
           />
-          <button onClick={addTask}>+</button>
+          <button onClick={addTask} className={styles.addButton}>+</button>
         </div>
 
         <ul className={styles.taskList}>

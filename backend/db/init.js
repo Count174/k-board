@@ -20,6 +20,8 @@ db.serialize(() => {
     CREATE TABLE IF NOT EXISTS todos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       text TEXT NOT NULL,
+      due_date TEXT,
+      time TEXT,
       completed INTEGER DEFAULT 0
     )
   `);
