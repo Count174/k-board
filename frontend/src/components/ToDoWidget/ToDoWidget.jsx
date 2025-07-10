@@ -5,10 +5,11 @@ import styles from './ToDoWidget.module.css';
 
 export const ToDoWidget = () => {
   const [tasks, setTasks] = useState([]);
-  const [newTask, setNewTask] = useState('');
   const today = new Date();
   const defaultDate = today.toISOString().split('T')[0];
   const defaultTime = '12:00';
+
+  const [newTask, setNewTask] = useState('');
   const [dueDate, setDueDate] = useState(defaultDate);
   const [dueTime, setDueTime] = useState(defaultTime);
 
@@ -51,8 +52,8 @@ export const ToDoWidget = () => {
         }]);
 
         setNewTask('');
-        setDueDate('');
-        setDueTime('');
+        setDueDate(defaultDate);
+        setDueTime(defaultTime);
       } catch (error) {
         console.error('Ошибка при добавлении задачи:', error);
       }
@@ -81,14 +82,14 @@ export const ToDoWidget = () => {
           />
           <input
             type="date"
-            value={formData.date}
-            onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+            value={dueDate}
+            onChange={(e) => setDueDate(e.target.value)}
             className={styles.dateInput}
           />
           <input
             type="time"
-            value={formData.time}
-            onChange={(e) => setFormData({ ...formData, time: e.target.value })}
+            value={dueTime}
+            onChange={(e) => setDueTime(e.target.value)}
             className={styles.timeInput}
           />
           <button onClick={addTask} className={styles.addButton}>+</button>
