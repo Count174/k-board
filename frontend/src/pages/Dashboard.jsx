@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react';
+import { get } from '../api/api';
 import styles from '../styles/Dashboard.module.css';
 import ToDoWidget from '../components/ToDoWidget/ToDoWidget';
 import HealthWidget from '../components/HealthWidget/HealthWidget';
@@ -6,8 +8,22 @@ import FinanceWidget from '../components/FinanceWidget/FinanceWidget';
 import GoalsWidget from '../components/GoalsWidget/GoalsWidget';
 
 export default function Dashboard() {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    get('auth/me')
+      .then(data => setUser(data))
+      .catch(() => setUser(null)); // если не авторизован
+  }, []);
+
   return (
     <div className={styles.dashboard}>
+      {user && (
+        <div className={styles.greeting}>
+          Добрый день, {user.email}
+        </div>
+      )}
+
       <div className={styles.row}>
         <div className={styles.widget}>
           <ToDoWidget />

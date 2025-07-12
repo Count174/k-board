@@ -2,7 +2,7 @@ const db = require('../db/db');
 
 // Получить все цели
 exports.getAll = (req, res) => {
-  db.all("SELECT * FROM goals WHERE user_id = ?", [1], (err, rows) => {
+  db.all("SELECT * FROM goals WHERE user_id = ?", [req.userId], (err, rows) => {
     if (err) return res.status(500).send(err);
     res.json(rows);
   });
@@ -26,7 +26,7 @@ exports.create = (req, res) => {
   db.run(
     `INSERT INTO goals (user_id, title, current, target, unit, is_binary, image)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [1, title, current, target, unit, is_binary ? 1 : 0, image],
+    [req.userId, title, current, target, unit, is_binary ? 1 : 0, image],
     function (err) {
       if (err) return res.status(500).send(err);
       res.status(201).json({ id: this.lastID });
@@ -41,7 +41,7 @@ exports.update = (req, res) => {
 
   db.run(
     "UPDATE goals SET current = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?",
-    [current, id, 1],
+    [current, id, req.userId],
     function (err) {
       if (err) return res.status(500).send(err);
       res.status(200).send();
@@ -52,7 +52,7 @@ exports.update = (req, res) => {
 // Удалить цель
 exports.remove = (req, res) => {
   const { id } = req.params;
-  db.run("DELETE FROM goals WHERE id = ? AND user_id = ?", [id, 1], function (err) {
+  db.run("DELETE FROM goals WHERE id = ? AND user_id = ?", [id, req.userId], function (err) {
     if (err) return res.status(500).send(err);
     res.status(204).send();
   });

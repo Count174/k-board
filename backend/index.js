@@ -4,6 +4,7 @@ const app = express();
 const PORT = 3002;
 const path = require('path');
 const basicAuth = require('express-basic-auth');
+const session = require('express-session');
 
 const frontendPath = path.join(__dirname, '../frontend/dist');
 const publicPath = path.join(__dirname, '../public');
@@ -13,6 +14,7 @@ const todosRoutes = require('./routes/todos');
 const goalsRoutes = require('./routes/goals');
 const healthRoutes = require('./routes/health');
 const nutritionRoutes = require('./routes/nutrition');
+const authRoutes = require('./routes/auth');
 
 app.use(cors());
 app.use(express.json());
@@ -29,6 +31,16 @@ app.use('/api/todos', todosRoutes);
 app.use('/api/goals', goalsRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/nutrition', nutritionRoutes);
+app.use('/api', authRoutes);
+app.use(session({
+  secret: 'your-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: false, // true если HTTPS
+    maxAge: 1000 * 60 * 60 * 24 // 1 день
+  }
+}));
 
 // Статика фронта
 app.use('/k-board/images', express.static(path.join(publicPath, 'images')));
