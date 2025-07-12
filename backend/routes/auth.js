@@ -56,7 +56,7 @@ router.get('/me', (req, res) => {
     db.get('SELECT id, name, email FROM users WHERE id = ?', [userId], (err, row) => {
       if (err) return res.status(500).json({ error: 'Ошибка сервера' });
       if (!row) return res.status(404).json({ error: 'Пользователь не найден' });
-      res.json({ id: row.id, email: row.email });
+      res.json({ id: row.id, email: row.email, name: row.name });
     });
   });
 
