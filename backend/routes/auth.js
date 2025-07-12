@@ -34,8 +34,9 @@ router.post('/login', (req, res) => {
     if (!valid) return res.status(401).json({ error: 'Неверные данные' });
 
     res.cookie('userId', user.id, {
-      httpOnly: true,
-      maxAge: 7 * 24 * 60 * 60 * 1000
+      httpOnly: false,
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: '/k-board'
     });
     res.json({ success: true, userId: user.id });
   });
