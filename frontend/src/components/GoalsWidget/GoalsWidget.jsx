@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { get, post, remove } from '../../api/api';
 import styles from './GoalsWidget.module.css';
 
@@ -10,10 +10,13 @@ export default function GoalsWidget() {
     current: 0,
     target: '',
     unit: '',
-    is_binary: false,
+    is_binary: false
   });
   const [goalToDelete, setGoalToDelete] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  const modalRef = useRef(null);
+  const deleteRef = useRef(null);
 
   const images = [
     '/k-board/images/moscow.jpg',
@@ -25,6 +28,19 @@ export default function GoalsWidget() {
   useEffect(() => {
     fetchGoals();
   }, []);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showModal && modalRef.current && !modalRef.current.contains(event.target)) {
+        setShowModal(false);
+      }
+      if (showDeleteConfirm && deleteRef.current && !deleteRef.current.contains(event.target)) {
+        setShowDeleteConfirm(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showModal, showDeleteConfirm]);
 
   const fetchGoals = async () => {
     try {
@@ -79,7 +95,7 @@ export default function GoalsWidget() {
 
       {showModal && (
         <div className={styles.modalOverlay}>
-          <div className={styles.modalContent}>
+          <div className={styles.modalContent} ref={modalRef}>
             <h3>Новая цель</h3>
             <form onSubmit={handleCreate} className={styles.goalForm}>
               <input type="text" placeholder="Название" value={newGoal.title} onChange={(e) => setNewGoal({ ...newGoal, title: e.target.value })} required />
@@ -105,7 +121,7 @@ export default function GoalsWidget() {
 
       {showDeleteConfirm && (
         <div className={styles.modalOverlay}>
-          <div className={styles.modalContent}>
+          <div className={styles.modalContent} ref={deleteRef}>
             <h3>Удалить цель?</h3>
             <p>Вы уверены, что хотите удалить цель? Это действие нельзя отменить.</p>
             <div className={styles.modalButtons}>
@@ -123,7 +139,7 @@ export default function GoalsWidget() {
           goals.map(goal => {
             const progress = goal.is_binary ? goal.current * 100 : (goal.current / goal.target) * 100;
             return (
-              <div key={goal.id} className={styles.goalCard} style={{ backgroundImage: `url(${goal.image})` }}>
+              <div key={goal.id} className={styles.goalCard} style={{ background: `url(${goal.image}) center center / cover no-repeat` }}>
                 <button className={styles.deleteIcon} onClick={() => { setGoalToDelete(goal.id); setShowDeleteConfirm(true); }}>🗑</button>
                 <div className={styles.overlay}>
                   <div className={styles.goalHeader}>
