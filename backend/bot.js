@@ -19,6 +19,13 @@ const helpMessage = `🛠 Возможности:
 /goals — показать цели
 /train — добавить тренировку (через кнопки)`;
 
+function getUserId(chatId, callback) {
+  db.get('SELECT user_id FROM telegram_users WHERE chat_id = ?', [chatId], (err, row) => {
+    if (err || !row) return callback(null);
+    callback(row.user_id);
+  });
+}
+
 // ========= ОБРАБОТКА ВСЕХ СООБЩЕНИЙ ========= //
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
@@ -36,10 +43,12 @@ bot.on('message', async (msg) => {
       const [, sign, amountStr, category] = match;
       const type = sign === '+' ? 'income' : 'expense';
       const amount = parseFloat(amountStr);
-
+      getUserId(chatId, (userId) => {
+        if (!userId) return bot.sendMessage(chatId, '❌ Вы не привязаны к пользователю в системе.');
+      });
       db.run(
-        'INSERT INTO finances (type, category, amount) VALUES (?, ?, ?)',
-        [type, category, amount],
+        'INSERT INTO finances (user_id, type, category, amount) VALUES (?, ?, ?, ?)',
+        [userId, type, category, amount],
         (err) => {
           if (err) {
             console.error(err);
@@ -56,7 +65,10 @@ bot.on('message', async (msg) => {
   if (text.startsWith('/todo ')) {
     const task = text.slice(6).trim();
     if (!task) return bot.sendMessage(chatId, '⚠️ Укажите текст задачи.');
-    db.run('INSERT INTO todos (text) VALUES (?)', [task], (err) => {
+    getUserId(chatId, (userId) => {
+      if (!userId) return bot.sendMessage(chatId, '❌ Вы не привязаны к пользователю в системе.');
+    });
+    db.run('INSERT INTO todos (text, user_id) VALUES (?, ?)', [task, userId], (err) => {
       if (err) return bot.sendMessage(chatId, '❌ Ошибка при добавлении задачи.');
       bot.sendMessage(chatId, `✅ Задача добавлена: ${task}`);
     });
@@ -137,9 +149,12 @@ function handleTrainingSteps(chatId, text) {
     bot.sendMessage(chatId, 'Введите заметки (или "-" если нет):');
   } else if (step === 'notes') {
     data.notes = text === '-' ? '' : text;
+    getUserId(chatId, (userId) => {
+      if (!userId) return bot.sendMessage(chatId, '❌ Вы не привязаны к пользователю в системе.');
+    });
     db.run(
-      'INSERT INTO health (type, date, time, place, activity, notes) VALUES (?, ?, ?, ?, ?, ?)',
-      [data.type, data.date, data.time, data.place, data.activity, data.notes],
+      'INSERT INTO health (type, date, time, place, activity, notes, user_id) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [data.type, data.date, data.time, data.place, data.activity, data.notes, userId],
       (err) => {
         if (err) {
           console.error(err);
