@@ -16,6 +16,7 @@ const goalsRoutes = require('./routes/goals');
 const healthRoutes = require('./routes/health');
 const nutritionRoutes = require('./routes/nutrition');
 const authRoutes = require('./routes/auth');
+const telegramRoutes = require('./routes/telegram');
 
 app.use(cors());
 app.use(express.json());
@@ -33,6 +34,7 @@ app.use('/api/todos', todosRoutes);
 app.use('/api/goals', goalsRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/nutrition', nutritionRoutes);
+app.use('/api/telegram', telegramRoutes);
 app.use('/api/auth', authRoutes);
 app.use(session({
   secret: 'your-secret-key',

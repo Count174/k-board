@@ -1,0 +1,52 @@
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+  }
+  
+  .modal {
+    background: white;
+    padding: 24px;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 420px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    position: relative;
+  }
+  
+  h3 {
+    margin-top: 0;
+  }
+  
+  .token {
+    display: inline-block;
+    background: #f4f4f4;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-family: monospace;
+    margin: 8px 0;
+    font-size: 16px;
+  }
+  
+  .note {
+    font-size: 13px;
+    color: #888;
+    margin-top: 12px;
+  }
+  
+  .closeBtn {
+    margin-top: 16px;
+    padding: 10px 16px;
+    background-color: #5562ea;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+  }

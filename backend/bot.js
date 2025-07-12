@@ -3,6 +3,7 @@ const TelegramBot = require('node-telegram-bot-api');
 const db = require('./db/db');
 const dayjs = require('dayjs');
 const cron = require('node-cron');
+const crypto = require('crypto');
 
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
@@ -17,6 +18,47 @@ const helpMessage = `🛠 Возможности:
 /tasks — незавершённые задачи
 /goals — показать цели
 /train — добавить тренировку (через кнопки)`;
+
+// ========= Старт работы и получение токена ========= //
+bot.onText(/\/start/, (msg) => {
+  const chatId = msg.chat.id;
+  const welcome = `👋 Добро пожаловать в K-Board Bot!
+
+Чтобы подключить Telegram к своему аккаунту, введите токен, полученный в личном кабинете, например:
+
+<code>/connect abc123</code>`;
+  bot.sendMessage(chatId, welcome, { parse_mode: 'HTML' });
+});
+
+// ========= Подключение Telegram к аккаунту ========= //
+bot.onText(/\/connect (.+)/, (msg, match) => {
+  const chatId = msg.chat.id;
+  const token = match[1].trim();
+
+  db.get(`SELECT user_id FROM telegram_tokens WHERE token = ? AND used = 0`, [token], (err, row) => {
+    if (err) {
+      console.error(err);
+      return bot.sendMessage(chatId, '❌ Произошла ошибка, попробуйте позже.');
+    }
+
+    if (!row) {
+      return bot.sendMessage(chatId, '❌ Токен не найден или уже использован. Убедитесь, что вы скопировали его полностью.');
+    }
+
+    const userId = row.user_id;
+
+    db.run('INSERT OR REPLACE INTO telegram_users (user_id, chat_id) VALUES (?, ?)', [userId, chatId], (insertErr) => {
+      if (insertErr) {
+        console.error(insertErr);
+        return bot.sendMessage(chatId, '❌ Не удалось связать Telegram с аккаунтом.');
+      }
+
+      db.run('UPDATE telegram_tokens SET used = 1 WHERE token = ?', [token]);
+
+      bot.sendMessage(chatId, '✅ Telegram успешно привязан к вашему аккаунту! Теперь вы будете получать уведомления.');
+    });
+  });
+});
 
 // ========= УТИЛИТА ========= //
 function getUserId(chatId, callback) {

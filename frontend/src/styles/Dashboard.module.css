@@ -40,6 +40,57 @@
   color: #2c3e50;
 }
 
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f7f7f7;
+  padding: 12px 24px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
+
+.profileIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #ddd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  font-size: 18px;
+  font-weight: bold;
+  color: #444;
+}
+
+.dropdown {
+  position: absolute;
+  top: 42px;
+  right: 0;
+  background: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  padding: 8px 0;
+  z-index: 1000;
+  min-width: 180px;
+}
+
+.dropdown button {
+  width: 100%;
+  text-align: left;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.dropdown button:hover {
+  background-color: #f0f0f0;
+}
+
 /* Адаптивность */
 @media (max-width: 1024px) {
   .row {
