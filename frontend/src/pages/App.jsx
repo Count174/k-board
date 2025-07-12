@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Dashboard from './Dashboard';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
+import LoginPage from './LoginPage';
+import RegisterPage from './RegisterPage';
 import '../styles/index.css';
 
 function PrivateRoute({ children }) {
