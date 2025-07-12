@@ -110,9 +110,9 @@ export default function GoalsWidget() {
               <input type="text" placeholder="Название" value={newGoal.title} onChange={(e) => setNewGoal({ ...newGoal, title: e.target.value })} required />
               <input type="number" placeholder="Прогресс" value={newGoal.current} onChange={(e) => setNewGoal({ ...newGoal, current: parseFloat(e.target.value) })} />
               <input type="number" placeholder="Цель" value={newGoal.target} onChange={(e) => setNewGoal({ ...newGoal, target: parseFloat(e.target.value) })} required />
-              <input type="text" placeholder="Единица" value={newGoal.unit} onChange={(e) => setNewGoal({ ...newGoal, unit: e.target.value })} />
+              <input type="text" placeholder="Единица измерения (например ₽)" value={newGoal.unit} onChange={(e) => setNewGoal({ ...newGoal, unit: e.target.value })} />
               <label className={styles.checkboxLabel}>
-                <input type="checkbox" checked={newGoal.is_binary} onChange={(e) => setNewGoal({ ...newGoal, is_binary: e.target.checked })} /> Бинарная цель
+                <input type="checkbox" checked={newGoal.is_binary} onChange={(e) => setNewGoal({ ...newGoal, is_binary: e.target.checked })} /> Бинарная цель (выполнено/не выполнено)
               </label>
               <select value={newGoal.image} onChange={(e) => setNewGoal({ ...newGoal, image: e.target.value })}>
                 {images.map(img => (

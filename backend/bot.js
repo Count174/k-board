@@ -1,6 +1,8 @@
 require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const db = require('./db/db');
+const dayjs = require('dayjs');
+const today = dayjs().format('YYYY-MM-DD');
 
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
@@ -163,25 +165,72 @@ const motivationalQuotes = [
 ];
 
 // Cron: каждый день в 8 утра по МСК (05:00 UTC)
-cron.schedule('0 5 * * *', () => {
-    const chatId = process.env.CHAT_ID;
-    if (!chatId) return console.error('❌ CHAT_ID не задан в .env');
-  
-    db.all('SELECT title, progress, target FROM goals', [], (err, rows) => {
-      if (err) {
-        console.error('❌ Ошибка получения целей из БД:', err);
-        return;
-      }
-      if (!rows.length) {
-        console.log('📭 Нет целей для напоминания');
-        return;
-      }
-  
-      const list = rows.map(g => `🎯 ${g.title} — ${Math.round((g.progress / g.target) * 100)}%`).join('\n');
-      const quote = motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)];
-  
-      bot.sendMessage(chatId, `${quote}\n\n${list}`)
-        .then(() => console.log('✅ Напоминание по целям отправлено'))
-        .catch((err) => console.error('❌ Ошибка отправки сообщения:', err));
+cron.schedule('0 5 * * *', async () => {
+  const chatId = process.env.CHAT_ID;
+  if (!chatId) return console.error('❌ CHAT_ID не задан в .env');
+
+  // Получаем имя пользователя из Telegram
+  let firstName = 'пользователь';
+  try {
+    const chat = await bot.getChat(chatId);
+    firstName = chat.first_name || 'пользователь';
+  } catch (err) {
+    console.warn('⚠️ Не удалось получить имя из Telegram, используем дефолтное');
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+
+  // Здоровье на сегодня
+  const healthList = await new Promise((resolve) => {
+    db.all('SELECT type, time, activity FROM health WHERE date = ? AND completed = 0 ORDER BY time', [today], (err, rows) => {
+      if (err || !rows.length) return resolve('');
+      const formatted = rows.map(h => {
+        let emoji = '🏥';
+        if (h.type === 'training') emoji = '💪';
+        else if (h.type === 'doctor') emoji = '👨‍⚕️';
+        else if (h.type === 'analysis') emoji = '🧪';
+        else if (h.type === 'medication') emoji = '💊';
+        return `${emoji} ${h.time} — ${h.activity}`;
+      }).join('\n');
+      resolve(formatted);
     });
   });
+
+  // Незавершенные задачи
+  const taskList = await new Promise((resolve) => {
+    db.all('SELECT text FROM todos WHERE completed = 0 ORDER BY due_date IS NULL, due_date ASC', [], (err, rows) => {
+      if (err || !rows.length) return resolve('');
+      const formatted = rows.map(r => `• ${r.text}`).join('\n');
+      resolve(formatted);
+    });
+  });
+
+  // Цели
+  const goalsList = await new Promise((resolve) => {
+    db.all('SELECT title, current, target, unit, is_binary FROM goals ORDER BY updated_at DESC', [], (err, rows) => {
+      if (err || !rows.length) return resolve('');
+      const formatted = rows.map(g => {
+        const percent = g.is_binary ? (g.current >= 1 ? 100 : 0) : Math.round((g.current / g.target) * 100);
+        return `• ${g.title} — ${percent}%`;
+      }).join('\n');
+      resolve(formatted);
+    });
+  });
+
+  // Мотивационная фраза
+  const quote = motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)];
+
+  // Финальное сообщение
+  const message =
+    `Доброе утро, ${firstName} 👋\n\n` +
+    `Сегодня по планам:\n\n` +
+    (healthList ? `💪 Здоровье\n${healthList}\n\n` : '') +
+    (taskList ? `☑️ Незавершённые задачи\n${taskList}\n\n` : '') +
+    (goalsList ? `🎯 Долгосрочные цели\n${goalsList}\n\n` : '') +
+    `🔥 ${quote}\nХорошего дня, ${firstName}!`;
+
+  // Отправка
+  bot.sendMessage(chatId, message)
+    .then(() => console.log('✅ Утреннее сообщение отправлено'))
+    .catch((err) => console.error('❌ Ошибка отправки сообщения:', err));
+});
