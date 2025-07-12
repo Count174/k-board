@@ -10,7 +10,7 @@ export default function GoalsWidget() {
     current: 0,
     target: '',
     unit: '',
-    is_binary: false
+    is_binary: false,
   });
   const [goalToDelete, setGoalToDelete] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -86,7 +86,7 @@ export default function GoalsWidget() {
               <input type="number" placeholder="Прогресс" value={newGoal.current} onChange={(e) => setNewGoal({ ...newGoal, current: parseFloat(e.target.value) })} />
               <input type="number" placeholder="Цель" value={newGoal.target} onChange={(e) => setNewGoal({ ...newGoal, target: parseFloat(e.target.value) })} required />
               <input type="text" placeholder="Единица" value={newGoal.unit} onChange={(e) => setNewGoal({ ...newGoal, unit: e.target.value })} />
-              <label>
+              <label className={styles.checkboxLabel}>
                 <input type="checkbox" checked={newGoal.is_binary} onChange={(e) => setNewGoal({ ...newGoal, is_binary: e.target.checked })} /> Бинарная цель
               </label>
               <select value={newGoal.image} onChange={(e) => setNewGoal({ ...newGoal, image: e.target.value })}>
@@ -124,6 +124,7 @@ export default function GoalsWidget() {
             const progress = goal.is_binary ? goal.current * 100 : (goal.current / goal.target) * 100;
             return (
               <div key={goal.id} className={styles.goalCard} style={{ backgroundImage: `url(${goal.image})` }}>
+                <button className={styles.deleteIcon} onClick={() => { setGoalToDelete(goal.id); setShowDeleteConfirm(true); }}>🗑</button>
                 <div className={styles.overlay}>
                   <div className={styles.goalHeader}>
                     <h3>{goal.title}</h3>
@@ -136,7 +137,6 @@ export default function GoalsWidget() {
                     <span className={styles.numbers}>{goal.current}{goal.unit} / {goal.target}{goal.unit}</span>
                   </div>
                   <input type="range" min="0" max={goal.is_binary ? 1 : goal.target} value={goal.current} onChange={(e) => updateProgress(goal.id, e.target.value)} className={styles.slider} step={goal.is_binary ? 1 : goal.target / 100} />
-                  <button className={styles.deleteIcon} onClick={() => { setGoalToDelete(goal.id); setShowDeleteConfirm(true); }}>🗑</button>
                 </div>
               </div>
             );
