@@ -75,6 +75,7 @@
   padding: 8px 0;
   z-index: 1000;
   min-width: 180px;
+  color: #000;
 }
 
 .dropdown button {

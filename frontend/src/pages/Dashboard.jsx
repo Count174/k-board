@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { get } from '../api/api';
 import styles from '../styles/Dashboard.module.css';
 import ToDoWidget from '../components/ToDoWidget/ToDoWidget';
@@ -13,12 +13,28 @@ export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showTelegramModal, setShowTelegramModal] = useState(false);
+  const menuRef = useRef(null);
 
   useEffect(() => {
     get('auth/me')
       .then(data => setUser(data))
       .catch(() => setUser(null));
   }, []);
+
+  // Закрытие дропдауна при клике вне
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false);
+      }
+    };
+    if (menuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [menuOpen]);
 
   const handleLogout = async () => {
     await fetch('/k-board/api/auth/logout', { method: 'POST', credentials: 'include' });
@@ -32,7 +48,7 @@ export default function Dashboard() {
           <div className={styles.greeting}>
             Добрый день, {user.name}
           </div>
-          <div className={styles.menuContainer}>
+          <div className={styles.menuContainer} ref={menuRef}>
             <User onClick={() => setMenuOpen(!menuOpen)} className={styles.userIcon} />
             {menuOpen && (
               <div className={styles.dropdown}>
