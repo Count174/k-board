@@ -10,9 +10,10 @@ export default function RegisterPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch('/k-board/api/register', {
+      const res = await fetch('/k-board/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(form),
       });
 
@@ -31,7 +32,7 @@ export default function RegisterPage() {
   return (
     <div className={styles.authContainer}>
       <h2>Регистрация</h2>
-      <form onSubmit={handleSubmit} className={styles.auth-form}>
+      <form onSubmit={handleSubmit} className={styles.form}>
         <input
           type="email"
           placeholder="Email"
@@ -46,9 +47,12 @@ export default function RegisterPage() {
           onChange={(e) => setForm({ ...form, password: e.target.value })}
           required
         />
-        {error && <p className={styles.error-text}>{error}</p>}
+        {error && <p className={styles.error}>{error}</p>}
         <button type="submit">Зарегистрироваться</button>
       </form>
+      <p>
+        Уже есть аккаунт? <a href="/k-board/login">Войти</a>
+      </p>
     </div>
   );
 }

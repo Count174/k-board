@@ -27,9 +27,9 @@ export default function LoginPage() {
 
   return (
     <div className={styles.authContainer}>
-      <h2 className={styles.title}>Sign in</h2>
+      <h2 className={styles.title}>Войти в k-board</h2>
       <p className={styles.subtext}>
-        or <a href="/register">create an account</a>
+        или <a href="/k-board/register">зарегистрироваться</a>
       </p>
       <form onSubmit={handleLogin} className={styles.form}>
         <input
@@ -46,13 +46,8 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
           required
         />
-        <div className={styles.checkboxRow}>
-          <input type="checkbox" id="remember" />
-          <label htmlFor="remember">Remember me</label>
-        </div>
         {error && <div className={styles.error}>{error}</div>}
         <button type="submit" className={styles.primaryButton}>Sign in</button>
-        <button type="button" className={styles.googleButton}>Sign in with Google</button>
       </form>
       <p className={styles.forgot}>
         <a href="#">Forgotten your password?</a>
