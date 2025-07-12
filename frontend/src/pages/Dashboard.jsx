@@ -20,7 +20,7 @@ export default function Dashboard() {
     <div className={styles.dashboard}>
       {user && (
         <div className={styles.greeting}>
-          Добрый день, {user.email}
+          Добрый день, {user.name}
         </div>
       )}
 

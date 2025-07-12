@@ -33,6 +33,13 @@ export default function RegisterPage() {
     <div className={styles.authContainer}>
       <h2>Регистрация</h2>
       <form onSubmit={handleSubmit} className={styles.form}>
+      <input
+          type="text"
+          placeholder="Ваше имя"
+          value={form.username}
+          onChange={(e) => setForm({ ...form, username: e.target.value })}
+          required
+        />
         <input
           type="email"
           placeholder="Email"
