@@ -1,18 +1,19 @@
 import { useState, useEffect } from 'react';
-import { get, post } from '../../api/api';
+import { get, post, remove } from '../../api/api';
 import styles from './GoalsWidget.module.css';
 
 export default function GoalsWidget() {
   const [goals, setGoals] = useState([]);
-  const [formVisible, setFormVisible] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [newGoal, setNewGoal] = useState({
     title: '',
     current: 0,
     target: '',
     unit: '',
-    is_binary: false,
-    image: '/k-board/images/default.jpg'
+    is_binary: false
   });
+  const [goalToDelete, setGoalToDelete] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const images = [
     '/k-board/images/moscow.jpg',
@@ -54,65 +55,65 @@ export default function GoalsWidget() {
         is_binary: false,
         image: '/k-board/images/default.jpg'
       });
-      setFormVisible(false);
+      setShowModal(false);
     } catch (error) {
       console.error('Ошибка при создании цели:', error);
+    }
+  };
+
+  const handleDelete = async () => {
+    try {
+      await remove(`goals/${goalToDelete}`);
+      fetchGoals();
+      setGoalToDelete(null);
+      setShowDeleteConfirm(false);
+    } catch (error) {
+      console.error('Ошибка при удалении цели:', error);
     }
   };
 
   return (
     <div className={styles.widget}>
       <h2 className={styles.title}>Мои цели</h2>
+      <button onClick={() => setShowModal(true)} className={styles.createButton}>➕ Новая цель</button>
 
-      <button onClick={() => setFormVisible(!formVisible)} className={styles.toggleButton}>
-        {formVisible ? 'Отмена' : '➕ Новая цель'}
-      </button>
+      {showModal && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent}>
+            <h3>Новая цель</h3>
+            <form onSubmit={handleCreate} className={styles.goalForm}>
+              <input type="text" placeholder="Название" value={newGoal.title} onChange={(e) => setNewGoal({ ...newGoal, title: e.target.value })} required />
+              <input type="number" placeholder="Прогресс" value={newGoal.current} onChange={(e) => setNewGoal({ ...newGoal, current: parseFloat(e.target.value) })} />
+              <input type="number" placeholder="Цель" value={newGoal.target} onChange={(e) => setNewGoal({ ...newGoal, target: parseFloat(e.target.value) })} required />
+              <input type="text" placeholder="Единица" value={newGoal.unit} onChange={(e) => setNewGoal({ ...newGoal, unit: e.target.value })} />
+              <label>
+                <input type="checkbox" checked={newGoal.is_binary} onChange={(e) => setNewGoal({ ...newGoal, is_binary: e.target.checked })} /> Бинарная цель
+              </label>
+              <select value={newGoal.image} onChange={(e) => setNewGoal({ ...newGoal, image: e.target.value })}>
+                {images.map(img => (
+                  <option key={img} value={img}>{img.split('/').pop()}</option>
+                ))}
+              </select>
+              <div className={styles.modalButtons}>
+                <button type="button" onClick={() => setShowModal(false)}>Отмена</button>
+                <button type="submit">Создать</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
-      {formVisible && (
-        <form onSubmit={handleCreate} className={styles.goalForm}>
-          <input
-            type="text"
-            placeholder="Название цели"
-            value={newGoal.title}
-            onChange={(e) => setNewGoal({ ...newGoal, title: e.target.value })}
-            required
-          />
-          <input
-            type="number"
-            placeholder="Текущий прогресс"
-            value={newGoal.current}
-            onChange={(e) => setNewGoal({ ...newGoal, current: parseFloat(e.target.value) })}
-          />
-          <input
-            type="number"
-            placeholder="Целевое значение"
-            value={newGoal.target}
-            onChange={(e) => setNewGoal({ ...newGoal, target: parseFloat(e.target.value) })}
-            required
-          />
-          <input
-            type="text"
-            placeholder="Единица измерения"
-            value={newGoal.unit}
-            onChange={(e) => setNewGoal({ ...newGoal, unit: e.target.value })}
-          />
-          <label>
-            <input
-              type="checkbox"
-              checked={newGoal.is_binary}
-              onChange={(e) => setNewGoal({ ...newGoal, is_binary: e.target.checked })}
-            /> Бинарная цель
-          </label>
-          <select
-            value={newGoal.image}
-            onChange={(e) => setNewGoal({ ...newGoal, image: e.target.value })}
-          >
-            {images.map(img => (
-              <option key={img} value={img}>{img.split('/').pop()}</option>
-            ))}
-          </select>
-          <button type="submit">Создать</button>
-        </form>
+      {showDeleteConfirm && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent}>
+            <h3>Удалить цель?</h3>
+            <p>Вы уверены, что хотите удалить цель? Это действие нельзя отменить.</p>
+            <div className={styles.modalButtons}>
+              <button onClick={() => setShowDeleteConfirm(false)}>Отмена</button>
+              <button className={styles.deleteBtn} onClick={handleDelete}>Удалить</button>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className={styles.goalsGrid}>
@@ -120,21 +121,9 @@ export default function GoalsWidget() {
           <p className={styles.empty}>🎯 Пока нет целей</p>
         ) : (
           goals.map(goal => {
-            const progress = goal.is_binary
-              ? goal.current * 100
-              : (goal.current / goal.target) * 100;
-
+            const progress = goal.is_binary ? goal.current * 100 : (goal.current / goal.target) * 100;
             return (
-              <div
-                key={goal.id}
-                className={styles.goalCard}
-                style={{
-                  backgroundImage: `url(${goal.image})`,
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center',
-                  position: 'relative'
-                }}
-              >
+              <div key={goal.id} className={styles.goalCard} style={{ backgroundImage: `url(${goal.image})` }}>
                 <div className={styles.overlay}>
                   <div className={styles.goalHeader}>
                     <h3>{goal.title}</h3>
@@ -142,24 +131,12 @@ export default function GoalsWidget() {
                   </div>
                   <div className={styles.progressContainer}>
                     <div className={styles.progressBar}>
-                      <div
-                        className={styles.progressFill}
-                        style={{ width: `${progress}%` }}
-                      ></div>
+                      <div className={styles.progressFill} style={{ width: `${progress}%` }}></div>
                     </div>
-                    <span className={styles.numbers}>
-                      {goal.current}{goal.unit} / {goal.target}{goal.unit}
-                    </span>
+                    <span className={styles.numbers}>{goal.current}{goal.unit} / {goal.target}{goal.unit}</span>
                   </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max={goal.is_binary ? 1 : goal.target}
-                    value={goal.current}
-                    onChange={(e) => updateProgress(goal.id, e.target.value)}
-                    className={styles.slider}
-                    step={goal.is_binary ? 1 : goal.target / 100}
-                  />
+                  <input type="range" min="0" max={goal.is_binary ? 1 : goal.target} value={goal.current} onChange={(e) => updateProgress(goal.id, e.target.value)} className={styles.slider} step={goal.is_binary ? 1 : goal.target / 100} />
+                  <button className={styles.deleteIcon} onClick={() => { setGoalToDelete(goal.id); setShowDeleteConfirm(true); }}>🗑</button>
                 </div>
               </div>
             );
