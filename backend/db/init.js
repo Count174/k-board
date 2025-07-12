@@ -1,18 +1,28 @@
 const path = require('path');
 const sqlite3 = require('sqlite3').verbose();
 
-// Абсолютный путь относительно этого файла
 const dbPath = path.resolve(__dirname, 'database.sqlite');
 const db = new sqlite3.Database(dbPath);
 
 db.serialize(() => {
+  db.run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      password_hash TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+
   db.run(`
     CREATE TABLE IF NOT EXISTS finances (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       type TEXT NOT NULL, -- income / expense
       category TEXT NOT NULL,
       amount REAL NOT NULL,
-      date TEXT DEFAULT CURRENT_TIMESTAMP
+      date TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
@@ -22,16 +32,24 @@ db.serialize(() => {
       text TEXT NOT NULL,
       due_date TEXT,
       time TEXT,
-      completed INTEGER DEFAULT 0
+      completed INTEGER DEFAULT 0,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
   db.run(`
     CREATE TABLE IF NOT EXISTS goals (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
       title TEXT NOT NULL,
-      progress INTEGER DEFAULT 0,
-      target INTEGER DEFAULT 100
+      current INTEGER DEFAULT 0,
+      target INTEGER DEFAULT 0,
+      unit TEXT DEFAULT '',
+      is_binary INTEGER DEFAULT 0,
+      image TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
   
@@ -44,7 +62,8 @@ db.serialize(() => {
       place TEXT,
       activity TEXT,
       notes TEXT,
-      completed INTEGER DEFAULT 0
+      completed INTEGER DEFAULT 0,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 
@@ -55,7 +74,8 @@ db.serialize(() => {
       date TEXT NOT NULL,
       mealType TEXT,
       description TEXT,
-      calories INTEGER
+      calories INTEGER,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
 });
