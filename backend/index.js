@@ -31,7 +31,7 @@ app.use('/api/todos', todosRoutes);
 app.use('/api/goals', goalsRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/nutrition', nutritionRoutes);
-app.use('/api', authRoutes);
+app.use('/api/auth', authRoutes);
 app.use(session({
   secret: 'your-secret-key',
   resave: false,
