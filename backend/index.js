@@ -5,6 +5,7 @@ const PORT = 3002;
 const path = require('path');
 const basicAuth = require('express-basic-auth');
 const session = require('express-session');
+const cookieParser = require('cookie-parser');
 
 const frontendPath = path.join(__dirname, '../frontend/dist');
 const publicPath = path.join(__dirname, '../public');
@@ -18,6 +19,7 @@ const authRoutes = require('./routes/auth');
 
 app.use(cors());
 app.use(express.json());
+app.use(cookieParser());
 
 // Basic auth
 app.use('/k-board', basicAuth({
