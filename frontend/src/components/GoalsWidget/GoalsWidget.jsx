@@ -14,6 +14,21 @@ export default function GoalsWidget() {
   });
   const [goalToDelete, setGoalToDelete] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [sliderValues, setSliderValues] = useState({});
+
+  const handleSliderChange = (id, value) => {
+    setSliderValues((prev) => ({
+      ...prev,
+      [id]: parseFloat(value),
+    }));
+  };
+
+  const handleSliderCommit = async (id) => {
+    const value = sliderValues[id];
+    if (value === undefined) return;
+    await post(`goals/${id}`, { current: value });
+    fetchGoals();
+  };
 
   const modalRef = useRef(null);
   const deleteRef = useRef(null);
@@ -49,12 +64,6 @@ export default function GoalsWidget() {
     } catch (error) {
       console.error('Ошибка при загрузке целей:', error);
     }
-  };
-
-  const updateProgress = async (id, value) => {
-    const parsed = parseFloat(value);
-    await post(`goals/${id}`, { progress: parsed });
-    fetchGoals();
   };
 
   const handleCreate = async (e) => {
@@ -152,7 +161,17 @@ export default function GoalsWidget() {
                     </div>
                     <span className={styles.numbers}>{goal.current}{goal.unit} / {goal.target}{goal.unit}</span>
                   </div>
-                  <input type="range" min="0" max={goal.is_binary ? 1 : goal.target} value={goal.current} onChange={(e) => updateProgress(goal.id, e.target.value)} className={styles.slider} step={goal.is_binary ? 1 : goal.target / 100} />
+                  <input
+                    type="range"
+                    min="0"
+                    max={goal.is_binary ? 1 : goal.target}
+                    value={goal.current}
+                    onChange={(e) => handleSliderChange(goal.id, e.target.value)}
+                    onMouseUp={() => handleSliderCommit(goal.id)}
+                    onTouchEnd={() => handleSliderCommit(goal.id)}
+                    className={styles.slider}
+                    step={goal.is_binary ? 1 : goal.target / 100}
+                  />
                 </div>
               </div>
             );
