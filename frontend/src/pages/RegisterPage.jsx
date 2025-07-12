@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import '../styles/auth.css';
+import styles from '../styles/Auth.module.css';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -29,9 +29,9 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="auth-container">
+    <div className={styles.authContainer}>
       <h2>Регистрация</h2>
-      <form onSubmit={handleSubmit} className="auth-form">
+      <form onSubmit={handleSubmit} className={styles.auth-form}>
         <input
           type="email"
           placeholder="Email"
@@ -46,7 +46,7 @@ export default function RegisterPage() {
           onChange={(e) => setForm({ ...form, password: e.target.value })}
           required
         />
-        {error && <p className="error-text">{error}</p>}
+        {error && <p className={styles.error-text}>{error}</p>}
         <button type="submit">Зарегистрироваться</button>
       </form>
     </div>
