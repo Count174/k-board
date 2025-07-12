@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { post } from '../../api/api';
+import { post } from '../api/api.js';
 import { useNavigate } from 'react-router-dom';
 import '../styles/auth.css';
 
