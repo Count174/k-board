@@ -3,7 +3,6 @@ const cors = require('cors');
 const app = express();
 const PORT = 3002;
 const path = require('path');
-const basicAuth = require('express-basic-auth');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
 
@@ -21,12 +20,6 @@ const telegramRoutes = require('./routes/telegram');
 app.use(cors());
 app.use(express.json());
 app.use(cookieParser());
-
-// Basic auth
-app.use('/k-board', basicAuth({
-  users: { 'root': 'root' },
-  challenge: true
-}));
 
 // API маршруты — должны быть раньше статики и SPA
 app.use('/api/finances', financesRoutes);
