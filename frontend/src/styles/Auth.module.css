@@ -1,73 +1,112 @@
-.auth-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    background: linear-gradient(135deg, #4e54c8, #8f94fb);
-    color: white;
-    font-family: 'Inter', sans-serif;
-  }
-  
-  .auth-form {
-    background: white;
-    color: #2c3e50;
-    border-radius: 16px;
-    padding: 32px;
-    min-width: 320px;
-    max-width: 400px;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.15);
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-  
-  .auth-form h2 {
-    margin: 0 0 12px;
-    text-align: center;
-    font-weight: 600;
-    font-size: 22px;
-  }
-  
-  .auth-form input {
-    padding: 12px 14px;
-    border-radius: 10px;
-    border: 1px solid #ccc;
-    font-size: 14px;
-  }
-  
-  .auth-form button {
-    padding: 12px;
-    background: linear-gradient(135deg, #4e54c8, #8f94fb);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: opacity 0.2s;
-  }
-  
-  .auth-form button:hover {
-    opacity: 0.9;
-  }
-  
-  .auth-form p {
-    font-size: 14px;
-    text-align: center;
-  }
-  
-  .auth-form a {
-    color: #4e54c8;
-    text-decoration: none;
-    font-weight: 500;
-  }
-  
-  .auth-form a:hover {
-    text-decoration: underline;
-  }
-  
-  .error-text {
-    color: #c62828;
-    font-size: 14px;
-    text-align: center;
-  }
+.authContainer {
+  max-width: 400px;
+  margin: 80px auto;
+  background: #fff;
+  padding: 32px;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  text-align: center;
+  font-family: 'Inter', sans-serif;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.subtext {
+  margin-bottom: 24px;
+  font-size: 14px;
+  color: #555;
+}
+
+.subtext a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+.subtext a:hover {
+  text-decoration: underline;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form input[type="email"],
+.form input[type="password"] {
+  padding: 12px 16px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 15px;
+}
+
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-start;
+  font-size: 14px;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.primaryButton {
+  background: #0066ff;
+  color: white;
+  padding: 12px;
+  border-radius: 8px;
+  font-weight: 500;
+  font-size: 16px;
+  border: none;
+  cursor: pointer;
+}
+
+.primaryButton:hover {
+  background: #0055cc;
+}
+
+.googleButton {
+  background: white;
+  border: 1px solid #ccc;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 15px;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+
+.googleButton::before {
+  content: '';
+  display: inline-block;
+  background-image: url('/k-board/images/google-icon.png'); /* добавь иконку */
+  width: 18px;
+  height: 18px;
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+
+.forgot {
+  margin-top: 20px;
+  font-size: 14px;
+}
+
+.forgot a {
+  color: #007bff;
+  text-decoration: none;
+}
+
+.forgot a:hover {
+  text-decoration: underline;
+}
+
+.error {
+  color: red;
+  font-size: 14px;
+}
