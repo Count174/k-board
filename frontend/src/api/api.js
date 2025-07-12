@@ -14,3 +14,10 @@ export const post = async (endpoint, data) => {
   });
   return res.json();
 };
+
+export const remove = async (endpoint) => {
+  const res = await fetch(`${BASE_URL}/${endpoint}`, {
+    method: 'DELETE',
+  });
+  if (!res.ok) throw new Error(`Ошибка удаления: ${res.status}`);
+};
