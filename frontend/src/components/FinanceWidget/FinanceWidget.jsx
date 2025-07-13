@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import styles from './FinanceWidget.module.css';
 
-const COLORS = ['#4e54c8', '#8f94fb', '#7ED6DF', '#FEBE8C', '#FEC260'];
+const COLORS = ['#4e54c8', '#8f94fb', '#7ED6DF', '#FEBE8C', '#FEC260', '#ddd'];
 
 const FinanceWidget = () => {
   const [transactions, setTransactions] = useState([]);
@@ -50,26 +50,40 @@ const FinanceWidget = () => {
 
   const balance = totalIncome - totalExpense;
 
-  const categoryData = Object.entries(transactions.reduce((acc, t) => {
-    if (t.type === 'expense') {
+  const rawCategoryTotals = transactions
+    .filter(t => t.type === 'expense')
+    .reduce((acc, t) => {
       acc[t.category] = (acc[t.category] || 0) + t.amount;
-    }
-    return acc;
-  }, {}))
-    .sort((a, b) => b[1] - a[1])
-    .map(([name, value], index) => ({
-      name: index < 3 ? name : 'Прочее',
-      value
-    }))
-    .reduce((acc, curr) => {
-      const found = acc.find(item => item.name === curr.name);
-      if (found) {
-        found.value += curr.value;
-      } else {
-        acc.push({ ...curr });
-      }
       return acc;
-    }, []);
+    }, {});
+
+  const sortedEntries = Object.entries(rawCategoryTotals)
+    .sort((a, b) => b[1] - a[1]);
+
+  const top5 = sortedEntries.slice(0, 5);
+  const rest = sortedEntries.slice(5);
+
+  const categoryData = [
+    ...top5.map(([name, value]) => ({ name, value })),
+  ];
+
+  if (rest.length > 0) {
+    const otherTotal = rest.reduce((sum, [, val]) => sum + val, 0);
+    categoryData.push({ name: 'Прочее', value: otherTotal });
+  }
+
+  const renderCustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, index }) => {
+    const RADIAN = Math.PI / 180;
+    const radius = innerRadius + (outerRadius - innerRadius) * 1.2;
+    const x = cx + radius * Math.cos(-midAngle * RADIAN);
+    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+    return (
+      <text x={x} y={y} fill="#333" textAnchor="middle" dominantBaseline="central" fontSize={12}>
+        {categoryData[index].value.toLocaleString('ru-RU')}
+      </text>
+    );
+  };
 
   const monthlyChartData = Object.entries(monthlyStats).map(([month, values]) => ({
     month,
@@ -97,29 +111,30 @@ const FinanceWidget = () => {
           <div className={styles.charts}>
             <div className={styles.chartBox}>
               <h4>Топ расходов</h4>
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={240}>
                 <PieChart>
                   <Pie
                     data={categoryData}
                     dataKey="value"
                     nameKey="name"
-                    innerRadius={50}
-                    outerRadius={80}
-                    label
+                    innerRadius={60}
+                    outerRadius={90}
+                    label={renderCustomLabel}
+                    labelLine={false}
                   >
                     {categoryData.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                     ))}
                   </Pie>
                   <Tooltip />
-                  <Legend />
+                  <Legend layout="horizontal" verticalAlign="bottom" align="center" iconType="circle" />
                 </PieChart>
               </ResponsiveContainer>
             </div>
 
             <div className={styles.chartBox}>
               <h4>Динамика по месяцам</h4>
-              <ResponsiveContainer width="100%" height={220}>
+              <ResponsiveContainer width="100%" height={240}>
                 <BarChart data={monthlyChartData}>
                   <XAxis dataKey="month" />
                   <YAxis />

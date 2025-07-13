@@ -63,15 +63,16 @@
 
 .chartBox {
   flex: 1;
-  min-width: 300px;
+  min-width: 320px;
   background: white;
   border-radius: 20px;
-  padding: 24px;
+  padding: 24px 24px 32px;
   box-shadow: 0px 10px 30px rgba(0, 0, 0, 0.05);
-  min-height: 300px; /* увеличена высота */
+  min-height: 320px;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  overflow: visible; /* важно для внешних лейблов диаграммы */
 }
 
 .chartBox h4 {
@@ -135,4 +136,10 @@
 
 .expense {
   color: #c62828;
+}
+
+/* Подписи к секторам */
+.recharts-pie-label-text {
+  fill: #333 !important;
+  font-size: 12px !important;
 }
