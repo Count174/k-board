@@ -17,7 +17,7 @@ export default function TelegramModal({ onClose }) {
         <h3>Подключить Telegram-бота</h3>
         <p>1. Перейдите в <a href="https://t.me/whoiskiryabot" target="_blank" rel="noreferrer">бота @whoiskiryabot</a></p>
         <p>2. Запустите бота:</p>
-        <p>3. Отправьте ему токен:</p>
+        <p>3. Введите /connect и после этого вставьте этот токен:</p>   
 
         {token ? (
           <code className={styles.token}>{token}</code>
