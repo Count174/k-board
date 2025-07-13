@@ -44,6 +44,9 @@
     border: 1px solid #ddd;
     border-radius: 6px;
     font-size: 14px;
+    overflow: hidden;
+    text-align: ellipsis;
+    white-space: nowrap;
   }
   
   .form textarea {

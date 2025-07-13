@@ -22,6 +22,9 @@
   font-size: 14px;
   outline: none;
   min-width: 100px;
+  overflow: hidden;
+  text-align: ellipsis;
+  white-space: nowrap;
 }
 
 .dateInput {

@@ -1,3 +1,4 @@
+// ✅ GoalsWidget.jsx
 import { useState, useEffect, useRef } from 'react';
 import { get, post, remove } from '../../api/api';
 import styles from './GoalsWidget.module.css';
@@ -7,10 +8,11 @@ export default function GoalsWidget() {
   const [showModal, setShowModal] = useState(false);
   const [newGoal, setNewGoal] = useState({
     title: '',
-    current: 0,
+    current: '',
     target: '',
     unit: '',
-    is_binary: false
+    is_binary: false,
+    image: ''
   });
   const [goalToDelete, setGoalToDelete] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -33,12 +35,14 @@ export default function GoalsWidget() {
   const modalRef = useRef(null);
   const deleteRef = useRef(null);
 
-  const images = [
-    '/k-board/images/moscow.jpg',
-    '/k-board/images/different.jpg',
-    '/k-board/images/money.jpg',
-    '/k-board/images/bmw.jpg'
-  ];
+  const fetchGoals = async () => {
+    try {
+      const data = await get('goals');
+      setGoals(data);
+    } catch (error) {
+      console.error('Ошибка при загрузке целей:', error);
+    }
+  };
 
   useEffect(() => {
     fetchGoals();
@@ -57,28 +61,23 @@ export default function GoalsWidget() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showModal, showDeleteConfirm]);
 
-  const fetchGoals = async () => {
-    try {
-      const data = await get('goals');
-      setGoals(data);
-    } catch (error) {
-      console.error('Ошибка при загрузке целей:', error);
-    }
-  };
-
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!newGoal.title || !newGoal.target) return;
     try {
-      await post('goals', newGoal);
+      await post('goals', {
+        ...newGoal,
+        current: parseFloat(newGoal.current) || 0,
+        target: parseFloat(newGoal.target) || 0
+      });
       fetchGoals();
       setNewGoal({
         title: '',
-        current: 0,
+        current: '',
         target: '',
         unit: '',
         is_binary: false,
-        image: '/k-board/images/default.jpg'
+        image: ''
       });
       setShowModal(false);
     } catch (error) {
@@ -108,16 +107,17 @@ export default function GoalsWidget() {
             <h3>Новая цель</h3>
             <form onSubmit={handleCreate} className={styles.goalForm}>
               <input type="text" placeholder="Название" value={newGoal.title} onChange={(e) => setNewGoal({ ...newGoal, title: e.target.value })} required />
-              <input type="number" placeholder="Прогресс" value={newGoal.current} onChange={(e) => setNewGoal({ ...newGoal, current: parseFloat(e.target.value) })} />
-              <input type="number" placeholder="Цель" value={newGoal.target} onChange={(e) => setNewGoal({ ...newGoal, target: parseFloat(e.target.value) })} required />
+              <input type="number" placeholder="Прогресс" value={newGoal.current} onChange={(e) => setNewGoal({ ...newGoal, current: e.target.value })} />
+              <input type="number" placeholder="Цель" value={newGoal.target} onChange={(e) => setNewGoal({ ...newGoal, target: e.target.value })} required />
               <input type="text" placeholder="Единица измерения (например ₽)" value={newGoal.unit} onChange={(e) => setNewGoal({ ...newGoal, unit: e.target.value })} />
               <label className={styles.checkboxLabel}>
                 <input type="checkbox" checked={newGoal.is_binary} onChange={(e) => setNewGoal({ ...newGoal, is_binary: e.target.checked })} /> Бинарная цель (выполнено/не выполнено)
               </label>
               <select value={newGoal.image} onChange={(e) => setNewGoal({ ...newGoal, image: e.target.value })}>
-                {images.map(img => (
-                  <option key={img} value={img}>{img.split('/').pop()}</option>
-                ))}
+                <option value="">Фоновое изображение</option>
+                <option value="/k-board/images/moscow.jpg">🏙 Город</option>
+                <option value="/k-board/images/money.jpg">💰 Деньги</option>
+                <option value="/k-board/images/bmw.jpg">🚗 Авто</option>
               </select>
               <div className={styles.modalButtons}>
                 <button type="button" onClick={() => setShowModal(false)}>Отмена</button>
@@ -165,7 +165,7 @@ export default function GoalsWidget() {
                     type="range"
                     min="0"
                     max={goal.is_binary ? 1 : goal.target}
-                    value={sliderValues[goal.id] ?? goal.current}
+                    value={goal.current}
                     onChange={(e) => handleSliderChange(goal.id, e.target.value)}
                     onMouseUp={() => handleSliderCommit(goal.id)}
                     onTouchEnd={() => handleSliderCommit(goal.id)}

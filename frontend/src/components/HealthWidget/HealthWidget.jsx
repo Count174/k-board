@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import styles from './HealthWidget.module.css';
 import { get, post } from '../../api/api';
+import dayjs from 'dayjs';
 
 const EVENT_TYPES = {
   training: ['🏋️‍♂️', 'Тренировка'],
@@ -68,6 +69,17 @@ export default function HealthWidget() {
     } catch (err) {
       console.error('Ошибка при отметке как выполненного', err);
     }
+  };
+
+  const formatDate = (rawDate) => {
+    const date = dayjs(rawDate);
+    const today = dayjs();
+    const diff = date.diff(today, 'day');
+
+    if (diff === 0) return 'Сегодня';
+    if (diff === 1) return 'Завтра';
+    if (diff === -1) return 'Вчера';
+    return date.format('DD.MM');
   };
 
   return (
@@ -157,7 +169,7 @@ export default function HealthWidget() {
                 {EVENT_TYPES[event.type]?.[1] || event.type}: {event.activity}
               </span>
               <span className={styles.eventTime}>
-                {new Date(event.date).toLocaleDateString()} в {event.time}
+                {formatDate(event.date)} в {event.time}
               </span>
             </div>
             <div className={styles.eventDetails}>

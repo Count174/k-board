@@ -19,6 +19,39 @@ const helpMessage = `🛠 Возможности:
 /goals — показать цели
 /train — добавить тренировку (через кнопки)`;
 
+function parseDate(text) {
+  const months = {
+    'января': 1, 'февраля': 2, 'марта': 3, 'апреля': 4,
+    'мая': 5, 'июня': 6, 'июля': 7, 'августа': 8,
+    'сентября': 9, 'октября': 10, 'ноября': 11, 'декабря': 12
+  };
+
+  const today = new Date();
+  text = text.trim().toLowerCase();
+
+  const matchNumeric = text.match(/^(\d{1,2})[./](\d{1,2})$/);
+  if (matchNumeric) {
+    const day = parseInt(matchNumeric[1], 10);
+    const month = parseInt(matchNumeric[2], 10) - 1;
+    const year = new Date(today.getFullYear(), month, day) < today
+      ? today.getFullYear() + 1 : today.getFullYear();
+    return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
+  const matchText = text.match(/^(\d{1,2})\s+([а-яё]+)/);
+  if (matchText) {
+    const day = parseInt(matchText[1], 10);
+    const monthName = matchText[2];
+    const month = months[monthName];
+    if (!month) return null;
+    const date = new Date(today.getFullYear(), month - 1, day);
+    const year = date < today ? today.getFullYear() + 1 : today.getFullYear();
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
+  return null;
+}
+
 // ========= Подключение Telegram к аккаунту ========= //
 bot.onText(/\/connect (.+)/, (msg, match) => {
   const chatId = msg.chat.id;
@@ -174,9 +207,13 @@ function handleTrainingSteps(chatId, text) {
   const { step, data } = state;
 
   if (step === 'date') {
-    data.date = text;
+    const parsed = parseDate(text);
+    if (!parsed) {
+      return bot.sendMessage(chatId, '❌ Не удалось распознать дату. Попробуйте в формате "17.08" или "17 августа"');
+    }
+    data.date = parsed;
     state.step = 'time';
-    return bot.sendMessage(chatId, 'Введите время (HH:MM):');
+    bot.sendMessage(chatId, 'Введите время (HH:MM):');
   } else if (step === 'time') {
     data.time = text;
     state.step = 'place';
@@ -218,80 +255,83 @@ const motivationalQuotes = [
 // Каждый день в 8 утра по Москве (05:00 UTC)
 cron.schedule('0 5 * * *', () => {
   db.all('SELECT chat_id, user_id FROM telegram_users', async (err, users) => {
-    if (err || !users.length) {
-      console.warn('⚠️ Нет пользователей для уведомлений');
-      return;
-    }
+    if (err || !users.length) return;
 
     for (const { chat_id, user_id } of users) {
-      let firstName = 'пользователь';
       try {
         const chat = await bot.getChat(chat_id);
-        firstName = chat.first_name || firstName;
-      } catch {}
+        const firstName = chat.first_name || 'пользователь';
+        const today = new Date().toISOString().split('T')[0];
 
-      const today = dayjs().format('YYYY-MM-DD');
+        // 1. HEALTH
+        const healthList = await new Promise(resolve => {
+          db.all(
+            'SELECT type, time, activity FROM health WHERE user_id = ? AND date = ? AND completed = 0 ORDER BY time',
+            [user_id, today],
+            (err, rows) => {
+              if (err || !rows.length) return resolve('');
+              const formatted = rows.map(h => {
+                const types = {
+                  training: 'Тренировка',
+                  doctor: 'Врач',
+                  analysis: 'Анализы',
+                  medication: 'Лекарства'
+                };
+                const emoji = {
+                  training: '💪',
+                  doctor: '👨‍⚕️',
+                  analysis: '🧪',
+                  medication: '💊'
+                };
+                return `${emoji[h.type] || '🏥'} ${types[h.type] || ''} — ${h.time} — ${h.activity}`;
+              }).join('\n');
+              resolve(formatted);
+            }
+          );
+        });
 
-      const healthList = await new Promise(resolve => {
-        db.all(
-          'SELECT type, time, activity FROM health WHERE user_id = ? AND date = ? AND completed = 0 ORDER BY time',
-          [user_id, today],
-          (err, rows) => {
-            if (err || !rows.length) return resolve('');
-            const formatted = rows.map(h => {
-              const emojiMap = {
-                training: '💪',
-                doctor: '👨‍⚕️',
-                analysis: '🧪',
-                medication: '💊'
-              };
-              const emoji = emojiMap[h.type] || '🏥';
-              return `${emoji} ${h.time} — ${h.activity}`;
-            }).join('\n');
-            resolve(formatted);
-          }
-        );
-      });
+        // 2. TASKS
+        const taskList = await new Promise(resolve => {
+          db.all(
+            'SELECT text FROM todos WHERE user_id = ? AND completed = 0 ORDER BY due_date IS NULL, due_date ASC',
+            [user_id],
+            (err, rows) => {
+              if (err || !rows.length) return resolve('');
+              resolve(rows.map(r => `• ${r.text}`).join('\n'));
+            }
+          );
+        });
 
-      const taskList = await new Promise(resolve => {
-        db.all(
-          'SELECT text FROM todos WHERE user_id = ? AND completed = 0 ORDER BY due_date IS NULL, due_date ASC',
-          [user_id],
-          (err, rows) => {
-            if (err || !rows.length) return resolve('');
-            resolve(rows.map(r => `• ${r.text}`).join('\n'));
-          }
-        );
-      });
+        // 3. GOALS
+        const goalsList = await new Promise(resolve => {
+          db.all(
+            'SELECT title, current, target, unit, is_binary FROM goals WHERE user_id = ?',
+            [user_id],
+            (err, rows) => {
+              if (err || !rows.length) return resolve('');
+              resolve(rows.map(g => {
+                const percent = g.is_binary ? (g.current ? 100 : 0) : Math.round((g.current / g.target) * 100);
+                return `• ${g.title} — ${percent}%`;
+              }).join('\n'));
+            }
+          );
+        });
 
-      const goalsList = await new Promise(resolve => {
-        db.all(
-          'SELECT title, current, target, unit, is_binary FROM goals WHERE user_id = ?',
-          [user_id],
-          (err, rows) => {
-            if (err || !rows.length) return resolve('');
-            const formatted = rows.map(g => {
-              const percent = g.is_binary ? (g.current ? 100 : 0) : Math.round((g.current / g.target) * 100);
-              return `• ${g.title} — ${percent}%`;
-            }).join('\n');
-            resolve(formatted);
-          }
-        );
-      });
+        // 4. Final message
+        const quote = motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)];
+        const message =
+          `Доброе утро, ${firstName} 👋\n\n` +
+          `Сегодня по планам:\n\n` +
+          (healthList ? `💪 Здоровье\n${healthList}\n\n` : '') +
+          (taskList ? `☑️ Незавершённые задачи\n${taskList}\n\n` : '') +
+          (goalsList ? `🎯 Долгосрочные цели\n${goalsList}\n\n` : '') +
+          `🔥 ${quote}\nХорошего дня, ${firstName}!`;
 
-      const quote = motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)];
-
-      const message =
-        `Доброе утро, ${firstName} 👋\n\n` +
-        `Сегодня по планам:\n\n` +
-        (healthList ? `💪 Здоровье\n${healthList}\n\n` : '') +
-        (taskList ? `☑️ Незавершённые задачи\n${taskList}\n\n` : '') +
-        (goalsList ? `🎯 Долгосрочные цели\n${goalsList}\n\n` : '') +
-        `🔥 ${quote}\nХорошего дня, ${firstName}!`;
-
-      bot.sendMessage(chat_id, message)
-        .then(() => console.log(`✅ Напоминание отправлено: ${chat_id}`))
-        .catch(err => console.error(`❌ Ошибка отправки пользователю ${chat_id}:`, err));
+        await bot.sendMessage(chat_id, message);
+        console.log(`✅ Утреннее сообщение отправлено: ${chat_id}`);
+      } catch (err) {
+        console.error(`❌ Ошибка для chat_id ${chat_id}:`, err);
+      }
     }
   });
 });
