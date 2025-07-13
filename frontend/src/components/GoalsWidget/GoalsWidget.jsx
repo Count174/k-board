@@ -165,7 +165,7 @@ export default function GoalsWidget() {
                     type="range"
                     min="0"
                     max={goal.is_binary ? 1 : goal.target}
-                    value={goal.current}
+                    value={sliderValues[goal.id] ?? goal.current}
                     onChange={(e) => handleSliderChange(goal.id, e.target.value)}
                     onMouseUp={() => handleSliderCommit(goal.id)}
                     onTouchEnd={() => handleSliderCommit(goal.id)}
