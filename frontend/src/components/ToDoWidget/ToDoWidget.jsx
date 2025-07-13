@@ -62,8 +62,13 @@ export const ToDoWidget = () => {
 
   const toggleTask = async (id) => {
     try {
+      // локально обновляем задачу
+      setTasks((prevTasks) =>
+        prevTasks.map((task) =>
+          task.id === id ? { ...task, done: !task.done } : task
+        )
+      );
       await post(`todos/${id}/toggle`);
-      fetchTasks();
     } catch (error) {
       console.error('Ошибка при обновлении задачи:', error);
     }
