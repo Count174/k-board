@@ -28,8 +28,13 @@ export default function GoalsWidget() {
   const handleSliderCommit = async (id) => {
     const value = sliderValues[id];
     if (value === undefined) return;
+  
     await post(`goals/${id}`, { current: value });
-    fetchGoals();
+  
+    // Обновим конкретную цель в состоянии
+    setGoals(prev =>
+      prev.map(g => g.id === id ? { ...g, current: value } : g)
+    );
   };
 
   const modalRef = useRef(null);
