@@ -29,12 +29,18 @@ export default function GoalsWidget() {
     const value = sliderValues[id];
     if (value === undefined) return;
   
-    await post(`goals/${id}`, { current: value });
+    try {
+      await post(`goals/${id}`, { current: value });
   
-    // Обновим конкретную цель в состоянии
-    setGoals(prev =>
-      prev.map(g => g.id === id ? { ...g, current: value } : g)
-    );
+      // Обновляем локальное состояние goals, чтобы цель обновилась в UI
+      setGoals((prevGoals) =>
+        prevGoals.map((goal) =>
+          goal.id === id ? { ...goal, current: value } : goal
+        )
+      );
+    } catch (error) {
+      console.error('Ошибка обновления цели:', error);
+    }
   };
 
   const modalRef = useRef(null);

@@ -8,15 +8,27 @@ export const get = async (endpoint) => {
   return res.json();
 };
 
-export const post = async (endpoint, data) => {
-  const res = await fetch(`${BASE_URL}/${endpoint}`, {
+export async function post(endpoint, body) {
+  const res = await fetch(`/k-board/api/${endpoint}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
-    body: JSON.stringify(data),
+    body: JSON.stringify(body)
   });
-  return res.json();
-};
+
+  const text = await res.text();
+
+  if (!res.ok) {
+    throw new Error(text || 'Ошибка запроса');
+  }
+
+  // Если тело пустое — вернём {}
+  try {
+    return text ? JSON.parse(text) : {};
+  } catch {
+    return {};
+  }
+}
 
 export const remove = async (endpoint) => {
   const res = await fetch(`${BASE_URL}/${endpoint}`, {
