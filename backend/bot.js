@@ -197,7 +197,7 @@ bot.on('callback_query', async (query) => {
       step: 'date',
       data: { type: value }
     };
-    bot.sendMessage(chatId, 'Введите дату в формате YYYY-MM-DD:');
+    bot.sendMessage(chatId, 'Введите дату в формате 17.08 или 17 августа:');
   }
 });
 

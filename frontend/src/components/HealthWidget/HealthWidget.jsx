@@ -72,10 +72,10 @@ export default function HealthWidget() {
   };
 
   const formatDate = (rawDate) => {
-    const date = dayjs(rawDate);
-    const today = dayjs();
+    const date = dayjs(rawDate).startOf('day');
+    const today = dayjs().startOf('day');
     const diff = date.diff(today, 'day');
-
+  
     if (diff === 0) return 'Сегодня';
     if (diff === 1) return 'Завтра';
     if (diff === -1) return 'Вчера';

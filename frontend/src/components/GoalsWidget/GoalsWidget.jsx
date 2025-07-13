@@ -107,7 +107,7 @@ export default function GoalsWidget() {
             <h3>Новая цель</h3>
             <form onSubmit={handleCreate} className={styles.goalForm}>
               <input type="text" placeholder="Название" value={newGoal.title} onChange={(e) => setNewGoal({ ...newGoal, title: e.target.value })} required />
-              <input type="number" placeholder="Прогресс" value={newGoal.current} onChange={(e) => setNewGoal({ ...newGoal, current: e.target.value })} />
+              <input type="number" placeholder="Текущее значение" value={newGoal.current} onChange={(e) => setNewGoal({ ...newGoal, current: e.target.value })} />
               <input type="number" placeholder="Цель" value={newGoal.target} onChange={(e) => setNewGoal({ ...newGoal, target: e.target.value })} required />
               <input type="text" placeholder="Единица измерения (например ₽)" value={newGoal.unit} onChange={(e) => setNewGoal({ ...newGoal, unit: e.target.value })} />
               <label className={styles.checkboxLabel}>
