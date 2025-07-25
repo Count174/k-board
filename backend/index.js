@@ -1,6 +1,7 @@
 const cors = require('cors');
 const PORT = 3002;
 const path = require('path');
+const cookieParser = require('cookie-parser');
 const express = require('express');
 const session = require('express-session');
 const app = express();
@@ -23,6 +24,7 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.set('trust proxy', 1); // доверие первому прокси (nginx)
+app.use(cookieParser());
 
 app.use(session({
   secret: process.env.SESSION_SECRET || 'kboard_super_secret_key',
@@ -32,7 +34,6 @@ app.use(session({
     secure: true,
     sameSite: 'none', 
     maxAge: 14 * 24 * 60 * 60 * 1000,
-    path: '/k-board'
   }
 }));
 
