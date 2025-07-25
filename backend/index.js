@@ -26,12 +26,12 @@ app.set('trust proxy', 1); // доверие первому прокси (nginx)
 
 app.use(session({
   secret: process.env.SESSION_SECRET || 'kboard_super_secret_key',
-  resave: false,
-  saveUninitialized: false,
+  resave: true,
+  saveUninitialized: true, 
   cookie: {
-    secure: true, 
-    maxAge: 14 * 1000 * 60 * 60 * 24, // 14 дней
-    sameSite: 'strict',
+    secure: true,
+    sameSite: 'none', 
+    maxAge: 14 * 24 * 60 * 60 * 1000,
     path: '/'
   }
 }));
