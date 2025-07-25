@@ -38,13 +38,6 @@ app.use(session({
   }
 }));
 
-app.use((req, res, next) => {
-  // Убираем /k-board из начала пути, чтобы session работал
-  if (req.url.startsWith('/k-board')) {
-    req.url = req.url.replace(/^\/k-board/, '');
-  }
-  next();
-});
 // API маршруты — должны быть раньше статики и SPA
 app.use('/api/finances', financesRoutes);
 app.use('/api/todos', todosRoutes);
