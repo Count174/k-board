@@ -39,8 +39,8 @@ router.post('/login', (req, res) => {
       req.session.userId = user.id;
 
       req.session.save((err) => {
+        console.log('Saved session:', req.session);
         if (err) return res.status(500).json({ error: 'Ошибка сохранения сессии' });
-
         res.json({ success: true });
       });
     });

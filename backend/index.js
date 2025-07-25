@@ -17,22 +17,22 @@ const nutritionRoutes = require('./routes/nutrition');
 const authRoutes = require('./routes/auth');
 const telegramRoutes = require('./routes/telegram');
 
+app.set('trust proxy', 1); // доверие первому прокси (nginx)
 app.use(cors({
   origin: 'https://k-board.whoiskirya.ru',
   credentials: true
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.set('trust proxy', 1); // доверие первому прокси (nginx)
 app.use(cookieParser());
 
 app.use(session({
   secret: process.env.SESSION_SECRET || 'kboard_super_secret_key',
   resave: true,
-  saveUninitialized: false, 
+  saveUninitialized: false,
   cookie: {
     secure: true,
-    sameSite: 'none', 
+    sameSite: 'none',
     maxAge: 14 * 24 * 60 * 60 * 1000,
   }
 }));
