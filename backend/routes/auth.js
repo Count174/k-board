@@ -24,7 +24,8 @@ router.post('/register', async (req, res) => {
 // Логин
 router.post('/login', (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email и пароль обязательны' });
+  if (!email || !password)
+    return res.status(400).json({ error: 'Email и пароль обязательны' });
 
   db.get('SELECT * FROM users WHERE email = ?', [email], async (err, user) => {
     if (err) return res.status(500).json({ error: 'Ошибка сервера' });
@@ -33,12 +34,13 @@ router.post('/login', (req, res) => {
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Неверные данные' });
 
+    // 🔥 Вот это главное
     res.cookie('userId', user.id, {
       httpOnly: false,
       secure: true,
       sameSite: 'None',
       maxAge: 14 * 24 * 60 * 60 * 1000,
-      path: '/k-board',
+      path: '/', // или '/k-board' — зависит от твоей архитектуры
     });
 
     res.json({ success: true });
