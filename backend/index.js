@@ -56,6 +56,12 @@ app.get('/k-board/*', (req, res) => {
   res.sendFile(path.join(frontendPath, 'index.html'));
 });
 
+
+app.get('/api/test-cookie', (req, res) => {
+  req.session.userId = 999;
+  res.send('cookie set');
+});
+
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
