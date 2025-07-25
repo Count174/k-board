@@ -34,6 +34,7 @@ app.use(session({
     secure: true,
     sameSite: 'none',
     maxAge: 14 * 24 * 60 * 60 * 1000,
+    path: '/k-board/'
   }
 }));
 
