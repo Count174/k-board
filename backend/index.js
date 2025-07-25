@@ -16,7 +16,10 @@ const nutritionRoutes = require('./routes/nutrition');
 const authRoutes = require('./routes/auth');
 const telegramRoutes = require('./routes/telegram');
 
-app.use(cors());
+app.use(cors({
+  origin: 'https://k-board.whoiskirya.ru',
+  credentials: true
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -27,7 +30,7 @@ app.use(session({
   cookie: {
     secure: true, 
     maxAge: 14 * 1000 * 60 * 60 * 24, // 14 дней
-    sameSite: 'strict'
+    sameSite: 'lax'
   }
 }));
 
