@@ -22,6 +22,7 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.set('trust proxy', 1); // доверие первому прокси (nginx)
 
 app.use(session({
   secret: process.env.SESSION_SECRET || 'kboard_super_secret_key',
