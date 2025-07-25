@@ -33,8 +33,17 @@ router.post('/login', (req, res) => {
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Неверные данные' });
 
-    req.session.userId = user.id;
-    res.json({ success: true });
+    req.session.regenerate((err) => {
+      if (err) return res.status(500).json({ error: 'Ошибка сессии' });
+
+      req.session.userId = user.id;
+
+      req.session.save((err) => {
+        if (err) return res.status(500).json({ error: 'Ошибка сохранения сессии' });
+
+        res.json({ success: true });
+      });
+    });
   });
 });
 
