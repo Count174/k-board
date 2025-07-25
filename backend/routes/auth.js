@@ -38,14 +38,17 @@ router.post('/login', (req, res) => {
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: '/k-board'
     });
-    res.json({ success: true, userId: user.id });
+    req.session.userId = user.id;
+    res.json({ success: true });
   });
 });
 
 // Выход
 router.post('/logout', (req, res) => {
-  res.clearCookie('userId');
-  res.json({ success: true });
+  req.session.destroy(() => {
+    res.clearCookie('connect.sid');
+    res.json({ success: true });
+  });
 });
 
 // Получение инфы о пользователе

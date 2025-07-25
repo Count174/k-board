@@ -30,12 +30,13 @@ app.use('/api/nutrition', nutritionRoutes);
 app.use('/api/telegram', telegramRoutes);
 app.use('/api/auth', authRoutes);
 app.use(session({
-  secret: 'your-secret-key',
+  secret: process.env.SESSION_SECRET || 'kboard_super_secret_key',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false, // true если HTTPS
-    maxAge: 1000 * 60 * 60 * 24 // 1 день
+    secure: true, 
+    maxAge: 14 * 1000 * 60 * 60 * 24, // 14 дней
+    sameSite: 'strict'
   }
 }));
 
