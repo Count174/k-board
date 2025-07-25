@@ -33,18 +33,15 @@ router.post('/login', (req, res) => {
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Неверные данные' });
 
-    req.session.regenerate((err) => {
-      if (err) return res.status(500).json({ error: 'Ошибка сессии' });
-
-      req.session.userId = user.id;
-
-      req.session.save((err) => {
-        console.log('Saved session:', req.session);
-        console.log('Set-Cookie header:', res.getHeaders()['set-cookie']);
-        if (err) return res.status(500).json({ error: 'Ошибка сохранения сессии' });
-        res.json({ success: true });
-      });
+    res.cookie('userId', user.id, {
+      httpOnly: false,
+      secure: true,
+      sameSite: 'None',
+      maxAge: 14 * 24 * 60 * 60 * 1000,
+      path: '/k-board',
     });
+
+    res.json({ success: true });
   });
 });
 
@@ -58,14 +55,14 @@ router.post('/logout', (req, res) => {
 
 // Получение инфы о пользователе
 router.get('/me', (req, res) => {
-    const userId = req.session.userId;
-    if (!userId) return res.status(401).json({ error: 'Не авторизован' });
-  
-    db.get('SELECT id, name, email FROM users WHERE id = ?', [userId], (err, row) => {
-      if (err) return res.status(500).json({ error: 'Ошибка сервера' });
-      if (!row) return res.status(404).json({ error: 'Пользователь не найден' });
-      res.json({ id: row.id, email: row.email, name: row.name });
-    });
+  const userId = req.cookies.userId;
+  if (!userId) return res.status(401).json({ error: 'Не авторизован' });
+
+  db.get('SELECT id, name, email FROM users WHERE id = ?', [userId], (err, row) => {
+    if (err) return res.status(500).json({ error: 'Ошибка сервера' });
+    if (!row) return res.status(404).json({ error: 'Пользователь не найден' });
+    res.json(row);
   });
+});
 
 module.exports = router;

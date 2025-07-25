@@ -3,7 +3,6 @@ const PORT = 3002;
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const express = require('express');
-const session = require('express-session');
 const app = express();
 
 const frontendPath = path.join(__dirname, '../frontend/dist');
@@ -25,18 +24,6 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
-
-app.use(session({
-  secret: process.env.SESSION_SECRET || 'kboard_super_secret_key',
-  resave: true,
-  saveUninitialized: false,
-  cookie: {
-    secure: true,
-    sameSite: 'none',
-    maxAge: 14 * 24 * 60 * 60 * 1000,
-    path: '/k-board/'
-  }
-}));
 
 // API маршруты — должны быть раньше статики и SPA
 app.use('/api/finances', financesRoutes);

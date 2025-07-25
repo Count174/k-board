@@ -1,8 +1,9 @@
 function authMiddleware(req, res, next) {
-  if (!req.session.userId) {
+  const userId = req.cookies.userId;
+  if (!userId) {
     return res.status(401).json({ error: 'Не авторизован' });
   }
-  req.userId = req.session.userId;
+  req.userId = parseInt(userId, 10);
   next();
 }
 
