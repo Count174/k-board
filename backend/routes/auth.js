@@ -40,6 +40,7 @@ router.post('/login', (req, res) => {
 
       req.session.save((err) => {
         console.log('Saved session:', req.session);
+        console.log('Set-Cookie header:', res.getHeaders()['set-cookie']);
         if (err) return res.status(500).json({ error: 'Ошибка сохранения сессии' });
         res.json({ success: true });
       });
