@@ -33,11 +33,6 @@ router.post('/login', (req, res) => {
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Неверные данные' });
 
-    res.cookie('userId', user.id, {
-      httpOnly: false,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: '/k-board'
-    });
     req.session.userId = user.id;
     res.json({ success: true });
   });
@@ -53,7 +48,7 @@ router.post('/logout', (req, res) => {
 
 // Получение инфы о пользователе
 router.get('/me', (req, res) => {
-    const userId = req.cookies?.userId;
+    const userId = req.session.userId;
     if (!userId) return res.status(401).json({ error: 'Не авторизован' });
   
     db.get('SELECT id, name, email FROM users WHERE id = ?', [userId], (err, row) => {

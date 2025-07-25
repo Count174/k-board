@@ -1,10 +1,9 @@
-const express = require('express');
 const cors = require('cors');
-const app = express();
 const PORT = 3002;
 const path = require('path');
+const express = require('express');
 const session = require('express-session');
-const cookieParser = require('cookie-parser');
+const app = express();
 
 const frontendPath = path.join(__dirname, '../frontend/dist');
 const publicPath = path.join(__dirname, '../public');
@@ -19,16 +18,8 @@ const telegramRoutes = require('./routes/telegram');
 
 app.use(cors());
 app.use(express.json());
-app.use(cookieParser());
+app.use(express.urlencoded({ extended: true }));
 
-// API маршруты — должны быть раньше статики и SPA
-app.use('/api/finances', financesRoutes);
-app.use('/api/todos', todosRoutes);
-app.use('/api/goals', goalsRoutes);
-app.use('/api/health', healthRoutes);
-app.use('/api/nutrition', nutritionRoutes);
-app.use('/api/telegram', telegramRoutes);
-app.use('/api/auth', authRoutes);
 app.use(session({
   secret: process.env.SESSION_SECRET || 'kboard_super_secret_key',
   resave: false,
@@ -39,6 +30,16 @@ app.use(session({
     sameSite: 'strict'
   }
 }));
+
+// API маршруты — должны быть раньше статики и SPA
+app.use('/api/finances', financesRoutes);
+app.use('/api/todos', todosRoutes);
+app.use('/api/goals', goalsRoutes);
+app.use('/api/health', healthRoutes);
+app.use('/api/nutrition', nutritionRoutes);
+app.use('/api/telegram', telegramRoutes);
+app.use('/api/auth', authRoutes);
+
 
 // Статика фронта
 app.use('/k-board/images', express.static(path.join(publicPath, 'images')));
