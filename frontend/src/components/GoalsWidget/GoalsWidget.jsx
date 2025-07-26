@@ -1,102 +1,105 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import styles from './GoalsWidget.module.css';
 import { get, post } from '../../api/api';
-import classNames from 'classnames';
 
 const GoalsWidget = () => {
   const [goals, setGoals] = useState([]);
+  const [newGoal, setNewGoal] = useState({
+    title: '',
+    target: '',
+    unit: '',
+    is_binary: false,
+    image: '',
+  });
+  const debounceTimeouts = useRef({});
+
+  const fetchGoals = async () => {
+    const data = await get('/goals');
+    setGoals(data || []);
+  };
 
   useEffect(() => {
-    get('goals').then(setGoals).catch(console.error);
+    fetchGoals();
   }, []);
 
-  const handleSliderChange = (id, newValue) => {
-    setGoals((prevGoals) =>
-      prevGoals.map((goal) =>
-        goal.id === id ? { ...goal, current: newValue } : goal
-      )
+  const handleAddGoal = async () => {
+    if (!newGoal.title) return;
+
+    await post('/goals', newGoal);
+    setNewGoal({ title: '', target: '', unit: '', is_binary: false, image: '' });
+    fetchGoals();
+  };
+
+  const handleDelete = async (id) => {
+    await post(`/goals/${id}/delete`);
+    fetchGoals();
+  };
+
+  const handleSliderChange = (id, value) => {
+    setGoals((prev) =>
+      prev.map((goal) => (goal.id === id ? { ...goal, current: value } : goal))
     );
+
+    if (debounceTimeouts.current[id]) {
+      clearTimeout(debounceTimeouts.current[id]);
+    }
+
+    debounceTimeouts.current[id] = setTimeout(() => {
+      post(`/goals/${id}/update`, { current: value });
+    }, 300);
   };
 
-  const debounce = (func, delay) => {
-    let timeout;
-    return (...args) => {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => func(...args), delay);
-    };
+  const handleBinaryToggle = async (id, value) => {
+    await post(`/goals/${id}/update`, { current: value ? 1 : 0 });
+    fetchGoals();
   };
-
-  const updateGoal = useCallback(
-    debounce(async (id, current) => {
-      try {
-        await post('goals/update', { id, current });
-      } catch (error) {
-        console.error('Ошибка обновления цели', error);
-      }
-    }, 500),
-    []
-  );
-
-  const handleSliderCommit = (id, value) => {
-    updateGoal(id, value);
-  };
-
-  if (goals.length === 0) {
-    return <div className={styles.empty}>Нет целей</div>;
-  }
 
   return (
     <div className={styles.widget}>
-      <h2 className={styles.title}>Цели</h2>
-      <div className={styles.goalsGrid}>
+      <div className={styles.header}>
+        <h2>🎯 Цели</h2>
+        <button onClick={handleAddGoal} className={styles.addButton}>+ Добавить</button>
+      </div>
+
+      <div className={styles.goalList}>
         {goals.map((goal) => (
           <div key={goal.id} className={styles.goalCard}>
+            <button onClick={() => handleDelete(goal.id)} className={styles.deleteBtn}>✕</button>
             {goal.image && (
               <img
-                src={`/k-board/images/${goal.image}`}
+                src={`/k-board${goal.image}`}
                 alt={goal.title}
-                className={styles.image}
+                className={styles.goalImage}
               />
             )}
-            <div className={styles.info}>
-              <div className={styles.goalTitle}>{goal.title}</div>
-              {!goal.is_binary ? (
-                <>
-                  <input
-                    type="range"
-                    min={0}
-                    max={goal.target}
-                    value={goal.current}
-                    onChange={(e) =>
-                      handleSliderChange(goal.id, parseInt(e.target.value))
-                    }
-                    onMouseUp={(e) =>
-                      handleSliderCommit(goal.id, parseInt(e.target.value))
-                    }
-                    onTouchEnd={(e) =>
-                      handleSliderCommit(goal.id, goal.current)
-                    }
-                    className={styles.slider}
-                  />
-                  <div className={styles.progress}>
-                    {goal.current} / {goal.target} {goal.unit}
-                  </div>
-                </>
-              ) : (
-                <button
-                  className={classNames(styles.binaryButton, {
-                    [styles.completed]: goal.current > 0,
-                  })}
-                  onClick={() => {
-                    const newValue = goal.current > 0 ? 0 : 1;
-                    handleSliderChange(goal.id, newValue);
-                    handleSliderCommit(goal.id, newValue);
-                  }}
-                >
-                  {goal.current > 0 ? 'Выполнено' : 'Не выполнено'}
-                </button>
-              )}
-            </div>
+            <h3>{goal.title}</h3>
+
+            {goal.is_binary ? (
+              <button
+                onClick={() => handleBinaryToggle(goal.id, !goal.current)}
+                className={`${styles.binaryButton} ${
+                  goal.current ? styles.completed : styles.notCompleted
+                }`}
+              >
+                {goal.current ? 'Выполнено' : 'Не выполнено'}
+              </button>
+            ) : (
+              <>
+                <div className={styles.progressText}>
+                  {goal.current} / {goal.target} {goal.unit}
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max={goal.target}
+                  value={goal.current}
+                  onChange={(e) =>
+                    handleSliderChange(goal.id, Number(e.target.value))
+                  }
+                  className={styles.slider}
+                />
+              </>
+            )}
           </div>
         ))}
       </div>
