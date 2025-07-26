@@ -1,116 +1,82 @@
-.todo {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  background: white;
-  border-radius: 20px;
-  padding: 24px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.05);
+.widgetContainer {
+  background-color: #1e1e1e;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  color: #fff;
+  width: 100%;
+  margin-bottom: 2rem;
 }
 
-.title {
-  font-size: 22px;
-  font-weight: 700;
-  color: #1e1e1e;
+.widgetTitle {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin-bottom: 1rem;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
-.inputGroup {
-  display: flex;
-  gap: 12px;
-  align-items: stretch;
-  flex-wrap: wrap;
-}
-
-.taskInput,
-.dateInput,
-.timeInput {
-  padding: 12px 16px;
-  border-radius: 12px;
-  background: #f0f2f5;
-  border: none;
-  font-size: 14px;
-  color: #333;
-  outline: none;
+.taskForm {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
 }
 
 .taskInput {
-  flex: 1 1 240px;
-  min-width: 180px;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  border: none;
+  background-color: #2a2a2a;
+  color: #fff;
 }
 
-.dateInput {
-  width: 140px;
+.taskInput::placeholder {
+  color: #888;
 }
 
+.dateInput,
 .timeInput {
-  width: 100px;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  border: none;
+  background-color: #2a2a2a;
+  color: #fff;
 }
 
 .addButton {
-  background: linear-gradient(to right, #6a11cb, #2575fc);
+  background: linear-gradient(135deg, #7f00ff, #00bfff);
+  color: #fff;
   border: none;
-  color: white;
-  padding: 0 16px;
-  border-radius: 12px;
-  font-size: 20px;
+  padding: 0 1rem;
+  font-size: 1.25rem;
+  border-radius: 0.75rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: 0.3s;
-  min-width: 44px;
-}
-
-.addButton:hover {
-  opacity: 0.9;
 }
 
 .taskList {
-  list-style: none;
-  padding: 0;
-  margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0.75rem;
 }
 
-.checkboxContainer {
+.taskItem {
+  background-color: #2a2a2a;
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 14px;
-  border-radius: 12px;
-  background-color: #f8f9fb;
-  transition: background 0.2s;
-  cursor: pointer;
+  gap: 0.75rem;
+  color: #fff;
+  font-size: 1rem;
 }
 
-.checkboxContainer:hover {
-  background-color: #eaecef;
-}
-
-.checkboxContainer input[type='checkbox'] {
-  width: 18px;
-  height: 18px;
-  accent-color: #4e54c8;
-}
-
-.done {
-  text-decoration: line-through;
-  color: #aaa;
-}
-
-@media (max-width: 600px) {
-  .inputGroup {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .addButton {
-    width: 100%;
-    padding: 12px;
-  }
+.taskItem input[type='checkbox'] {
+  accent-color: #00bfff;
+  transform: scale(1.2);
 }
