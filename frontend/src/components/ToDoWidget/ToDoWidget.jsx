@@ -1,73 +1,98 @@
-import { useEffect, useState } from 'react';
-import { get, post } from '../../api/api';
+import { useState, useEffect } from 'react';
 import styles from './ToDoWidget.module.css';
+import { get, post } from '../../api/api';
 
 export default function ToDoWidget() {
-  const [todos, setTodos] = useState([]);
-  const [text, setText] = useState('');
+  const [task, setTask] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
+  const [tasks, setTasks] = useState([]);
 
   useEffect(() => {
-    get('todos').then(setTodos);
+    get('todos').then(setTasks).catch(console.error);
   }, []);
 
-  const handleAdd = async () => {
-    if (!text) return;
+  const addTask = async () => {
+    if (!task.trim()) return;
 
-    const datetime =
-      date && time
-        ? new Date(`${date}T${time}`).toISOString()
-        : date
-        ? new Date(`${date}T00:00`).toISOString()
-        : null;
+    const datetime = date
+      ? new Date(`${date} ${time || '00:00'}`).toISOString()
+      : null;
 
-    const todo = { text, date: datetime };
+    const newTask = {
+      title: task.trim(),
+      date: datetime,
+    };
 
-    const saved = await post('todos', todo);
-    setTodos((prev) => [...prev, saved]);
-    setText('');
+    const saved = await post('todos', newTask);
+    setTasks((prev) => [...prev, saved]);
+    setTask('');
     setDate('');
     setTime('');
   };
 
-  return (
-    <div className={styles.widget}>
-      <h2 className={styles.title}>📝 Задачи</h2>
+  const toggleDone = async (taskId) => {
+    const taskToUpdate = tasks.find((t) => t.id === taskId);
+    if (!taskToUpdate) return;
 
-      <div className={styles.inputRow}>
+    const updated = await post(`todos/${taskId}`, {
+      ...taskToUpdate,
+      done: !taskToUpdate.done,
+    });
+
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? updated : t))
+    );
+  };
+
+  return (
+    <div className={styles.widgetContainer}>
+      <h2 className={styles.widgetTitle}>📝 Задачи</h2>
+
+      <div className={styles.taskForm}>
         <input
-          className={styles.input}
+          className={styles.taskInput}
           type="text"
           placeholder="Новая задача"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
+          value={task}
+          onChange={(e) => setTask(e.target.value)}
         />
         <input
-          className={styles.input}
+          className={styles.dateInput}
           type="date"
           value={date}
           onChange={(e) => setDate(e.target.value)}
         />
         <input
-          className={styles.input}
+          className={styles.timeInput}
           type="time"
           value={time}
           onChange={(e) => setTime(e.target.value)}
         />
-        <button className={styles.addButton} onClick={handleAdd}>
+        <button className={styles.addButton} onClick={addTask}>
           +
         </button>
       </div>
 
-      <ul className={styles.todoList}>
-        {todos.map((todo) => (
-          <li key={todo.id} className={styles.todoItem}>
-            <input type="checkbox" disabled />
-            <span>{todo.text}</span>
-          </li>
+      <div className={styles.taskList}>
+        {tasks.map((t) => (
+          <div key={t.id} className={styles.taskItem}>
+            <input
+              type="checkbox"
+              checked={t.done}
+              onChange={() => toggleDone(t.id)}
+            />
+            <span
+              style={{
+                textDecoration: t.done ? 'line-through' : 'none',
+                opacity: t.done ? 0.5 : 1,
+              }}
+            >
+              {t.title}
+            </span>
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }

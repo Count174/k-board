@@ -1,82 +1,83 @@
 .widgetContainer {
-  background-color: #1e1e1e;
-  border-radius: 1rem;
-  padding: 1.5rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  color: #fff;
-  width: 100%;
-  margin-bottom: 2rem;
+  background-color: #1e1e2f;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  color: #f1f1f1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .widgetTitle {
-  font-size: 1.25rem;
+  font-size: 20px;
   font-weight: 600;
+  margin: 0;
   color: #ffffff;
-  margin-bottom: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
 }
 
 .taskForm {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr auto;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
 }
 
-.taskInput {
-  padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
+.taskInput,
+.dateInput,
+.timeInput {
+  background-color: #2a2a40;
+  color: #ffffff;
   border: none;
-  background-color: #2a2a2a;
-  color: #fff;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 14px;
+  flex: 1;
+  min-width: 120px;
 }
 
 .taskInput::placeholder {
   color: #888;
 }
 
-.dateInput,
-.timeInput {
-  padding: 0.75rem;
-  border-radius: 0.5rem;
+.addButton {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: white;
   border: none;
-  background-color: #2a2a2a;
-  color: #fff;
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.3s ease;
 }
 
-.addButton {
-  background: linear-gradient(135deg, #7f00ff, #00bfff);
-  color: #fff;
-  border: none;
-  padding: 0 1rem;
-  font-size: 1.25rem;
-  border-radius: 0.75rem;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.addButton:hover {
+  background: linear-gradient(135deg, #7c3aed, #6366f1);
 }
 
 .taskList {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 10px;
 }
 
 .taskItem {
-  background-color: #2a2a2a;
-  border-radius: 0.5rem;
-  padding: 0.75rem 1rem;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  color: #fff;
-  font-size: 1rem;
+  gap: 12px;
+  background-color: #2a2a40;
+  border-radius: 10px;
+  padding: 10px 14px;
+  transition: background 0.3s ease;
 }
 
-.taskItem input[type='checkbox'] {
-  accent-color: #00bfff;
-  transform: scale(1.2);
+.taskItem:hover {
+  background-color: #35354d;
+}
+
+.taskItem input[type="checkbox"] {
+  accent-color: #6366f1;
+  width: 16px;
+  height: 16px;
 }
