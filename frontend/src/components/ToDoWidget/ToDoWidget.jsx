@@ -9,79 +9,84 @@ export default function ToDoWidget() {
   const [time, setTime] = useState('');
 
   useEffect(() => {
-    fetchTodos();
+    loadTodos();
   }, []);
 
-  const fetchTodos = async () => {
+  const loadTodos = async () => {
     try {
       const data = await get('todos');
       setTodos(data);
     } catch (err) {
-      console.error('Ошибка загрузки задач:', err);
+      console.error('Ошибка при загрузке задач', err);
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleAddTodo = async () => {
     if (!text.trim()) return;
 
     try {
-      await post('todos', { text, due_date: dueDate, time });
+      await post('todos', {
+        text,
+        due_date: dueDate,
+        time,
+      });
       setText('');
       setDueDate('');
       setTime('');
-      fetchTodos();
+      loadTodos();
     } catch (err) {
-      console.error('Ошибка при добавлении задачи:', err);
+      console.error('Ошибка при добавлении задачи', err);
     }
   };
 
-  const toggleComplete = async (id) => {
+  const handleToggle = async (id) => {
     try {
       await post(`todos/${id}/toggle`);
-      fetchTodos();
+      loadTodos();
     } catch (err) {
-      console.error('Ошибка при переключении статуса задачи:', err);
+      console.error('Ошибка при переключении задачи', err);
     }
   };
 
   return (
     <div className={styles.widget}>
-      <h2 className={styles.title}>Мои задачи</h2>
-      <form onSubmit={handleSubmit} className={styles.form}>
+      <h2 className={styles.title}>Список задач</h2>
+      <div className={styles.form}>
         <input
-          className={styles.input}
           type="text"
-          placeholder="Новая задача"
+          className={styles.input}
+          placeholder="Что нужно сделать?"
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
         <input
-          className={styles.input}
           type="date"
+          className={styles.input}
           value={dueDate}
           onChange={(e) => setDueDate(e.target.value)}
         />
         <input
-          className={styles.input}
           type="time"
+          className={styles.input}
           value={time}
           onChange={(e) => setTime(e.target.value)}
         />
-        <button type="submit" className={styles.addButton}>
-          Добавить
+        <button className={styles.addButton} onClick={handleAddTodo}>
+          +
         </button>
-      </form>
+      </div>
       <ul className={styles.list}>
         {todos.map((todo) => (
           <li
             key={todo.id}
-            className={`${styles.item} ${todo.completed ? styles.completed : ''}`}
-            onClick={() => toggleComplete(todo.id)}
+            className={`${styles.todoItem} ${todo.completed ? styles.completed : ''}`}
+            onClick={() => handleToggle(todo.id)}
           >
             <span>{todo.text}</span>
-            {todo.due_date && <span className={styles.date}>{todo.due_date}</span>}
-            {todo.time && <span className={styles.time}>{todo.time}</span>}
+            <div className={styles.meta}>
+              {todo.due_date && <span className={styles.date}>{todo.due_date}</span>}
+              {todo.time && <span className={styles.time}>{todo.time}</span>}
+            </div>
           </li>
         ))}
       </ul>
