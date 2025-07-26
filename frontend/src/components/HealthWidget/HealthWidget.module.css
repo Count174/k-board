@@ -1,111 +1,93 @@
 .widget {
-    background: white;
-    border-radius: 12px;
-    padding: 20px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-  }
-  
-  .widget h2 {
-    margin-top: 0;
-    color: #2c3e50;
-    font-size: 18px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #eee;
-  }
-  
-  .form {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    margin-bottom: 20px;
-  }
-  
-  .formRow {
-    display: flex;
-    gap: 15px;
-  }
-  
-  .formRow > * {
-    flex: 1;
-  }
-  
-  .form label {
-    display: block;
-    margin-bottom: 5px;
-    font-size: 14px;
-    color: #555;
-  }
-  
-  .form input,
-  .form select,
-  .form textarea {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 6px;
-    font-size: 14px;
-    overflow: hidden;
-    text-align: ellipsis;
-    white-space: nowrap;
-  }
-  
-  .form textarea {
-    min-height: 60px;
-  }
-  
-  .submitButton {
-    padding: 12px;
-    background: #4a6bdf;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 15px;
-  }
-  
-  .events {
-    margin-top: 20px;
-  }
-  
-  .event {
-    background: #f9fafc;
-    border-radius: 8px;
-    padding: 15px;
-    margin-bottom: 12px;
-  }
-  
-  .eventHeader {
-    display: flex;
-    align-items: center;
-    margin-bottom: 8px;
-  }
-  
-  .eventIcon {
-    font-size: 20px;
-    margin-right: 10px;
-  }
-  
-  .eventTitle {
-    flex: 1;
-    font-weight: 500;
-  }
-  
-  .eventTime {
-    color: #666;
-    font-size: 13px;
-  }
-  
-  .eventDetails {
-    font-size: 14px;
-    color: #555;
-  }
-  
-  .eventDetails div {
-    margin-bottom: 5px;
-  }
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
 
-  .completedLabel {
-    color: green;
-    font-weight: bold;
-    margin-left: 8px;
-  }
+.widget h2 {
+  margin-top: 0;
+  font-size: 20px;
+  color: #2c3e50;
+  margin-bottom: 16px;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.formRow {
+  display: flex;
+  gap: 16px;
+}
+
+.formRow > * {
+  flex: 1;
+}
+
+.form textarea,
+.form select,
+.form input {
+  padding: 10px 12px;
+  font-size: 14px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+}
+
+.submitButton {
+  padding: 12px;
+  background-color: #4a6bdf;
+  color: white;
+  font-size: 15px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.events {
+  margin-top: 20px;
+}
+
+.event {
+  border-radius: 12px;
+  background: #f5f7fa;
+  padding: 16px;
+  margin-bottom: 14px;
+}
+
+.eventHeader {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.eventIcon {
+  color: #4a6bdf;
+  margin-right: 10px;
+}
+
+.eventTitle {
+  flex: 1;
+  font-weight: 600;
+  color: #333;
+}
+
+.eventTime {
+  font-size: 13px;
+  color: #999;
+}
+
+.eventDetails {
+  font-size: 14px;
+  color: #444;
+}
+
+.completedLabel {
+  color: green;
+  font-weight: 600;
+  margin-top: 4px;
+  display: inline-block;
+}

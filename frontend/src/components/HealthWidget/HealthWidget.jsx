@@ -1,187 +1,104 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import styles from './HealthWidget.module.css';
 import { get, post } from '../../api/api';
-import dayjs from 'dayjs';
+import { CheckCircle } from 'lucide-react';
 
-const EVENT_TYPES = {
-  training: ['🏋️‍♂️', 'Тренировка'],
-  doctor: ['👨‍⚕️', 'Врач'],
-  analysis: ['🧪', 'Анализы'],
-  medication: ['💊', 'Лекарства']
-};
-
-export default function HealthWidget() {
+const HealthWidget = () => {
   const [events, setEvents] = useState([]);
   const [formData, setFormData] = useState({
-    type: 'training',
-    date: new Date().toISOString().split('T')[0],
-    time: '12:00',
-    location: '',
+    type: 'workout',
     description: '',
-    notes: ''
+    date: '',
+    completed: false,
   });
 
   useEffect(() => {
-    fetchHealthData();
+    get('health').then(setEvents).catch(console.error);
   }, []);
 
-  const fetchHealthData = async () => {
-    try {
-      const data = await get('health');
-      setEvents(data);
-    } catch (error) {
-      console.error('Ошибка при загрузке данных здоровья:', error);
-    }
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value,
+    }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
-      const payload = {
-        type: formData.type,
-        date: formData.date,
-        time: formData.time,
-        place: formData.location,
-        activity: formData.description,
-        notes: formData.notes
-      };
-      const result = await post('health', payload);
-      if (result.success) {
-        fetchHealthData();
-        setFormData({
-          type: 'training',
-          date: new Date().toISOString().split('T')[0],
-          time: '12:00',
-          location: '',
-          description: '',
-          notes: ''
-        });
-      }
-    } catch (error) {
-      console.error('Ошибка при добавлении события:', error);
-    }
+    await post('health', formData);
+    const updated = await get('health');
+    setEvents(updated);
+    setFormData({ type: 'workout', description: '', date: '', completed: false });
   };
 
-  const markAsDone = async (id) => {
-    try {
-      await post(`health/complete/${id}`);
-      fetchHealthData();
-    } catch (err) {
-      console.error('Ошибка при отметке как выполненного', err);
+  const getTypeLabel = (type) => {
+    switch (type) {
+      case 'workout': return 'Тренировка';
+      case 'medicine': return 'Лекарство';
+      case 'checkup': return 'Врач';
+      case 'test': return 'Анализ';
+      default: return type;
     }
-  };
-
-  const formatDate = (rawDate) => {
-    const date = dayjs(rawDate).startOf('day');
-    const today = dayjs().startOf('day');
-    const diff = date.diff(today, 'day');
-  
-    if (diff === 0) return 'Сегодня';
-    if (diff === 1) return 'Завтра';
-    if (diff === -1) return 'Вчера';
-    return date.format('DD.MM');
   };
 
   return (
     <div className={styles.widget}>
       <h2>Здоровье</h2>
-
       <form onSubmit={handleSubmit} className={styles.form}>
         <div className={styles.formRow}>
+          <select name="type" value={formData.type} onChange={handleChange}>
+            <option value="workout">Тренировка</option>
+            <option value="medicine">Лекарство</option>
+            <option value="checkup">Врач</option>
+            <option value="test">Анализ</option>
+          </select>
+          <input
+            type="date"
+            name="date"
+            value={formData.date}
+            onChange={handleChange}
+          />
+        </div>
+        <textarea
+          name="description"
+          placeholder="Описание"
+          value={formData.description}
+          onChange={handleChange}
+        />
+        <div>
           <label>
-            Тип:
-            <select 
-              value={formData.type}
-              onChange={(e) => setFormData({...formData, type: e.target.value})}
-            >
-              {Object.entries(EVENT_TYPES).map(([key, [icon, name]]) => (
-                <option key={key} value={key}>{icon} {name}</option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            Дата:
-            <input 
-              type="date" 
-              value={formData.date}
-              onChange={(e) => setFormData({...formData, date: e.target.value})}
-              required
+            <input
+              type="checkbox"
+              name="completed"
+              checked={formData.completed}
+              onChange={handleChange}
             />
-          </label>
-
-          <label>
-            Время:
-            <input 
-              type="time" 
-              value={formData.time}
-              onChange={(e) => setFormData({...formData, time: e.target.value})}
-              required
-            />
+            Завершено
           </label>
         </div>
-
-        <label>
-          {formData.type === 'training' ? 'Место тренировки:' : 
-          formData.type === 'doctor' ? 'Клиника/врач:' :
-          formData.type === 'analysis' ? 'Лаборатория:' :
-          'Аптека:'}
-          <input 
-            type="text" 
-            value={formData.location}
-            onChange={(e) => setFormData({...formData, location: e.target.value})}
-            required
-          />
-        </label>
-
-        <label>
-          {formData.type === 'training' ? 'Тип тренировки:' : 
-          formData.type === 'doctor' ? 'Причина посещения:' :
-          formData.type === 'analysis' ? 'Тип анализов:' :
-          'Препараты:'}
-          <input 
-            type="text" 
-            value={formData.description}
-            onChange={(e) => setFormData({...formData, description: e.target.value})}
-            required
-          />
-        </label>
-
-        <label>
-          Заметки:
-          <textarea 
-            value={formData.notes}
-            onChange={(e) => setFormData({...formData, notes: e.target.value})}
-          />
-        </label>
-
-        <button type="submit">Добавить</button>
+        <button type="submit" className={styles.submitButton}>Добавить</button>
       </form>
 
       <div className={styles.events}>
-        {events.filter(e => !e.completed).map(event => (
+        {events.map((event) => (
           <div key={event.id} className={styles.event}>
             <div className={styles.eventHeader}>
-              <span className={styles.eventIcon}>
-                {EVENT_TYPES[event.type]?.[0] || '❔'}
-              </span>
-              <span className={styles.eventTitle}>
-                {EVENT_TYPES[event.type]?.[1] || event.type}: {event.activity}
-              </span>
-              <span className={styles.eventTime}>
-                {formatDate(event.date)} в {event.time}
-              </span>
+              <div className={styles.eventIcon}><CheckCircle size={18} /></div>
+              <div className={styles.eventTitle}>{getTypeLabel(event.type)}</div>
+              <div className={styles.eventTime}>
+                {new Date(event.date).toLocaleDateString()}
+              </div>
             </div>
             <div className={styles.eventDetails}>
-              <div><strong>Место:</strong> {event.place}</div>
-              {event.notes && <div><strong>Заметки:</strong> {event.notes}</div>}
-              <button type="button" onClick={() => markAsDone(event.id)}>
-                ✅ Выполнено
-              </button>
+              <div>{event.description}</div>
+              {event.completed && <span className={styles.completedLabel}>✓ выполнено</span>}
             </div>
           </div>
         ))}
       </div>
     </div>
   );
-}
+};
+
+export default HealthWidget;
