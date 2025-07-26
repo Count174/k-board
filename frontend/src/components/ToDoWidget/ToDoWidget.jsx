@@ -1,125 +1,74 @@
 import React, { useEffect, useState } from 'react';
 import { get, post } from '../../api/api.js';
-import CardContainer from '../CardContainer/CardContainer';
 import styles from './ToDoWidget.module.css';
+import { CheckCircle, Circle } from 'lucide-react';
 
-export const ToDoWidget = () => {
+export default function ToDoWidget() {
   const [tasks, setTasks] = useState([]);
-  const today = new Date();
-  const defaultDate = today.toISOString().split('T')[0];
-  const defaultTime = '12:00';
-
-  const [newTask, setNewTask] = useState('');
-  const [dueDate, setDueDate] = useState(defaultDate);
-  const [dueTime, setDueTime] = useState(defaultTime);
+  const [text, setText] = useState('');
+  const [date, setDate] = useState('');
+  const [time, setTime] = useState('');
 
   useEffect(() => {
-    fetchTasks();
+    get('todos').then(setTasks).catch(console.error);
   }, []);
 
-  const fetchTasks = async () => {
-    try {
-      const data = await get('todos');
-      const normalized = data.map((t) => ({
-        id: t.id,
-        text: t.text,
-        dueDate: t.dueDate,
-        dueTime: t.dueTime,
-        done: !!t.done
-      }));
-      setTasks(normalized);
-    } catch (error) {
-      console.error('Ошибка при загрузке задач:', error);
-    }
-  };
-
   const addTask = async () => {
-    if (newTask.trim()) {
-      try {
-        const newTaskData = await post('todos', {
-          text: newTask,
-          dueDate,
-          dueTime,
-          done: false,
-        });
-
-        setTasks([...tasks, {
-          id: newTaskData.id,
-          text: newTask,
-          dueDate,
-          dueTime,
-          done: false,
-        }]);
-
-        setNewTask('');
-        setDueDate(defaultDate);
-        setDueTime(defaultTime);
-      } catch (error) {
-        console.error('Ошибка при добавлении задачи:', error);
-      }
-    }
+    if (!text.trim()) return;
+    const payload = { text, date, time };
+    const newTask = await post('todos', payload);
+    setTasks([...tasks, newTask]);
+    setText('');
+    setDate('');
+    setTime('');
   };
 
-  const toggleTask = async (id) => {
-    try {
-      // локально обновляем задачу
-      setTasks((prevTasks) =>
-        prevTasks.map((task) =>
-          task.id === id ? { ...task, done: !task.done } : task
-        )
-      );
-      await post(`todos/${id}/toggle`);
-    } catch (error) {
-      console.error('Ошибка при обновлении задачи:', error);
-    }
+  const toggleDone = async (task) => {
+    await post(`todos/${task.id}/toggle`, {});
+    setTasks(tasks.map(t => t.id === task.id ? { ...t, done: !t.done } : t));
   };
 
   return (
-    <CardContainer title="To-Do">
-      <div className={styles.todo}>
-        <div className={styles.inputGroup}>
-          <input
-            type="text"
-            value={newTask}
-            onChange={(e) => setNewTask(e.target.value)}
-            placeholder="Новая задача"
-            className={styles.taskInput}
-          />
-          <input
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-            className={styles.dateInput}
-          />
-          <input
-            type="time"
-            value={dueTime}
-            onChange={(e) => setDueTime(e.target.value)}
-            className={styles.timeInput}
-          />
-          <button onClick={addTask} className={styles.addButton}>+</button>
-        </div>
+    <div className={styles.card}>
+      <h2 className={styles.title}>📝 Задачи</h2>
 
-        <ul className={styles.taskList}>
-          {tasks.map((task) => (
-            <li key={task.id}>
-              <label className={styles.checkboxContainer}>
-                <input
-                  type="checkbox"
-                  checked={task.done}
-                  onChange={() => toggleTask(task.id)}
-                />
-                <span className={styles.checkmark}></span>
-                <span className={task.done ? styles.done : ''}>
-                  {task.text} {task.dueDate && `(${task.dueDate}${task.dueTime ? ' ' + task.dueTime : ''})`}
-                </span>
-              </label>
-            </li>
-          ))}
-        </ul>
+      <div className={styles.inputGroup}>
+        <input
+          type="text"
+          placeholder="Новая задача"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          className={styles.taskInput}
+        />
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className={styles.dateInput}
+        />
+        <input
+          type="time"
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+          className={styles.timeInput}
+        />
+        <button onClick={addTask} className={styles.addButton}>+</button>
       </div>
-    </CardContainer>
-  );
-};
 
-export default ToDoWidget;
+      <ul className={styles.taskList}>
+        {tasks.map(task => (
+          <li key={task.id} className={styles.checkboxContainer} onClick={() => toggleDone(task)}>
+            {task.done ? (
+              <CheckCircle size={18} color="#4e54c8" />
+            ) : (
+              <Circle size={18} color="#ccc" />
+            )}
+            <span className={task.done ? styles.done : ''}>
+              {task.text} {task.date && `• ${task.date}`} {task.time && `${task.time}`}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
