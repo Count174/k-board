@@ -81,3 +81,11 @@
   width: 16px;
   height: 16px;
 }
+
+.taskText {
+  color: #f1f1f1;
+  font-size: 14px;
+  line-height: 1.4;
+  word-break: break-word;
+  flex: 1;
+}
