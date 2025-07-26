@@ -1,89 +1,90 @@
-import React, { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import styles from './ToDoWidget.module.css';
+import { get, post } from '../../api/api';
 
-const ToDoWidget = ({ userId }) => {
-  const [tasks, setTasks] = useState([]);
-  const [newTask, setNewTask] = useState('');
+export default function ToDoWidget() {
+  const [todos, setTodos] = useState([]);
+  const [text, setText] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [time, setTime] = useState('');
 
   useEffect(() => {
-    fetch(`/api/todos`)
-      .then(res => res.json())
-      .then(data => setTasks(data))
-      .catch(err => console.error('Ошибка загрузки задач:', err));
-  }, [userId]);
+    fetchTodos();
+  }, []);
 
-  const addTask = async () => {
-    if (!newTask.trim()) return;
-    const response = await fetch('/api/todos', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        userId,
-        text: newTask,
-        due_date: dueDate,
-        time,
-      }),
-    });
-    const created = await response.json();
-    setTasks([...tasks, created]);
-    setNewTask('');
-    setDueDate('');
-    setTime('');
+  const fetchTodos = async () => {
+    try {
+      const data = await get('todos');
+      setTodos(data);
+    } catch (err) {
+      console.error('Ошибка загрузки задач:', err);
+    }
   };
 
-  const toggleTask = async (id, completed) => {
-    await fetch(`/api/todos/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ completed: completed ? 0 : 1 }),
-    });
-    setTasks(tasks.map(task =>
-      task.id === id ? { ...task, completed: completed ? 0 : 1 } : task
-    ));
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!text.trim()) return;
+
+    try {
+      await post('todos', { text, due_date: dueDate, time });
+      setText('');
+      setDueDate('');
+      setTime('');
+      fetchTodos();
+    } catch (err) {
+      console.error('Ошибка при добавлении задачи:', err);
+    }
+  };
+
+  const toggleComplete = async (id) => {
+    try {
+      await post(`todos/${id}/toggle`);
+      fetchTodos();
+    } catch (err) {
+      console.error('Ошибка при переключении статуса задачи:', err);
+    }
   };
 
   return (
-    <div className={styles.widgetContainer}>
-      <h3 className={styles.widgetTitle}>📝 Задачи</h3>
-      <div className={styles.taskForm}>
+    <div className={styles.widget}>
+      <h2 className={styles.title}>Мои задачи</h2>
+      <form onSubmit={handleSubmit} className={styles.form}>
         <input
+          className={styles.input}
           type="text"
-          className={styles.taskInput}
           placeholder="Новая задача"
-          value={newTask}
-          onChange={e => setNewTask(e.target.value)}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
         />
         <input
+          className={styles.input}
           type="date"
-          className={styles.dateInput}
           value={dueDate}
-          onChange={e => setDueDate(e.target.value)}
+          onChange={(e) => setDueDate(e.target.value)}
         />
         <input
+          className={styles.input}
           type="time"
-          className={styles.timeInput}
           value={time}
-          onChange={e => setTime(e.target.value)}
+          onChange={(e) => setTime(e.target.value)}
         />
-        <button className={styles.addButton} onClick={addTask}>+</button>
-      </div>
-
-      <div className={styles.taskList}>
-        {tasks.map(task => (
-          <div key={task.id} className={styles.taskItem}>
-            <input
-              type="checkbox"
-              checked={!!task.completed}
-              onChange={() => toggleTask(task.id, task.completed)}
-            />
-            <div className={styles.taskText}>{task.text}</div>
-          </div>
+        <button type="submit" className={styles.addButton}>
+          Добавить
+        </button>
+      </form>
+      <ul className={styles.list}>
+        {todos.map((todo) => (
+          <li
+            key={todo.id}
+            className={`${styles.item} ${todo.completed ? styles.completed : ''}`}
+            onClick={() => toggleComplete(todo.id)}
+          >
+            <span>{todo.text}</span>
+            {todo.due_date && <span className={styles.date}>{todo.due_date}</span>}
+            {todo.time && <span className={styles.time}>{todo.time}</span>}
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
-};
-
-export default ToDoWidget;
+}
