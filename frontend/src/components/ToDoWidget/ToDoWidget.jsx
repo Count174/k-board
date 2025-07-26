@@ -8,7 +8,7 @@ const ToDoWidget = ({ userId }) => {
   const [time, setTime] = useState('');
 
   useEffect(() => {
-    fetch(`/api/todos?userId=${userId}`)
+    fetch(`/api/todos`)
       .then(res => res.json())
       .then(data => setTasks(data))
       .catch(err => console.error('Ошибка загрузки задач:', err));
