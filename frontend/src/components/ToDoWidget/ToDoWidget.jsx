@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import styles from './ToDoWidget.module.css';
 import { get, post } from '../../api/api';
 
@@ -9,89 +9,83 @@ export default function ToDoWidget() {
   const [time, setTime] = useState('');
 
   useEffect(() => {
-    loadTodos();
+    fetchTodos();
   }, []);
 
-  const loadTodos = async () => {
+  const fetchTodos = async () => {
     try {
       const data = await get('todos');
       setTodos(data);
-    } catch (err) {
-      console.error('Ошибка при загрузке задач', err);
+    } catch (error) {
+      console.error('Ошибка при загрузке задач:', error);
     }
   };
 
-  const handleAddTodo = async () => {
+  const addTodo = async () => {
     if (!text.trim()) return;
 
     try {
-      await post('todos', {
-        text,
-        due_date: dueDate,
-        time,
-      });
+      await post('todos', { text, due_date: dueDate, time });
       setText('');
       setDueDate('');
       setTime('');
-      loadTodos();
-    } catch (err) {
-      console.error('Ошибка при добавлении задачи', err);
+      fetchTodos();
+    } catch (error) {
+      console.error('Ошибка при добавлении задачи:', error);
     }
   };
 
-  const handleToggle = async (id) => {
+  const toggleComplete = async (id, completed) => {
     try {
-      await post(`todos/${id}/toggle`);
-      loadTodos();
-    } catch (err) {
-      console.error('Ошибка при переключении задачи', err);
+      await post(`todos/${id}/toggle`, { completed: completed ? 0 : 1 });
+      fetchTodos();
+    } catch (error) {
+      console.error('Ошибка при обновлении задачи:', error);
     }
   };
 
   return (
-    <div className={styles.widget}>
-      <h2 className={styles.title}>📝 Задачи</h2>
-      <div className={styles.form}>
+    <div className={styles.widgetContainer}>
+      <h2 className={styles.widgetTitle}>Задачи</h2>
+
+      <div className={styles.taskForm}>
         <input
+          className={styles.taskInput}
           type="text"
-          className={styles.input}
           placeholder="Новая задача"
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
         <input
+          className={styles.dateInput}
           type="date"
-          className={styles.input}
           value={dueDate}
           onChange={(e) => setDueDate(e.target.value)}
         />
         <input
+          className={styles.timeInput}
           type="time"
-          className={styles.input}
           value={time}
           onChange={(e) => setTime(e.target.value)}
         />
-        <button className={styles.addButton} onClick={handleAddTodo}>
-          +
-        </button>
+        <button className={styles.addButton} onClick={addTodo}>+</button>
       </div>
-      <ul className={styles.list}>
+
+      <div className={styles.taskList}>
+        {todos.length === 0 && <div style={{ opacity: 0.6 }}>Нет задач</div>}
         {todos.map((todo) => (
-          <li
-            key={todo.id}
-            className={styles.todoItem}
-            onClick={() => handleToggle(todo.id)}
-          >
+          <div key={todo.id} className={styles.taskItem}>
             <input
               type="checkbox"
-              checked={todo.completed}
-              readOnly
-              className={styles.checkbox}
+              checked={!!todo.completed}
+              onChange={() => toggleComplete(todo.id, todo.completed)}
             />
-            <span className={styles.todoText}>{todo.text}</span>
-          </li>
+            <div className={styles.taskText}>
+              {todo.text}
+            </div>
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }
