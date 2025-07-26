@@ -50,12 +50,12 @@ export default function ToDoWidget() {
 
   return (
     <div className={styles.widget}>
-      <h2 className={styles.title}>Список задач</h2>
+      <h2 className={styles.title}>📝 Задачи</h2>
       <div className={styles.form}>
         <input
           type="text"
           className={styles.input}
-          placeholder="Что нужно сделать?"
+          placeholder="Новая задача"
           value={text}
           onChange={(e) => setText(e.target.value)}
         />
@@ -79,14 +79,16 @@ export default function ToDoWidget() {
         {todos.map((todo) => (
           <li
             key={todo.id}
-            className={`${styles.todoItem} ${todo.completed ? styles.completed : ''}`}
+            className={styles.todoItem}
             onClick={() => handleToggle(todo.id)}
           >
-            <span>{todo.text}</span>
-            <div className={styles.meta}>
-              {todo.due_date && <span className={styles.date}>{todo.due_date}</span>}
-              {todo.time && <span className={styles.time}>{todo.time}</span>}
-            </div>
+            <input
+              type="checkbox"
+              checked={todo.completed}
+              readOnly
+              className={styles.checkbox}
+            />
+            <span className={styles.todoText}>{todo.text}</span>
           </li>
         ))}
       </ul>
