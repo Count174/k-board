@@ -1,29 +1,51 @@
-import React from 'react';
-import { CalendarDays } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import styles from './GreetingsHeader.module.css';
+import { User } from 'lucide-react';
 
-export default function GreetingsHeader({ name = 'Кирилл' }) {
-  const hours = new Date().getHours();
-  const greeting =
-    hours < 12 ? 'Доброе утро' :
-    hours < 18 ? 'Добрый день' :
-    'Добрый вечер';
+function GreetingsHeader({ user, onConnectClick, onLogout }) {
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef();
 
-  const today = new Date().toLocaleDateString('ru-RU', {
+  const today = new Date();
+  const formattedDate = today.toLocaleDateString('ru-RU', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
   });
 
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
-    <div className="flex items-center justify-between bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-md mb-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-zinc-900 dark:text-white">{greeting}, {name}</h1>
-        <p className="text-zinc-500 dark:text-zinc-400">{today}</p>
+    <div className={styles.container}>
+      <div className={styles.left}>
+        <div className={styles.greeting}>Добрый день, {user?.name || 'друг'} 👋</div>
+        <div className={styles.date}>{formattedDate}</div>
       </div>
-      <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400">
-        <CalendarDays className="w-5 h-5" />
-        <span>{today}</span>
+
+      <div className={styles.profileWrapper} ref={dropdownRef}>
+        <button className={styles.profileButton} onClick={() => setDropdownOpen(!dropdownOpen)}>
+          <User size={24} color="white" />
+        </button>
+        {dropdownOpen && (
+          <div className={styles.dropdown}>
+            <button onClick={() => { setDropdownOpen(false); onConnectClick(); }}>
+              Подключить Telegram-бота
+            </button>
+            <button onClick={onLogout}>Выйти</button>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
+export default GreetingsHeader;

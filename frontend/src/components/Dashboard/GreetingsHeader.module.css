@@ -1,0 +1,67 @@
+.container {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 2rem 1rem;
+    background: linear-gradient(to right, #6a11cb, #2575fc);
+    border-radius: 1rem;
+    color: white;
+    margin-bottom: 2rem;
+  }
+  
+  .left {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .greeting {
+    font-size: 1.8rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+  }
+  
+  .date {
+    font-size: 1rem;
+    opacity: 0.9;
+  }
+  
+  .profileWrapper {
+    position: relative;
+  }
+  
+  .dropdown {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 0.5rem;
+    background: white;
+    color: black;
+    border: 1px solid #ccc;
+    border-radius: 0.5rem;
+    min-width: 180px;
+    z-index: 1000;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  }
+  
+  .dropdown button {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: none;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+  }
+  
+  .dropdown button:hover {
+    background-color: #f0f0f0;
+  }
+  
+  .profileButton {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    border-radius: 999px;
+    padding: 0.5rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+  }
