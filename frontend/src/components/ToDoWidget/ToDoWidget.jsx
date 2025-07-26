@@ -1,71 +1,83 @@
-import React, { useEffect, useState } from 'react';
-import { get, post } from '../../api/api.js';
+import { useEffect, useState } from 'react';
+import { get, post } from '../../api/api';
 import styles from './ToDoWidget.module.css';
-import { CheckCircle, Circle } from 'lucide-react';
+import { format } from 'date-fns';
 
 export default function ToDoWidget() {
-  const [tasks, setTasks] = useState([]);
-  const [text, setText] = useState('');
+  const [todos, setTodos] = useState([]);
+  const [newTodo, setNewTodo] = useState('');
   const [date, setDate] = useState('');
   const [time, setTime] = useState('');
 
   useEffect(() => {
-    get('todos').then(setTasks).catch(console.error);
+    get('todos').then(setTodos);
   }, []);
 
-  const addTask = async () => {
-    if (!text.trim()) return;
-    const payload = { text, date, time };
-    const newTask = await post('todos', payload);
-    setTasks([...tasks, newTask]);
-    setText('');
+  const handleAdd = async () => {
+    if (!newTodo.trim()) return;
+
+    const formattedDate = date ? new Date(date).toISOString() : null;
+    const payload = {
+      title: newTodo,
+      date: formattedDate,
+      time: time || null,
+    };
+
+    const added = await post('todos', payload);
+    setTodos([...todos, added]);
+    setNewTodo('');
     setDate('');
     setTime('');
   };
 
-  const toggleDone = async (task) => {
-    await post(`todos/${task.id}/toggle`, {});
-    setTasks(tasks.map(t => t.id === task.id ? { ...t, done: !t.done } : t));
+  const handleToggle = async (id) => {
+    const todo = todos.find((t) => t.id === id);
+    if (!todo) return;
+
+    const updated = await post(`todos/toggle`, { id });
+    setTodos(todos.map((t) => (t.id === id ? updated : t)));
   };
 
   return (
-    <div className={styles.card}>
+    <div className={styles.todo}>
       <h2 className={styles.title}>📝 Задачи</h2>
 
       <div className={styles.inputGroup}>
         <input
           type="text"
           placeholder="Новая задача"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
           className={styles.taskInput}
+          value={newTodo}
+          onChange={(e) => setNewTodo(e.target.value)}
         />
         <input
           type="date"
+          className={styles.dateInput}
           value={date}
           onChange={(e) => setDate(e.target.value)}
-          className={styles.dateInput}
         />
         <input
           type="time"
+          className={styles.timeInput}
           value={time}
           onChange={(e) => setTime(e.target.value)}
-          className={styles.timeInput}
         />
-        <button onClick={addTask} className={styles.addButton}>+</button>
+        <button className={styles.addButton} onClick={handleAdd}>
+          +
+        </button>
       </div>
 
       <ul className={styles.taskList}>
-        {tasks.map(task => (
-          <li key={task.id} className={styles.checkboxContainer} onClick={() => toggleDone(task)}>
-            {task.done ? (
-              <CheckCircle size={18} color="#4e54c8" />
-            ) : (
-              <Circle size={18} color="#ccc" />
-            )}
-            <span className={task.done ? styles.done : ''}>
-              {task.text} {task.date && `• ${task.date}`} {task.time && `${task.time}`}
-            </span>
+        {todos.map((todo) => (
+          <li key={todo.id}>
+            <label className={styles.checkboxContainer}>
+              <input
+                type="checkbox"
+                checked={todo.done}
+                onChange={() => handleToggle(todo.id)}
+              />
+              <span className={todo.done ? styles.done : ''}>{todo.title}</span>
+            </label>
           </li>
         ))}
       </ul>
