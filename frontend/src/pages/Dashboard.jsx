@@ -32,11 +32,16 @@ export default function Dashboard() {
         onLogout={handleLogout}
       />
 
-      <ToDoWidget />
-      <HealthWidget />
-      <NutritionWidget />
-      <GoalsWidget />
-      <FinanceWidget />
+      <div className={styles.widgetRow}>
+        <ToDoWidget />
+        <HealthWidget />
+        <NutritionWidget />
+      </div>
+
+      <div className={styles.widgetRow}>
+        <GoalsWidget />
+        <FinanceWidget />
+      </div>
 
       {showTelegramModal && (
         <TelegramModal onClose={() => setShowTelegramModal(false)} />
