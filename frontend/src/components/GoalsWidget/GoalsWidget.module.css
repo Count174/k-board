@@ -1,252 +1,120 @@
 .widget {
-    background: white;
-    border-radius: 12px;
-    padding: 24px;
-    grid-column: span 4;
-    margin-bottom: 0;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-  }
-  
-  .title {
-    font-size: 20px;
-    margin: 0 0 24px 0;
-    color: #2c3e50;
-    font-weight: 600;
-    padding-bottom: 12px;
-    border-bottom: 1px solid #eee;
-  }
-  
-  .goalsGrid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 24px;
-  }
-  
-  .goalCard {
-    position: relative;
-    border-radius: 16px;
-    overflow: hidden;
-    min-height: 180px;
-    display: flex;
-    align-items: flex-end;
-    justify-content: center;
-    padding: 0;
-    background-color: #eee;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-    transition: transform 0.2s ease;
-  }
-  
-  .overlay {
-    width: 100%;
-    padding: 16px;
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0));
-    backdrop-filter: blur(3px);
-    color: white;
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;
-    height: 100%;
-    box-sizing: border-box;
-  }
-  
-  
-  .goalHeader h3 {
-    color: #fff;
-  }
-  
-  .progressValue {
-    color: #fff;
-  }
-  
-  .numbers {
-    color: #eee;
-  }
-  
-  .goalCard:hover {
-    transform: translateY(-2px);
-  }
-  
-  .goalHeader {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-  }
-  
-  .goalHeader h3 {
-    margin: 0;
-    font-size: 16px;
-    color: #fff;
-    font-weight: 500;
-  }  
-  
-
-  .progressValue {
-    font-size: 16px;
-    font-weight: 600;
-    color: #4a90e2;
-  }
-  
-  .progressContainer {
-    margin-bottom: 12px;
-  }
-  
-  .progressBar {
-    height: 10px;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 5px;
-    margin-bottom: 4px;
-    overflow: hidden;
-  }
-  
-  .progressFill {
-    height: 100%;
-    background: linear-gradient(90deg, #4a6bdf, #6a11cb);
-    border-radius: 5px;
-    transition: width 0.3s ease;
-  }
-  
-  .numbers {
-    text-align: right;
-    font-size: 13px;
-    color: rgba(255, 255, 255, 0.8);
-  }
-  
-  .slider {
-    width: 100%;
-    height: 8px;
-    -webkit-appearance: none;
-    background: #dfe6e9;
-    border-radius: 4px;
-    outline: none;
-  }
-  
-  .slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 22px;
-    height: 22px;
-    background: #4a6bdf;
-    border-radius: 50%;
-    cursor: pointer;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    border: 2px solid white;
-  }
-
-  /* Модальное окно — общий фон */
-  .modalOverlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(2px);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1000;
-  }
-  
-  .modalContent {
-    background: #fff;
-    padding: 24px;
-    border-radius: 16px;
-    width: 100%;
-    max-width: 420px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  
-  .goalForm {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
-  
-  .goalForm input,
-  .goalForm select {
-    padding: 10px 14px;
-    border-radius: 10px;
-    border: 1px solid #ddd;
-    font-size: 14px;
-  }
-  
-  .modalButtons {
-    display: flex;
-    justify-content: flex-end;
-    gap: 12px;
-    margin-top: 8px;
-  }
-  
-  .createButton {
-    padding: 8px 16px;
-    border: none;
-    border-radius: 12px;
-    background: linear-gradient(135deg, #4e54c8, #8f94fb);
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-    margin-bottom: 20px;
-  }
-  
-  .deleteIcon {
-    position: absolute;
-    top: 8px;
-    right: 8px;
-    background: rgba(255, 255, 255, 0.85);
-    border: none;
-    border-radius: 8px;
-    padding: 4px 6px;
-    font-size: 16px;
-    cursor: pointer;
-    z-index: 10;
-    transition: background 0.2s;
-  }
-  
-  .deleteIcon:hover {
-    background: rgba(255, 255, 255, 1);
-  }
-  
-  .checkboxLabel {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 14px;
-  }
-
-/* Анимация появления */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  margin-bottom: 24px;
 }
-  
-  /* Адаптивность */
-  @media (max-width: 1024px) {
-    .goalsGrid {
-      grid-template-columns: 1fr;
-      gap: 16px;
-    }
-    
-    .goalCard {
-      padding: 16px;
-    }
-  }
-  
-  @media (max-width: 768px) {
-    .widget {
-      padding: 16px;
-    }
-    
-    .title {
-      font-size: 18px;
-      margin-bottom: 16px;
-    }
-  }
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.goalCard {
+  background: #f9f9fb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  transition: box-shadow 0.2s ease;
+}
+
+.goalCard:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+.goalTitle {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.goalProgress {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+
+.progressBarContainer {
+  height: 8px;
+  background-color: #e5e7eb;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progressBar {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #3b82f6);
+  transition: width 0.3s ease;
+}
+
+.sliderWrapper {
+  margin-top: 12px;
+}
+
+.slider {
+  width: 100%;
+  accent-color: #6366f1;
+}
+
+.removeButton {
+  background: none;
+  border: none;
+  color: #ef4444;
+  cursor: pointer;
+  font-size: 14px;
+  margin-top: 8px;
+  text-align: right;
+}
+
+.removeButton:hover {
+  text-decoration: underline;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #f9f9fb;
+  padding: 16px;
+  border-radius: 12px;
+  margin-top: 24px;
+  border: 1px solid #e5e7eb;
+}
+
+.input,
+.select {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 14px;
+}
+
+.addButton {
+  background: linear-gradient(to right, #6366f1, #3b82f6);
+  color: white;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  align-self: flex-start;
+  transition: background 0.2s ease;
+}
+
+.addButton:hover {
+  background: linear-gradient(to right, #4f46e5, #2563eb);
+}

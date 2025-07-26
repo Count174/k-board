@@ -1,194 +1,179 @@
-// ✅ GoalsWidget.jsx
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { get, post, remove } from '../../api/api';
 import styles from './GoalsWidget.module.css';
 
-export default function GoalsWidget() {
+const GoalCard = ({ goal, onProgressUpdate, onDelete }) => {
+  const [progress, setProgress] = useState(goal.current_value);
+  const [timeoutId, setTimeoutId] = useState(null);
+
+  const handleSliderChange = (e) => {
+    const newValue = parseInt(e.target.value, 10);
+    setProgress(newValue);
+
+    if (timeoutId) clearTimeout(timeoutId);
+
+    const newTimeout = setTimeout(() => {
+      onProgressUpdate(goal.id, newValue);
+    }, 500);
+
+    setTimeoutId(newTimeout);
+  };
+
+  return (
+    <div className={styles.goalCard} style={{ backgroundImage: `url(/k-board/images/${goal.image})`, backgroundSize: 'cover' }}>
+      <button className={styles.deleteIcon} onClick={() => onDelete(goal.id)}>✕</button>
+      <div className={styles.overlay}>
+        <div className={styles.goalHeader}>
+          <h3>{goal.title}</h3>
+          <span className={styles.progressValue}>
+            {goal.is_binary ? (progress ? '✓' : '✗') : `${progress}/${goal.target_value} ${goal.unit || ''}`}
+          </span>
+        </div>
+
+        {!goal.is_binary && (
+          <>
+            <div className={styles.progressContainer}>
+              <div className={styles.progressBar}>
+                <div
+                  className={styles.progressFill}
+                  style={{ width: `${Math.min(100, (progress / goal.target_value) * 100)}%` }}
+                />
+              </div>
+              <div className={styles.numbers}>{progress} / {goal.target_value}</div>
+            </div>
+            <input
+              type="range"
+              className={styles.slider}
+              min={0}
+              max={goal.target_value}
+              value={progress}
+              onChange={handleSliderChange}
+            />
+          </>
+        )}
+        {goal.is_binary && (
+          <input
+            type="checkbox"
+            checked={!!progress}
+            onChange={(e) => {
+              const val = e.target.checked ? 1 : 0;
+              setProgress(val);
+              onProgressUpdate(goal.id, val);
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
+const GoalsWidget = () => {
   const [goals, setGoals] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [newGoal, setNewGoal] = useState({
     title: '',
-    current: '',
-    target: '',
+    target_value: 100,
+    current_value: 0,
     unit: '',
     is_binary: false,
-    image: ''
+    image: 'default.jpg',
   });
-  const [goalToDelete, setGoalToDelete] = useState(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [sliderValues, setSliderValues] = useState({});
-
-  const handleSliderChange = (id, value) => {
-    setSliderValues((prev) => ({
-      ...prev,
-      [id]: parseFloat(value),
-    }));
-  };
-
-  const handleSliderCommit = async (id) => {
-    const value = sliderValues[id];
-    if (value === undefined) return;
-  
-    try {
-      await post(`goals/${id}`, { current: value });
-  
-      // Обновляем локальное состояние goals, чтобы цель обновилась в UI
-      setGoals((prevGoals) =>
-        prevGoals.map((goal) =>
-          goal.id === id ? { ...goal, current: value } : goal
-        )
-      );
-    } catch (error) {
-      console.error('Ошибка обновления цели:', error);
-    }
-  };
-
-  const modalRef = useRef(null);
-  const deleteRef = useRef(null);
 
   const fetchGoals = async () => {
     try {
       const data = await get('goals');
       setGoals(data);
-    } catch (error) {
-      console.error('Ошибка при загрузке целей:', error);
+    } catch (err) {
+      console.error(err);
     }
+  };
+
+  const handleProgressUpdate = async (id, value) => {
+    await post(`goals/update/${id}`, { current_value: value });
+    fetchGoals();
+  };
+
+  const handleDelete = async (id) => {
+    await remove(`goals/${id}`);
+    fetchGoals();
+  };
+
+  const handleCreateGoal = async () => {
+    await post('goals', newGoal);
+    setShowModal(false);
+    setNewGoal({ title: '', target_value: 100, current_value: 0, unit: '', is_binary: false, image: 'default.jpg' });
+    fetchGoals();
   };
 
   useEffect(() => {
     fetchGoals();
   }, []);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (showModal && modalRef.current && !modalRef.current.contains(event.target)) {
-        setShowModal(false);
-      }
-      if (showDeleteConfirm && deleteRef.current && !deleteRef.current.contains(event.target)) {
-        setShowDeleteConfirm(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showModal, showDeleteConfirm]);
-
-  const handleCreate = async (e) => {
-    e.preventDefault();
-    if (!newGoal.title || !newGoal.target) return;
-    try {
-      await post('goals', {
-        ...newGoal,
-        current: parseFloat(newGoal.current) || 0,
-        target: parseFloat(newGoal.target) || 0
-      });
-      fetchGoals();
-      setNewGoal({
-        title: '',
-        current: '',
-        target: '',
-        unit: '',
-        is_binary: false,
-        image: ''
-      });
-      setShowModal(false);
-    } catch (error) {
-      console.error('Ошибка при создании цели:', error);
-    }
-  };
-
-  const handleDelete = async () => {
-    try {
-      await remove(`goals/${goalToDelete}`);
-      fetchGoals();
-      setGoalToDelete(null);
-      setShowDeleteConfirm(false);
-    } catch (error) {
-      console.error('Ошибка при удалении цели:', error);
-    }
-  };
-
   return (
     <div className={styles.widget}>
-      <h2 className={styles.title}>Мои цели</h2>
-      <button onClick={() => setShowModal(true)} className={styles.createButton}>➕ Новая цель</button>
+      <div className={styles.title}>
+        Цели
+        <button className={styles.createButton} onClick={() => setShowModal(true)}>+ Добавить</button>
+      </div>
+      <div className={styles.goalsGrid}>
+        {goals.length === 0 ? <p>Нет целей. Создайте первую!</p> :
+          goals.map(goal => (
+            <GoalCard
+              key={goal.id}
+              goal={goal}
+              onProgressUpdate={handleProgressUpdate}
+              onDelete={handleDelete}
+            />
+          ))}
+      </div>
 
       {showModal && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modalContent} ref={modalRef}>
-            <h3>Новая цель</h3>
-            <form onSubmit={handleCreate} className={styles.goalForm}>
-              <input type="text" placeholder="Название" value={newGoal.title} onChange={(e) => setNewGoal({ ...newGoal, title: e.target.value })} required />
-              <input type="number" placeholder="Текущее значение" value={newGoal.current} onChange={(e) => setNewGoal({ ...newGoal, current: e.target.value })} />
-              <input type="number" placeholder="Цель" value={newGoal.target} onChange={(e) => setNewGoal({ ...newGoal, target: e.target.value })} required />
-              <input type="text" placeholder="Единица измерения (например ₽)" value={newGoal.unit} onChange={(e) => setNewGoal({ ...newGoal, unit: e.target.value })} />
-              <label className={styles.checkboxLabel}>
-                <input type="checkbox" checked={newGoal.is_binary} onChange={(e) => setNewGoal({ ...newGoal, is_binary: e.target.checked })} /> Бинарная цель (выполнено/не выполнено)
-              </label>
-              <select value={newGoal.image} onChange={(e) => setNewGoal({ ...newGoal, image: e.target.value })}>
-                <option value="">Фоновое изображение</option>
-                <option value="/k-board/images/moscow.jpg">🏙 Город</option>
-                <option value="/k-board/images/money.jpg">💰 Деньги</option>
-                <option value="/k-board/images/bmw.jpg">🚗 Авто</option>
+        <div className={styles.modalOverlay} onClick={() => setShowModal(false)}>
+          <div className={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+            <div className={styles.goalForm}>
+              <input
+                placeholder="Название цели"
+                value={newGoal.title}
+                onChange={(e) => setNewGoal({ ...newGoal, title: e.target.value })}
+              />
+              <input
+                type="number"
+                placeholder="Целевое значение"
+                value={newGoal.target_value}
+                onChange={(e) => setNewGoal({ ...newGoal, target_value: parseInt(e.target.value, 10) })}
+              />
+              <input
+                placeholder="Единица измерения (например, км)"
+                value={newGoal.unit}
+                onChange={(e) => setNewGoal({ ...newGoal, unit: e.target.value })}
+              />
+              <select
+                value={newGoal.image}
+                onChange={(e) => setNewGoal({ ...newGoal, image: e.target.value })}
+              >
+                <option value="default.jpg">Фоновое изображение</option>
+                <option value="goal1.jpg">Горы</option>
+                <option value="goal2.jpg">Пляж</option>
               </select>
-              <div className={styles.modalButtons}>
-                <button type="button" onClick={() => setShowModal(false)}>Отмена</button>
-                <button type="submit">Создать</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+              <label className={styles.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  checked={newGoal.is_binary}
+                  onChange={(e) => setNewGoal({ ...newGoal, is_binary: e.target.checked })}
+                />
+                Бинарная цель (да/нет)
+              </label>
+            </div>
 
-      {showDeleteConfirm && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modalContent} ref={deleteRef}>
-            <h3>Удалить цель?</h3>
-            <p>Вы уверены, что хотите удалить цель? Это действие нельзя отменить.</p>
             <div className={styles.modalButtons}>
-              <button onClick={() => setShowDeleteConfirm(false)}>Отмена</button>
-              <button className={styles.deleteBtn} onClick={handleDelete}>Удалить</button>
+              <button className={styles.createButton} onClick={handleCreateGoal}>Создать</button>
+              <button onClick={() => setShowModal(false)}>Отмена</button>
             </div>
           </div>
         </div>
       )}
-
-      <div className={styles.goalsGrid}>
-        {goals.length === 0 ? (
-          <p className={styles.empty}>🎯 Пока нет целей</p>
-        ) : (
-          goals.map(goal => {
-            const progress = goal.is_binary ? goal.current * 100 : (goal.current / goal.target) * 100;
-            return (
-              <div key={goal.id} className={styles.goalCard} style={{ background: `url(${goal.image}) center center / cover no-repeat` }}>
-                <button className={styles.deleteIcon} onClick={() => { setGoalToDelete(goal.id); setShowDeleteConfirm(true); }}>🗑</button>
-                <div className={styles.overlay}>
-                  <div className={styles.goalHeader}>
-                    <h3>{goal.title}</h3>
-                    <span className={styles.progressValue}>{Math.round(progress)}%</span>
-                  </div>
-                  <div className={styles.progressContainer}>
-                    <div className={styles.progressBar}>
-                      <div className={styles.progressFill} style={{ width: `${progress}%` }}></div>
-                    </div>
-                    <span className={styles.numbers}>{goal.current}{goal.unit} / {goal.target}{goal.unit}</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max={goal.is_binary ? 1 : goal.target}
-                    value={sliderValues[goal.id] ?? goal.current}
-                    onChange={(e) => handleSliderChange(goal.id, e.target.value)}
-                    onMouseUp={() => handleSliderCommit(goal.id)}
-                    onTouchEnd={() => handleSliderCommit(goal.id)}
-                    className={styles.slider}
-                    step={goal.is_binary ? 1 : goal.target / 100}
-                  />
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
     </div>
   );
-}
+};
+
+export default GoalsWidget;
