@@ -32,13 +32,13 @@ export default function Dashboard() {
         onLogout={handleLogout}
       />
 
-      <div className={styles.widgetRow}>
+      <div className={styles.widgetsRow}>
         <ToDoWidget />
         <HealthWidget />
         <NutritionWidget />
       </div>
 
-      <div className={styles.widgetRow}>
+      <div className={styles.widgetsColumn}>
         <GoalsWidget />
         <FinanceWidget />
       </div>
