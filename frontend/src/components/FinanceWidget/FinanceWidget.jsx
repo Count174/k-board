@@ -17,7 +17,27 @@ export default function FinanceWidget() {
 
   const fetchFinances = async () => {
     try {
-      const data = await get(`finances/period?filter=${period}`);
+      let data = [];
+      const today = new Date();
+      const formatDate = d => d.toISOString().split('T')[0]; // YYYY-MM-DD
+
+      if (period === 'today') {
+        const start = formatDate(today);
+        const end = formatDate(today);
+        data = await get(`finances/period?startDate=${start}&endDate=${end}`);
+      } else if (period === 'yesterday') {
+        const yest = new Date(today);
+        yest.setDate(today.getDate() - 1);
+        const start = formatDate(yest);
+        const end = formatDate(yest);
+        data = await get(`finances/period?startDate=${start}&endDate=${end}`);
+      } else if (period === 'month') {
+        const start = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-01`;
+        const end = formatDate(today);
+        data = await get(`finances/period?startDate=${start}&endDate=${end}`);
+      } else {
+        data = await get('finances');
+      }
       setFinances(data);
 
       const income = data
