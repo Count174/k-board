@@ -1,232 +1,239 @@
-import React, { useEffect, useState } from 'react';
-import { get, post } from '../../api/api';
-import styles from './FinanceWidget.module.css';
+import { useState, useEffect } from "react";
+import { get, post } from "../../api/api";
+import styles from "./FinanceWidget.module.css";
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Tooltip, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer
-} from 'recharts';
+  LineChart,
+  Line,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  BarChart,
+  Bar,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
 
 export default function FinanceWidget() {
-  const [finances, setFinances] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState('month'); // по умолчанию текущий месяц
-  const [tab, setTab] = useState('transactions');
+  const [transactions, setTransactions] = useState([]);
+  const [period, setPeriod] = useState("month");
+  const [activeTab, setActiveTab] = useState("transactions");
+  const [monthlyStats, setMonthlyStats] = useState([]);
   const [totals, setTotals] = useState({ income: 0, expense: 0 });
-  const [category, setCategory] = useState('');
-  const [amount, setAmount] = useState('');
-  const [formType, setFormType] = useState('expense');
+  const [topExpenses, setTopExpenses] = useState([]);
+  const [topIncomes, setTopIncomes] = useState([]);
+  const [form, setForm] = useState({
+    type: "expense",
+    category: "",
+    amount: "",
+  });
 
-  const getDateRange = (filter) => {
-    const today = new Date();
-    let start, end;
+  useEffect(() => {
+    fetchTransactions();
+    fetchMonthlyStats();
+  }, [period]);
 
-    if (filter === 'today') {
-      start = end = today.toISOString().split('T')[0];
-    } else if (filter === 'yesterday') {
-      const yesterday = new Date(today);
-      yesterday.setDate(today.getDate() - 1);
-      start = end = yesterday.toISOString().split('T')[0];
-    } else if (filter === 'month') {
-      start = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split('T')[0];
-      end = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().split('T')[0];
-    } else {
-      start = '1970-01-01';
-      end = today.toISOString().split('T')[0];
+  const fetchTransactions = async () => {
+    const { start, end } = getPeriodDates(period);
+    try {
+      const data = await get(
+        `finances/period?start=${start}&end=${end}`
+      );
+      setTransactions(data);
+
+      // Считаем суммы
+      let income = 0,
+        expense = 0;
+      data.forEach((t) => {
+        if (t.type === "income") income += t.amount;
+        else expense += t.amount;
+      });
+      setTotals({ income, expense });
+
+      // Топ-3 категорий
+      const grouped = data.reduce((acc, t) => {
+        if (!acc[t.category]) acc[t.category] = 0;
+        acc[t.category] += t.amount;
+        return acc;
+      }, {});
+      const expensesArr = Object.entries(grouped)
+        .filter(([_, val]) => val && val > 0)
+        .map(([cat, val]) => ({ category: cat, value: val }))
+        .sort((a, b) => b.value - a.value);
+
+      setTopExpenses(
+        expensesArr.filter((x) => transactions.find((t) => t.category === x.category && t.type === "expense")).slice(0, 3)
+      );
+      setTopIncomes(
+        expensesArr.filter((x) => transactions.find((t) => t.category === x.category && t.type === "income")).slice(0, 3)
+      );
+    } catch (err) {
+      console.error(err);
     }
+  };
 
+  const fetchMonthlyStats = async () => {
+    try {
+      const stats = await get("finances/monthly");
+      setMonthlyStats(stats);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const getPeriodDates = (p) => {
+    const now = new Date();
+    let start, end;
+    switch (p) {
+      case "today":
+        start = end = now.toISOString().split("T")[0];
+        break;
+      case "yesterday":
+        const y = new Date(now);
+        y.setDate(now.getDate() - 1);
+        start = end = y.toISOString().split("T")[0];
+        break;
+      case "month":
+        start = new Date(now.getFullYear(), now.getMonth(), 1)
+          .toISOString()
+          .split("T")[0];
+        end = now.toISOString().split("T")[0];
+        break;
+      default:
+        start = "1970-01-01";
+        end = now.toISOString().split("T")[0];
+    }
     return { start, end };
   };
 
-  const fetchFinances = async () => {
-    setLoading(true);
-    try {
-      const { start, end } = getDateRange(filter);
-      const response = await get(`finances/period?start=${start}&end=${end}`);
-      setFinances(response);
-
-      const income = response
-        .filter(f => f.type === 'income')
-        .reduce((sum, f) => sum + f.amount, 0);
-      const expense = response
-        .filter(f => f.type === 'expense')
-        .reduce((sum, f) => sum + f.amount, 0);
-
-      setTotals({ income, expense });
-    } catch (err) {
-      console.error('Ошибка при загрузке финансов:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchFinances();
-  }, [filter]);
-
-  const handleSubmit = async (e) => {
+  const handleAddTransaction = async (e) => {
     e.preventDefault();
-    if (!category || !amount) return;
-
+    if (!form.category || !form.amount) return;
     try {
-      await post('finances', {
-        type: formType,
-        category,
-        amount: parseFloat(amount),
-      });
-      setCategory('');
-      setAmount('');
-      fetchFinances();
+      await post("finances", form);
+      setForm({ type: "expense", category: "", amount: "" });
+      fetchTransactions();
     } catch (err) {
-      console.error('Ошибка при добавлении транзакции:', err);
+      console.error(err);
     }
   };
-
-  const topExpenses = finances
-    .filter(f => f.type === 'expense')
-    .reduce((acc, f) => {
-      acc[f.category] = (acc[f.category] || 0) + f.amount;
-      return acc;
-    }, {});
-  const topIncomes = finances
-    .filter(f => f.type === 'income')
-    .reduce((acc, f) => {
-      acc[f.category] = (acc[f.category] || 0) + f.amount;
-      return acc;
-    }, {});
-
-  const sortedExpenses = Object.entries(topExpenses)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([category, amount]) => ({ category, amount }));
-
-  const sortedIncomes = Object.entries(topIncomes)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([category, amount]) => ({ category, amount }));
-
-  const pieData = [
-    { name: 'Доходы', value: totals.income },
-    { name: 'Расходы', value: totals.expense }
-  ];
-
-  // динамика по месяцам (используем поле date)
-  const monthlyData = finances.reduce((acc, f) => {
-    const month = f.date.slice(0, 7);
-    if (!acc[month]) acc[month] = { month, income: 0, expense: 0 };
-    acc[month][f.type] += f.amount;
-    return acc;
-  }, {});
-  const monthlyArray = Object.values(monthlyData).sort((a, b) => a.month.localeCompare(b.month));
 
   return (
-    <div className={styles.widget}>
-      <h2 className={styles.title}>Финансы</h2>
-
-      <div className={styles.tabButtons}>
+    <div className={styles.financeWidget}>
+      <div className={styles.tabs}>
         <button
-          onClick={() => setTab('transactions')}
-          className={tab === 'transactions' ? styles.active : ''}
+          onClick={() => setActiveTab("transactions")}
+          className={activeTab === "transactions" ? styles.activeTab : ""}
         >
           Транзакции
         </button>
         <button
-          onClick={() => setTab('analytics')}
-          className={tab === 'analytics' ? styles.active : ''}
+          onClick={() => setActiveTab("analytics")}
+          className={activeTab === "analytics" ? styles.activeTab : ""}
         >
           Аналитика
         </button>
       </div>
 
-      {tab === 'transactions' && (
+      {activeTab === "transactions" && (
         <>
-          <div className={styles.filterButtons}>
-            <button onClick={() => setFilter('today')} className={filter === 'today' ? styles.active : ''}>Сегодня</button>
-            <button onClick={() => setFilter('yesterday')} className={filter === 'yesterday' ? styles.active : ''}>Вчера</button>
-            <button onClick={() => setFilter('month')} className={filter === 'month' ? styles.active : ''}>Текущий месяц</button>
-            <button onClick={() => setFilter('all')} className={filter === 'all' ? styles.active : ''}>За всё время</button>
+          <div className={styles.filters}>
+            <button onClick={() => setPeriod("today")}>Сегодня</button>
+            <button onClick={() => setPeriod("yesterday")}>Вчера</button>
+            <button onClick={() => setPeriod("month")}>Текущий месяц</button>
+            <button onClick={() => setPeriod("all")}>За всё время</button>
           </div>
 
           <div className={styles.totals}>
-            <span className={styles.income}>Доходы: {totals.income} ₽</span>
-            <span className={styles.expense}>Расходы: {totals.expense} ₽</span>
+            <span>Доходы: {totals.income} ₽</span>
+            <span>Расходы: {totals.expense} ₽</span>
           </div>
 
-          {loading ? (
-            <p>Загрузка...</p>
-          ) : (
-            <ul className={styles.list}>
-              {finances.map((f) => (
-                <li key={f.id} className={styles.item}>
-                  <span>{f.category}</span>
-                  <span className={f.type === 'income' ? styles.income : styles.expense}>
-                    {f.amount} ₽
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <form className={styles.form} onSubmit={handleSubmit}>
-            <h3 className={styles.formTitle}>Добавить операцию</h3>
-            <select value={formType} onChange={(e) => setFormType(e.target.value)} className={styles.input}>
+          <form onSubmit={handleAddTransaction} className={styles.addForm}>
+            <h4>Добавить операцию</h4>
+            <select
+              value={form.type}
+              onChange={(e) => setForm({ ...form, type: e.target.value })}
+            >
               <option value="expense">Расход</option>
               <option value="income">Доход</option>
             </select>
-            <input type="text" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="Категория" className={styles.input} />
-            <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Сумма" className={styles.input} />
-            <button type="submit" className={styles.addButton}>Добавить</button>
+            <input
+              type="text"
+              placeholder="Категория"
+              value={form.category}
+              onChange={(e) =>
+                setForm({ ...form, category: e.target.value })
+              }
+            />
+            <input
+              type="number"
+              placeholder="Сумма"
+              value={form.amount}
+              onChange={(e) =>
+                setForm({ ...form, amount: parseFloat(e.target.value) })
+              }
+            />
+            <button type="submit">Добавить</button>
           </form>
+
+          <ul className={styles.transactions}>
+            {transactions.map((t) => (
+              <li key={t.id}>
+                <span>{t.type === "income" ? "💰" : "💸"}</span>
+                {t.category}: {t.amount} ₽
+              </li>
+            ))}
+          </ul>
         </>
       )}
 
-      {tab === 'analytics' && (
+      {activeTab === "analytics" && (
         <>
-          <div className={styles.filterButtons}>
-            <button onClick={() => setFilter('today')} className={filter === 'today' ? styles.active : ''}>Сегодня</button>
-            <button onClick={() => setFilter('yesterday')} className={filter === 'yesterday' ? styles.active : ''}>Вчера</button>
-            <button onClick={() => setFilter('month')} className={filter === 'month' ? styles.active : ''}>Текущий месяц</button>
-            <button onClick={() => setFilter('all')} className={filter === 'all' ? styles.active : ''}>За всё время</button>
+          <div className={styles.filters}>
+            <button onClick={() => setPeriod("today")}>Сегодня</button>
+            <button onClick={() => setPeriod("yesterday")}>Вчера</button>
+            <button onClick={() => setPeriod("month")}>Текущий месяц</button>
+            <button onClick={() => setPeriod("all")}>За всё время</button>
           </div>
 
+          <h4>Динамика доходов и расходов по месяцам</h4>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={monthlyArray}>
-              <CartesianGrid strokeDasharray="3 3" />
+            <LineChart data={monthlyStats}>
+              <Line type="monotone" dataKey="income" stroke="#4caf50" />
+              <Line type="monotone" dataKey="expense" stroke="#f44336" />
+              <CartesianGrid stroke="#ccc" />
               <XAxis dataKey="month" />
               <YAxis />
               <Tooltip />
               <Legend />
-              <Line type="monotone" dataKey="income" stroke="#4caf50" name="Доходы" />
-              <Line type="monotone" dataKey="expense" stroke="#f44336" name="Расходы" />
             </LineChart>
           </ResponsiveContainer>
 
-          <div className={styles.analyticsRow}>
-            <ResponsiveContainer width="45%" height={250}>
-              <BarChart data={sortedExpenses}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="category" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="amount" fill="#f44336" name="Расходы" />
-              </BarChart>
-            </ResponsiveContainer>
-
-            <ResponsiveContainer width="45%" height={250}>
-              <BarChart data={sortedIncomes}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="category" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="amount" fill="#4caf50" name="Доходы" />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className={styles.analyticsGrid}>
+            <div>
+              <h4>Топ расходов</h4>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={topExpenses}>
+                  <Bar dataKey="value" fill="#f44336" />
+                  <XAxis dataKey="category" />
+                  <YAxis />
+                  <Tooltip />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div>
+              <h4>Топ доходов</h4>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={topIncomes}>
+                  <Bar dataKey="value" fill="#4caf50" />
+                  <XAxis dataKey="category" />
+                  <YAxis />
+                  <Tooltip />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-
-          <ResponsiveContainer width="50%" height={250}>
-            <PieChart>
-              <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label />
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
         </>
       )}
     </div>
