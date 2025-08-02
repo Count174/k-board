@@ -1,147 +1,168 @@
-.widget {
-  background: #1e1f25;
-  color: #fff;
-  border-radius: 20px;
+.financeWidget {
+  background: #1e1e2f;
+  color: #e0e0e0;
   padding: 20px;
-  margin-bottom: 24px;
-  box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.5);
+  border-radius: 16px;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.6);
+  margin-bottom: 30px;
+  transition: all 0.3s ease;
 }
 
-.title {
-  font-size: 20px;
-  font-weight: 600;
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 20px;
+}
+
+.header h2 {
+  font-size: 1.8rem;
+  font-weight: 600;
   color: #ffffff;
 }
 
 .tabs {
   display: flex;
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: 10px;
 }
 
 .tabs button {
-  flex: 1;
-  background: #2a2b32;
+  padding: 8px 16px;
   border: none;
   border-radius: 12px;
-  padding: 10px;
+  background: #2a2a40;
+  color: #e0e0e0;
   cursor: pointer;
-  font-size: 15px;
-  color: #b0b3c1;
-  transition: all 0.2s ease;
+  transition: background 0.3s ease;
 }
 
 .tabs button:hover {
-  background: #3a3c44;
-  color: #fff;
+  background: #3a3a55;
 }
 
 .activeTab {
-  background: #4e5cf1 !important;
+  background: #4cafef;
   color: #fff !important;
+  font-weight: 600;
 }
 
 .filters {
   display: flex;
   gap: 12px;
   margin-bottom: 20px;
-  flex-wrap: wrap;
 }
 
 .filters button {
-  background: #2a2b32;
+  padding: 6px 12px;
   border: none;
-  border-radius: 12px;
-  padding: 8px 16px;
+  border-radius: 8px;
+  background: #2a2a40;
+  color: #e0e0e0;
   cursor: pointer;
-  color: #b0b3c1;
-  font-size: 14px;
-  transition: all 0.2s ease;
+  transition: background 0.3s ease;
 }
 
 .filters button:hover {
-  background: #3a3c44;
+  background: #4cafef;
   color: #fff;
 }
 
-.activeFilter {
-  background: #4e5cf1 !important;
-  color: #fff !important;
-}
-
-.totals {
+.addTransaction {
   display: flex;
-  justify-content: space-between;
-  margin-bottom: 20px;
-  font-size: 16px;
-}
-
-.income {
-  color: #4ade80; /* зеленый для доходов */
-  font-weight: 600;
-}
-
-.expenses {
-  color: #f87171; /* красный для расходов */
-  font-weight: 600;
-}
-
-.list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  margin-bottom: 20px;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.transaction {
-  display: flex;
-  justify-content: space-between;
-  background: #2a2b32;
-  padding: 12px;
-  border-radius: 12px;
-  margin-bottom: 10px;
-  font-size: 14px;
-  transition: background 0.2s ease;
-}
-
-.transaction:hover {
-  background: #3a3c44;
-}
-
-.form {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr auto;
+  flex-wrap: wrap;
   gap: 10px;
+  margin-bottom: 25px;
+  background: #252537;
+  padding: 15px;
+  border-radius: 12px;
+}
+
+.addTransaction h3 {
+  width: 100%;
+  margin-bottom: 10px;
+  font-size: 1.2rem;
+  color: #ffffff;
+}
+
+.addTransaction input,
+.addTransaction select {
+  flex: 1;
+  min-width: 140px;
+  padding: 10px;
+  border: 1px solid #3a3a55;
+  border-radius: 8px;
+  background: #1e1e2f;
+  color: #e0e0e0;
+  font-size: 0.95rem;
+}
+
+.addTransaction button {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  background: #4cafef;
+  color: white;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.addTransaction button:hover {
+  background: #3a9ddb;
+}
+
+.transactionList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.transactionList li {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  padding: 12px;
+  background: #252537;
+  margin-bottom: 10px;
+  border-radius: 10px;
+  align-items: center;
+  font-size: 0.95rem;
+  color: #e0e0e0;
+  transition: transform 0.2s ease, background 0.3s ease;
+}
+
+.transactionList li:hover {
+  transform: translateY(-2px);
+  background: #2a2a40;
+}
+
+.analytics {
   margin-top: 20px;
 }
 
-.form select,
-.form input {
-  background: #2a2b32;
-  border: none;
-  border-radius: 12px;
-  padding: 10px;
-  color: #fff;
-  font-size: 14px;
+.topCategories {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 30px;
 }
 
-.form input::placeholder {
-  color: #b0b3c1;
+.topCategories h3 {
+  font-size: 1.2rem;
+  color: #ffffff;
+  margin-bottom: 10px;
 }
 
-.form button {
-  background: #4e5cf1;
-  color: #fff;
-  border: none;
-  border-radius: 12px;
-  padding: 10px 16px;
-  cursor: pointer;
-  transition: all 0.2s ease;
+.topCategories ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.95rem;
 }
 
-.form button:hover {
-  background: #3d4bd1;
+.topCategories li {
+  margin-bottom: 6px;
+}
+
+.charts {
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
