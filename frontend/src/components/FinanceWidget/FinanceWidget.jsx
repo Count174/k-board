@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { get, post } from '../api/api';
+import { get, post } from '../../api/api';
 import styles from '../styles/FinanceWidget.module.css';
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Tooltip, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer
