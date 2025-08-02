@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { get, post } from '../../api/api';
 import styles from './HealthWidget.module.css';
-import { Activity, Pill, Stethoscope, Dumbbell } from 'lucide-react';
+import { Activity, Pill, Stethoscope, Dumbbell, CheckCircle } from 'lucide-react';
 
 export default function HealthWidget() {
   const [events, setEvents] = useState([]);
@@ -21,7 +21,6 @@ export default function HealthWidget() {
   const fetchEvents = async () => {
     try {
       const data = await get('health');
-      // скрываем завершённые
       setEvents(data.filter(event => !event.completed));
     } catch (err) {
       console.error('Ошибка загрузки событий здоровья:', err);
@@ -39,16 +38,46 @@ export default function HealthWidget() {
     }
   };
 
+  const handleComplete = async (id) => {
+    try {
+      await post(`health/complete/${id}`);
+      fetchEvents();
+    } catch (err) {
+      console.error('Ошибка при завершении события:', err);
+    }
+  };
+
   const getIcon = (type) => {
-    switch (type) {
-      case 'Тренировка':
+    switch (type.toLowerCase()) {
+      case 'тренировка':
+      case 'training':
         return <Dumbbell className={styles.eventIcon} />;
-      case 'Лекарство':
+      case 'лекарство':
+      case 'medicine':
         return <Pill className={styles.eventIcon} />;
-      case 'Врач':
+      case 'врач':
+      case 'doctor':
         return <Stethoscope className={styles.eventIcon} />;
+      case 'анализы':
+      case 'tests':
+        return <Activity className={styles.eventIcon} />;
       default:
         return <Activity className={styles.eventIcon} />;
+    }
+  };
+
+  const translateType = (type) => {
+    switch (type.toLowerCase()) {
+      case 'training':
+        return 'Тренировка';
+      case 'doctor':
+        return 'Врач';
+      case 'medicine':
+        return 'Лекарство';
+      case 'tests':
+        return 'Анализы';
+      default:
+        return type;
     }
   };
 
@@ -114,7 +143,7 @@ export default function HealthWidget() {
             <div key={event.id} className={styles.event}>
               <div className={styles.eventHeader}>
                 {getIcon(event.type)}
-                <div className={styles.eventTitle}>{event.type}</div>
+                <div className={styles.eventTitle}>{translateType(event.type)}</div>
                 <div className={styles.eventTime}>
                   {event.date} {event.time}
                 </div>
@@ -124,6 +153,12 @@ export default function HealthWidget() {
                 {event.activity && <div>🏃 {event.activity}</div>}
                 {event.notes && <div>📝 {event.notes}</div>}
               </div>
+              <button
+                className={styles.completeButton}
+                onClick={() => handleComplete(event.id)}
+              >
+                <CheckCircle size={18} /> Завершить
+              </button>
             </div>
           ))
         )}

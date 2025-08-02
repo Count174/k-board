@@ -112,3 +112,31 @@
   margin-top: 6px;
   display: inline-block;
 }
+
+.completeButton {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #6a11cb, #2575fc);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+
+.completeButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(106, 17, 203, 0.6);
+  background: linear-gradient(135deg, #7a1fff, #3a8efc);
+}
+
+.completeButton svg {
+  flex-shrink: 0;
+}
