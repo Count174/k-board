@@ -1,15 +1,18 @@
 .widget {
-  background: white;
+  background: #1e1e2f;
   border-radius: 16px;
   padding: 24px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  color: #f0f0f0;
+  margin-bottom: 30px;
 }
 
 .widget h2 {
   margin-top: 0;
-  font-size: 20px;
-  color: #2c3e50;
-  margin-bottom: 16px;
+  font-size: 22px;
+  color: #ffffff;
+  margin-bottom: 20px;
+  font-weight: 600;
 }
 
 .form {
@@ -21,7 +24,7 @@
 
 .formRow {
   display: flex;
-  gap: 16px;
+  gap: 12px;
 }
 
 .formRow > * {
@@ -31,20 +34,34 @@
 .form textarea,
 .form select,
 .form input {
-  padding: 10px 12px;
+  padding: 12px;
   font-size: 14px;
   border-radius: 8px;
-  border: 1px solid #ddd;
+  border: none;
+  background: #2c2c3e;
+  color: #f0f0f0;
+}
+
+.form textarea::placeholder,
+.form select::placeholder,
+.form input::placeholder {
+  color: #aaa;
 }
 
 .submitButton {
   padding: 12px;
-  background-color: #4a6bdf;
-  color: white;
+  background: linear-gradient(135deg, #6c63ff, #4a6bdf);
+  color: #fff;
   font-size: 15px;
+  font-weight: 600;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
+  transition: background 0.3s;
+}
+
+.submitButton:hover {
+  background: linear-gradient(135deg, #7b72ff, #5b7bff);
 }
 
 .events {
@@ -53,9 +70,10 @@
 
 .event {
   border-radius: 12px;
-  background: #f5f7fa;
-  padding: 16px;
-  margin-bottom: 14px;
+  background: #2a2a3d;
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
 }
 
 .eventHeader {
@@ -65,29 +83,32 @@
 }
 
 .eventIcon {
-  color: #4a6bdf;
-  margin-right: 10px;
+  color: #6c63ff;
+  margin-right: 12px;
+  font-size: 20px;
 }
 
 .eventTitle {
   flex: 1;
   font-weight: 600;
-  color: #333;
+  font-size: 16px;
+  color: #fff;
 }
 
 .eventTime {
   font-size: 13px;
-  color: #999;
+  color: #bbb;
 }
 
 .eventDetails {
   font-size: 14px;
-  color: #444;
+  color: #ddd;
+  margin-top: 6px;
 }
 
 .completedLabel {
-  color: green;
+  color: #4ade80; /* зелёный */
   font-weight: 600;
-  margin-top: 4px;
+  margin-top: 6px;
   display: inline-block;
 }
