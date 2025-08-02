@@ -1,131 +1,147 @@
 .widget {
-  background: #fff;
-  border-radius: 16px;
-  padding: 24px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
+  background: #1e1f25;
+  color: #fff;
+  border-radius: 20px;
+  padding: 20px;
   margin-bottom: 24px;
-}
-
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
+  box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.5);
 }
 
 .title {
   font-size: 20px;
   font-weight: 600;
-  color: #333;
+  margin-bottom: 20px;
+  color: #ffffff;
 }
 
-.filterButtons {
+.filters {
   display: flex;
-  gap: 8px;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
 }
 
-.filterButton {
-  background: #f2f2f2;
+.filters button {
+  background: #2a2b32;
   border: none;
-  padding: 6px 12px;
-  border-radius: 8px;
+  border-radius: 12px;
+  padding: 8px 16px;
   cursor: pointer;
+  color: #b0b3c1;
   font-size: 14px;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
 }
 
-.filterButton:hover {
-  background: #e0e0e0;
+.filters button:hover {
+  background: #3a3c44;
+  color: #fff;
 }
 
-.filterButtonActive {
-  background: #007bff;
-  color: white;
+.activeFilter {
+  background: #4e5cf1 !important;
+  color: #fff !important;
 }
 
 .totals {
   display: flex;
   justify-content: space-between;
-  margin: 16px 0;
-  gap: 16px;
+  margin-bottom: 20px;
+  font-size: 16px;
 }
 
-.income,
-.expense {
-  flex: 1;
-  background: #f9fafb;
-  padding: 16px;
-  border-radius: 12px;
-  text-align: center;
+.income {
+  color: #4ade80; /* зеленый для доходов */
+  font-weight: 600;
 }
 
-.incomeTitle,
-.expenseTitle {
-  font-size: 14px;
-  color: #666;
-  margin-bottom: 4px;
+.expenses {
+  color: #f87171; /* красный для расходов */
+  font-weight: 600;
 }
 
-.incomeAmount {
-  font-size: 20px;
-  font-weight: bold;
-  color: #28a745;
-}
-
-.expenseAmount {
-  font-size: 20px;
-  font-weight: bold;
-  color: #dc3545;
-}
-
-.chartWrapper {
-  margin: 16px 0;
-}
-
-.form {
+.tabs {
   display: flex;
-  gap: 8px;
-  margin-top: 16px;
-  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
 }
 
-.form input,
-.form select {
-  padding: 8px 10px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-  font-size: 14px;
+.tabs button {
   flex: 1;
-}
-
-.form button {
-  background: #007bff;
-  color: white;
+  background: #2a2b32;
   border: none;
-  padding: 8px 14px;
-  border-radius: 8px;
+  border-radius: 12px;
+  padding: 10px;
   cursor: pointer;
-  font-size: 14px;
-  transition: background 0.2s;
+  font-size: 15px;
+  color: #b0b3c1;
+  transition: all 0.2s ease;
 }
 
-.form button:hover {
-  background: #0056b3;
+.tabs button:hover {
+  background: #3a3c44;
+  color: #fff;
+}
+
+.activeTab {
+  background: #4e5cf1 !important;
+  color: #fff !important;
 }
 
 .list {
-  margin-top: 16px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  margin-bottom: 20px;
+  max-height: 200px;
+  overflow-y: auto;
 }
 
-.item {
+.transaction {
   display: flex;
   justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid #f0f0f0;
+  background: #2a2b32;
+  padding: 12px;
+  border-radius: 12px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  transition: background 0.2s ease;
+}
+
+.transaction:hover {
+  background: #3a3c44;
+}
+
+.form {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.form select,
+.form input {
+  background: #2a2b32;
+  border: none;
+  border-radius: 12px;
+  padding: 10px;
+  color: #fff;
   font-size: 14px;
 }
 
-.item span {
-  flex: 1;
-  text-align: center;
+.form input::placeholder {
+  color: #b0b3c1;
+}
+
+.form button {
+  background: #4e5cf1;
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.form button:hover {
+  background: #3d4bd1;
 }
