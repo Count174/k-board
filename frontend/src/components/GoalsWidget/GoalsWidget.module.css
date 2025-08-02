@@ -1,109 +1,139 @@
 .widget {
-  background: #f9f9f9;
-  padding: 1.5rem;
-  border-radius: 1.5rem;
-  margin-bottom: 2rem;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  background: #1e1e2f;
+  padding: 20px;
+  border-radius: 16px;
+  margin-bottom: 20px;
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
 }
 
 .header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 20px;
+}
+
+.header h2 {
+  font-size: 1.6rem;
+  font-weight: bold;
+  color: #ffffff;
+}
+
+.form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.form input,
+.form select {
+  padding: 10px;
+  border: none;
+  border-radius: 10px;
+  background: #2c2c3e;
+  color: #fff;
+}
+
+.form input::placeholder {
+  color: #aaa;
+}
+
+.form button {
+  grid-column: span 2;
+  padding: 12px;
+  background: #4cafef;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.3s;
+}
+
+.form button:hover {
+  background: #3794e6;
 }
 
 .goalCard {
-  background-color: white;
-  border-radius: 1rem;
-  padding: 1.25rem;
-  margin-bottom: 1.5rem;
   position: relative;
+  background: #2c2c3e;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
   overflow: hidden;
-  min-height: 180px; /* стало выше */
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
 }
 
 .goalImage {
-  position: absolute;
-  right: 0;
-  top: 0;
   width: 100%;
-  height: 180px; /* выше картинка */
+  height: 180px;
   object-fit: cover;
-  border-radius: 1rem;
-  opacity: 0.08;
-  z-index: 0;
+  border-radius: 12px;
+  margin-bottom: 12px;
 }
 
 .goalTitle {
+  font-size: 1.3rem;
   font-weight: bold;
-  font-size: 1.2rem;
-  margin-bottom: 0.5rem;
-  position: relative;
-  z-index: 1;
+  margin-bottom: 10px;
+  color: #fff;
 }
 
 .progressText {
-  font-size: 0.95rem;
-  color: #444;
-  margin-bottom: 0.5rem;
-  position: relative;
-  z-index: 1;
+  margin-bottom: 12px;
+  color: #ddd;
 }
 
 .slider {
   width: 100%;
-  accent-color: #6366f1;
-  position: relative;
-  z-index: 1;
-}
-
-.deleteButton {
-  position: absolute;
-  bottom: 0.75rem;
-  right: 0.75rem;
-  background: none;
-  border: none;
-  font-size: 20px;
   cursor: pointer;
-  z-index: 2;
+  accent-color: #4cafef;
 }
 
 .binaryLabel {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-  font-size: 0.95rem;
-  z-index: 1;
-  position: relative;
+  justify-content: space-between;
+  margin-top: 10px;
 }
 
 .binaryButton {
-  padding: 6px 14px;
-  font-size: 14px;
-  font-weight: 500;
-  border-radius: 8px;
+  padding: 8px 14px;
   border: none;
+  border-radius: 8px;
   cursor: pointer;
+  font-weight: bold;
+  transition: background 0.3s, transform 0.2s;
+}
+
+.binaryButton:hover {
+  transform: scale(1.05);
 }
 
 .completed {
-  background-color: #e0ffe0;
-  color: #2e7d32;
+  background: #4caf50;
+  color: #fff;
 }
 
 .notCompleted {
-  background-color: #eeeeee;
-  color: #666666;
+  background: #e53935;
+  color: #fff;
 }
 
-.form {
-  background: #fff;
-  border-radius: 1rem;
-  padding: 1rem;
-  margin-bottom: 1.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+.deleteButton {
+  position: absolute;
+  bottom: 15px;
+  right: 15px;
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: #f44336;
+  transition: transform 0.2s;
+}
+
+.deleteButton:hover {
+  transform: scale(1.2);
 }
