@@ -14,6 +14,34 @@
   color: #ffffff;
 }
 
+.tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.tabs button {
+  flex: 1;
+  background: #2a2b32;
+  border: none;
+  border-radius: 12px;
+  padding: 10px;
+  cursor: pointer;
+  font-size: 15px;
+  color: #b0b3c1;
+  transition: all 0.2s ease;
+}
+
+.tabs button:hover {
+  background: #3a3c44;
+  color: #fff;
+}
+
+.activeTab {
+  background: #4e5cf1 !important;
+  color: #fff !important;
+}
+
 .filters {
   display: flex;
   gap: 12px;
@@ -57,34 +85,6 @@
 .expenses {
   color: #f87171; /* красный для расходов */
   font-weight: 600;
-}
-
-.tabs {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 20px;
-}
-
-.tabs button {
-  flex: 1;
-  background: #2a2b32;
-  border: none;
-  border-radius: 12px;
-  padding: 10px;
-  cursor: pointer;
-  font-size: 15px;
-  color: #b0b3c1;
-  transition: all 0.2s ease;
-}
-
-.tabs button:hover {
-  background: #3a3c44;
-  color: #fff;
-}
-
-.activeTab {
-  background: #4e5cf1 !important;
-  color: #fff !important;
 }
 
 .list {
