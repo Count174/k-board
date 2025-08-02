@@ -68,8 +68,8 @@
 
 .goalImage {
   width: 100%;
-  height: 180px;
-  object-fit: cover;
+  height: 160px; /* фиксированная высота */
+  object-fit: cover; /* сохраняет пропорции */
   border-radius: 12px;
   margin-bottom: 12px;
 }
@@ -124,7 +124,7 @@
 
 .deleteButton {
   position: absolute;
-  bottom: 15px;
+  top: 15px;  /* вместо bottom */
   right: 15px;
   background: transparent;
   border: none;
