@@ -4,170 +4,154 @@ import { get, post } from "../../api/api";
 import {
   LineChart,
   Line,
-  CartesianGrid,
   XAxis,
   YAxis,
+  CartesianGrid,
   Tooltip,
   BarChart,
   Bar,
+  Legend,
   ResponsiveContainer,
 } from "recharts";
+import dayjs from "dayjs";
 
 const FinanceWidget = () => {
-  const [view, setView] = useState("transactions");
-  const [filter, setFilter] = useState("month");
   const [transactions, setTransactions] = useState([]);
-  const [totals, setTotals] = useState({ income: 0, expense: 0 });
-  const [monthlyStats, setMonthlyStats] = useState([]);
-  const [topExpenses, setTopExpenses] = useState([]);
-  const [topIncome, setTopIncome] = useState([]);
-
+  const [period, setPeriod] = useState("month");
+  const [tab, setTab] = useState("transactions");
   const [form, setForm] = useState({ type: "expense", category: "", amount: "" });
 
-  // получить даты для фильтров
-  const getPeriod = () => {
-    const today = new Date();
-    let start, end;
-
-    if (filter === "today") {
-      start = new Date(today.setHours(0, 0, 0, 0));
-      end = new Date(today.setHours(23, 59, 59, 999));
-    } else if (filter === "yesterday") {
-      const y = new Date();
-      y.setDate(y.getDate() - 1);
-      start = new Date(y.setHours(0, 0, 0, 0));
-      end = new Date(y.setHours(23, 59, 59, 999));
-    } else if (filter === "month") {
-      start = new Date(today.getFullYear(), today.getMonth(), 1);
-      end = new Date(today.getFullYear(), today.getMonth() + 1, 0, 23, 59, 59);
-    } else {
-      start = new Date(2000, 0, 1);
-      end = new Date();
-    }
-
-    return {
-      start: start.toISOString(),
-      end: end.toISOString(),
-    };
-  };
-
-  const fetchData = async () => {
-    const { start, end } = getPeriod();
+  const fetchTransactions = async (selectedPeriod = "month") => {
     try {
-      // транзакции по периоду
-      const data = await get(`/finances/period?start=${start}&end=${end}`);
+      let url = "/finances";
+      if (selectedPeriod !== "all") {
+        const { start, end } = getPeriodDates(selectedPeriod);
+        url = `/finances/period?start=${start}&end=${end}`;
+      }
+      const data = await get(url);
       setTransactions(data);
-
-      // пересчёт totals
-      const income = data
-        .filter((t) => t.type === "income")
-        .reduce((sum, t) => sum + t.amount, 0);
-      const expense = data
-        .filter((t) => t.type === "expense")
-        .reduce((sum, t) => sum + t.amount, 0);
-      setTotals({ income, expense });
-
-      // топ категории
-      const expenseMap = {};
-      const incomeMap = {};
-      data.forEach((t) => {
-        if (t.type === "expense") {
-          expenseMap[t.category] = (expenseMap[t.category] || 0) + t.amount;
-        } else {
-          incomeMap[t.category] = (incomeMap[t.category] || 0) + t.amount;
-        }
-      });
-      setTopExpenses(
-        Object.entries(expenseMap)
-          .map(([category, amount]) => ({ category, amount }))
-          .sort((a, b) => b.amount - a.amount)
-          .slice(0, 3)
-      );
-      setTopIncome(
-        Object.entries(incomeMap)
-          .map(([category, amount]) => ({ category, amount }))
-          .sort((a, b) => b.amount - a.amount)
-          .slice(0, 3)
-      );
-
-      // статистика по месяцам
-      const stats = await get("/finances/monthly");
-      setMonthlyStats(stats);
-    } catch (err) {
-      console.error("Ошибка загрузки данных", err);
+    } catch (error) {
+      console.error("Ошибка при загрузке транзакций:", error);
     }
   };
 
   useEffect(() => {
-    fetchData();
-  }, [filter]);
+    fetchTransactions(period);
+  }, [period]);
 
-  const handleAdd = async () => {
-    if (!form.category || !form.amount) return;
-    try {
-      await post("/finances", form);
-      setForm({ type: "expense", category: "", amount: "" });
-      fetchData();
-    } catch (err) {
-      console.error("Ошибка добавления транзакции", err);
+  const getPeriodDates = (selectedPeriod) => {
+    const today = dayjs().startOf("day");
+    switch (selectedPeriod) {
+      case "today":
+        return { start: today.format("YYYY-MM-DD HH:mm:ss"), end: today.endOf("day").format("YYYY-MM-DD HH:mm:ss") };
+      case "yesterday":
+        const yesterday = today.subtract(1, "day");
+        return { start: yesterday.startOf("day").format("YYYY-MM-DD HH:mm:ss"), end: yesterday.endOf("day").format("YYYY-MM-DD HH:mm:ss") };
+      case "month":
+        return { start: today.startOf("month").format("YYYY-MM-DD HH:mm:ss"), end: today.endOf("month").format("YYYY-MM-DD HH:mm:ss") };
+      case "all":
+      default:
+        return { start: "1970-01-01 00:00:00", end: dayjs().endOf("day").format("YYYY-MM-DD HH:mm:ss") };
     }
   };
 
-  return (
-    <div className={styles.financeWidget}>
-      <h2>Финансы</h2>
+  const handleAddTransaction = async () => {
+    if (!form.category || !form.amount) return;
+    try {
+      await post("/finances", { ...form });
+      setForm({ type: "expense", category: "", amount: "" });
+      fetchTransactions(period);
+    } catch (error) {
+      console.error("Ошибка при добавлении транзакции:", error);
+    }
+  };
 
+  const income = transactions
+    .filter((t) => t.type === "income")
+    .reduce((acc, t) => acc + parseFloat(t.amount), 0);
+
+  const expense = transactions
+    .filter((t) => t.type === "expense")
+    .reduce((acc, t) => acc + parseFloat(t.amount), 0);
+
+  const groupedByMonth = Object.values(
+    transactions.reduce((acc, t) => {
+      const month = dayjs(t.date).format("YYYY-MM");
+      if (!acc[month]) acc[month] = { month, income: 0, expense: 0 };
+      if (t.type === "income") acc[month].income += parseFloat(t.amount);
+      else acc[month].expense += parseFloat(t.amount);
+      return acc;
+    }, {})
+  );
+
+  const topExpenses = Object.values(
+    transactions
+      .filter((t) => t.type === "expense")
+      .reduce((acc, t) => {
+        if (!acc[t.category]) acc[t.category] = { category: t.category, amount: 0 };
+        acc[t.category].amount += parseFloat(t.amount);
+        return acc;
+      }, {})
+  )
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 3);
+
+  const topIncomes = Object.values(
+    transactions
+      .filter((t) => t.type === "income")
+      .reduce((acc, t) => {
+        if (!acc[t.category]) acc[t.category] = { category: t.category, amount: 0 };
+        acc[t.category].amount += parseFloat(t.amount);
+        return acc;
+      }, {})
+  )
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 3);
+
+  return (
+    <div className={styles.widget}>
+      <h2 className={styles.title}>Финансы</h2>
       <div className={styles.tabs}>
         <button
-          onClick={() => setView("transactions")}
-          className={view === "transactions" ? styles.activeTab : ""}
+          onClick={() => setTab("transactions")}
+          className={tab === "transactions" ? styles.activeTab : ""}
         >
           Транзакции
         </button>
         <button
-          onClick={() => setView("analytics")}
-          className={view === "analytics" ? styles.activeTab : ""}
+          onClick={() => setTab("analytics")}
+          className={tab === "analytics" ? styles.activeTab : ""}
         >
           Аналитика
         </button>
       </div>
 
-      <div className={styles.filters}>
-        <button
-          onClick={() => setFilter("today")}
-          className={filter === "today" ? styles.activeTab : ""}
-        >
-          Сегодня
-        </button>
-        <button
-          onClick={() => setFilter("yesterday")}
-          className={filter === "yesterday" ? styles.activeTab : ""}
-        >
-          Вчера
-        </button>
-        <button
-          onClick={() => setFilter("month")}
-          className={filter === "month" ? styles.activeTab : ""}
-        >
-          Текущий месяц
-        </button>
-        <button
-          onClick={() => setFilter("all")}
-          className={filter === "all" ? styles.activeTab : ""}
-        >
-          За всё время
-        </button>
+      <div className={styles.periodTabs}>
+        {["today", "yesterday", "month", "all"].map((p) => (
+          <button
+            key={p}
+            onClick={() => setPeriod(p)}
+            className={period === p ? styles.activeTab : ""}
+          >
+            {p === "today"
+              ? "Сегодня"
+              : p === "yesterday"
+              ? "Вчера"
+              : p === "month"
+              ? "Текущий месяц"
+              : "За всё время"}
+          </button>
+        ))}
       </div>
 
-      {view === "transactions" && (
+      {tab === "transactions" ? (
         <>
-          <div className={styles.totals}>
-            <span style={{ color: "lightgreen" }}>Доходы: {totals.income} ₽</span>
-            <span style={{ color: "tomato" }}>Расходы: {totals.expense} ₽</span>
+          <div className={styles.summary}>
+            <span className={styles.income}>Доходы: {income} ₽</span>
+            <span className={styles.expense}>Расходы: {expense} ₽</span>
           </div>
-
-          <div className={styles.addForm}>
-            <h4>Добавить операцию</h4>
+          <h3 className={styles.subtitle}>Добавить операцию</h3>
+          <div className={styles.addTransaction}>
             <select
               value={form.type}
               onChange={(e) => setForm({ ...form, type: e.target.value })}
@@ -185,61 +169,52 @@ const FinanceWidget = () => {
               type="number"
               placeholder="Сумма"
               value={form.amount}
-              onChange={(e) => setForm({ ...form, amount: parseFloat(e.target.value) })}
+              onChange={(e) => setForm({ ...form, amount: e.target.value })}
             />
-            <button onClick={handleAdd}>Добавить</button>
+            <button onClick={handleAddTransaction}>Добавить</button>
           </div>
-
-          <ul className={styles.transactions}>
+          <ul className={styles.transactionsList}>
             {transactions.map((t) => (
-              <li key={t.id}>
+              <li key={t.id} className={styles.transaction}>
                 {t.category}: {t.amount} ₽
               </li>
             ))}
           </ul>
         </>
-      )}
-
-      {view === "analytics" && (
-        <div>
+      ) : (
+        <>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={monthlyStats}>
+            <LineChart data={groupedByMonth}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis />
               <Tooltip />
-              <Line type="monotone" dataKey="income" stroke="lightgreen" name="Доходы" />
-              <Line type="monotone" dataKey="expense" stroke="tomato" name="Расходы" />
+              <Legend />
+              <Line type="monotone" dataKey="income" stroke="green" name="Доходы" />
+              <Line type="monotone" dataKey="expense" stroke="red" name="Расходы" />
             </LineChart>
           </ResponsiveContainer>
-
-          <div className={styles.analyticsGrid}>
-            <div>
-              <h4>Топ-3 расходов</h4>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={topExpenses}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="category" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="amount" fill="tomato" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div>
-              <h4>Топ-3 доходов</h4>
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={topIncome}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="category" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="amount" fill="lightgreen" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+          <div className={styles.analyticsCharts}>
+            <ResponsiveContainer width="50%" height={250}>
+              <BarChart data={topExpenses}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="category" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="amount" fill="red" />
+              </BarChart>
+            </ResponsiveContainer>
+            <ResponsiveContainer width="50%" height={250}>
+              <BarChart data={topIncomes}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="category" />
+                <YAxis />
+                <Tooltip />
+                <Bar dataKey="amount" fill="green" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
