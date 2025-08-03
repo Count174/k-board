@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import styles from "./BuyingListWidget.module.css";
-import { get, post, del } from "../../api/api";
+import { get, post, remove } from "../../api/api";
 
 const BuyingListWidget = () => {
   const [items, setItems] = useState([]);
@@ -40,7 +40,7 @@ const BuyingListWidget = () => {
 
   const deleteItem = async (id) => {
     try {
-      await del(`/buying-list/${id}`);
+      await remove(`/buying-list/${id}`);
       fetchItems();
     } catch (error) {
       console.error("Ошибка при удалении покупки:", error);
