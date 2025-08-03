@@ -34,7 +34,7 @@ app.use('/api/health', healthRoutes);
 app.use('/api/nutrition', nutritionRoutes);
 app.use('/api/telegram', telegramRoutes);
 app.use('/api/auth', authRoutes);
-app.use('/api/buyingList', buyingListRoutes);
+app.use('/api/buying-list', buyingListRoutes);
 
 
 // Статика фронта
