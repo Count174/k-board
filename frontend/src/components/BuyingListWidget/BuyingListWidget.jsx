@@ -1,133 +1,106 @@
-import { useState, useEffect } from "react";
-import { get, post, remove } from "../../api/api";
+import React, { useState, useEffect } from "react";
 import styles from "./BuyingListWidget.module.css";
-import { Trash2, CheckCircle, Circle } from "lucide-react";
+import { get, post, del } from "../../api/api";
 
-export default function BuyingListWidget() {
+const BuyingListWidget = () => {
   const [items, setItems] = useState([]);
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("offline");
+  const [category, setCategory] = useState("store");
   const [reminderDate, setReminderDate] = useState("");
 
   useEffect(() => {
-    loadItems();
+    fetchItems();
   }, []);
 
-  const loadItems = async () => {
+  const fetchItems = async () => {
     try {
-      const data = await get("buying-list");
+      const data = await get("/buying-list");
       setItems(data);
-    } catch (err) {
-      console.error("Ошибка загрузки списка покупок:", err);
+    } catch (error) {
+      console.error("Ошибка при загрузке списка покупок:", error);
     }
   };
 
-  const handleAdd = async () => {
+  const addItem = async () => {
     if (!title.trim()) return;
     try {
-      const newItem = await post("buying-list", {
+      await post("/buying-list", {
         title,
         category,
-        reminder_date: reminderDate || null,
+        reminder_date: reminderDate,
       });
-      setItems([newItem, ...items]);
       setTitle("");
+      setCategory("store");
       setReminderDate("");
-    } catch (err) {
-      console.error("Ошибка добавления:", err);
+      fetchItems();
+    } catch (error) {
+      console.error("Ошибка при добавлении покупки:", error);
     }
   };
 
-  const toggleComplete = async (id) => {
+  const deleteItem = async (id) => {
     try {
-      await post(`buying-list/${id}/toggle`);
-      loadItems();
-    } catch (err) {
-      console.error("Ошибка обновления:", err);
+      await del(`/buying-list/${id}`);
+      fetchItems();
+    } catch (error) {
+      console.error("Ошибка при удалении покупки:", error);
     }
-  };
-
-  const handleDelete = async (id) => {
-    try {
-      await remove(`buying-list/${id}`);
-      setItems(items.filter((item) => item.id !== id));
-    } catch (err) {
-      console.error("Ошибка удаления:", err);
-    }
-  };
-
-  const categoryLabels = {
-    offline: "🏬 Магазин",
-    delivery: "📦 Доставка",
-    marketplace: "🛒 Маркетплейс",
   };
 
   return (
-    <div className={styles.widget}>
-      <h2 className={styles.title}>🛍 Список покупок</h2>
-
+    <div className={styles.container}>
+      <h2 className={styles.title}>🛍️ Список покупок</h2>
       <div className={styles.form}>
         <input
           type="text"
           placeholder="Что купить?"
+          className={styles.input}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
         />
         <select
+          className={styles.select}
           value={category}
           onChange={(e) => setCategory(e.target.value)}
         >
-          <option value="offline">🏬 Магазин</option>
-          <option value="delivery">📦 Доставка</option>
-          <option value="marketplace">🛒 Маркетплейс</option>
+          <option value="store">🛒 Магазин</option>
+          <option value="delivery">🚚 Доставка</option>
+          <option value="marketplace">🌐 Маркетплейс</option>
         </select>
         <input
           type="date"
+          className={styles.date}
           value={reminderDate}
           onChange={(e) => setReminderDate(e.target.value)}
         />
-        <button onClick={handleAdd}>Добавить</button>
+        <button className={styles.addButton} onClick={addItem}>
+          Добавить
+        </button>
       </div>
-
       <div className={styles.list}>
         {items.length === 0 ? (
           <p className={styles.empty}>Пока пусто. Добавь первую покупку 👆</p>
         ) : (
           items.map((item) => (
-            <div
-              key={item.id}
-              className={`${styles.item} ${
-                item.completed ? styles.completed : ""
-              }`}
-            >
+            <div key={item.id} className={styles.item}>
               <div className={styles.itemInfo}>
-                <button
-                  className={styles.checkBtn}
-                  onClick={() => toggleComplete(item.id)}
-                >
-                  {item.completed ? (
-                    <CheckCircle size={20} />
-                  ) : (
-                    <Circle size={20} />
-                  )}
-                </button>
-                <div>
-                  <p className={styles.itemTitle}>{item.title}</p>
-                  <span className={styles.category}>
-                    {categoryLabels[item.category] || item.category}
-                  </span>
-                  {item.reminder_date && (
-                    <span className={styles.reminder}>
-                      Напомнить: {new Date(item.reminder_date).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
+                <span>{item.title}</span>
+                <span>
+                  {item.category === "store"
+                    ? "🛒 Магазин"
+                    : item.category === "delivery"
+                    ? "🚚 Доставка"
+                    : "🌐 Маркетплейс"}
+                </span>
+                {item.reminder_date && (
+                  <span className={styles.dateText}>{item.reminder_date}</span>
+                )}
               </div>
               <button
-                className={styles.deleteBtn}
-                onClick={() => handleDelete(item.id)}
+                className={styles.deleteButton}
+                onClick={() => deleteItem(item.id)}
               >
-                <Trash2 size={18} />
+                🗑️
               </button>
             </div>
           ))
@@ -135,4 +108,6 @@ export default function BuyingListWidget() {
       </div>
     </div>
   );
-}
+};
+
+export default BuyingListWidget;
