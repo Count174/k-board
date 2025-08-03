@@ -69,12 +69,16 @@ db.serialize(() => {
 
 
   db.run(`
-    CREATE TABLE IF NOT EXISTS nutrition (
+    CREATE TABLE IF NOT EXISTS buying_list (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      date TEXT NOT NULL,
-      mealType TEXT,
-      description TEXT,
-      calories INTEGER,
+      user_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      category TEXT NOT NULL, -- offline, delivery, marketplace
+      notes TEXT,
+      reminder_date TEXT, -- когда напомнить
+      completed INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);

@@ -1,0 +1,108 @@
+.widget {
+  background: #2c2d35;
+  border-radius: 16px;
+  padding: 20px;
+  color: #fff;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+.title {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.form {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.form input, .form select {
+  padding: 10px;
+  border-radius: 12px;
+  border: none;
+  outline: none;
+  background: #3a3b45;
+  color: #fff;
+  font-size: 14px;
+}
+
+.form button {
+  padding: 10px 16px;
+  background: #4e5efc;
+  border: none;
+  border-radius: 12px;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.form button:hover {
+  background: #3d4ed1;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.item {
+  background: #3a3b45;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.itemInfo {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.itemTitle {
+  font-size: 16px;
+  margin: 0;
+}
+
+.category {
+  display: inline-block;
+  font-size: 12px;
+  color: #9da0b0;
+  margin-right: 8px;
+}
+
+.reminder {
+  display: inline-block;
+  font-size: 12px;
+  color: #f5a623;
+}
+
+.completed .itemTitle {
+  text-decoration: line-through;
+  color: #9da0b0;
+}
+
+.checkBtn {
+  background: none;
+  border: none;
+  color: #4e5efc;
+  cursor: pointer;
+}
+
+.deleteBtn {
+  background: none;
+  border: none;
+  color: #e74c3c;
+  cursor: pointer;
+}
+
+.empty {
+  text-align: center;
+  color: #9da0b0;
+  font-size: 14px;
+}

@@ -13,6 +13,7 @@ const todosRoutes = require('./routes/todos');
 const goalsRoutes = require('./routes/goals');
 const healthRoutes = require('./routes/health');
 const nutritionRoutes = require('./routes/nutrition');
+const buyingListRoutes = require('./routes/buyingList');
 const authRoutes = require('./routes/auth');
 const telegramRoutes = require('./routes/telegram');
 
@@ -33,6 +34,7 @@ app.use('/api/health', healthRoutes);
 app.use('/api/nutrition', nutritionRoutes);
 app.use('/api/telegram', telegramRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/buyingList', buyingListRoutes);
 
 
 // Статика фронта

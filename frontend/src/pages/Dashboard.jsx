@@ -3,9 +3,9 @@ import { get, post } from '../api/api';
 import styles from '../styles/Dashboard.module.css';
 import ToDoWidget from '../components/ToDoWidget/ToDoWidget';
 import HealthWidget from '../components/HealthWidget/HealthWidget';
-import NutritionWidget from '../components/NutritionWidget/NutritionWidget';
 import FinanceWidget from '../components/FinanceWidget/FinanceWidget';
 import GoalsWidget from '../components/GoalsWidget/GoalsWidget';
+import BuyingListWidget from '../components/BuyingListWidget/BuyingListWidget';
 import GreetingHeader from '../components/Dashboard/GreetingsHeader';
 import TelegramModal from '../components/TelegramModal';
 
@@ -35,7 +35,7 @@ export default function Dashboard() {
       <div className={styles.widgetsRow}>
         <ToDoWidget />
         <HealthWidget />
-        <NutritionWidget />
+        <BuyingListWidget />
       </div>
 
       <div className={styles.widgetsColumn}>
