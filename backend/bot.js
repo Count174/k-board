@@ -19,6 +19,7 @@ const helpMessage = `🛠 Возможности:
 /goals — показать цели
 /train — добавить тренировку (через кнопки)`;
 
+// ===================== PARSE DATE =====================
 function parseDate(text) {
   const months = {
     'января': 1, 'февраля': 2, 'марта': 3, 'апреля': 4,
@@ -159,6 +160,76 @@ bot.on('message', async (msg) => {
     });
   }
 
+  // ========= /budget [YYYY-MM] ========= //
+bot.onText(/^\/budget(?:\s+(\d{4})-(\d{2}))?$/, (msg, match) => {
+  const chatId = msg.chat.id;
+  const inputYear = match[1];
+  const inputMonth = match[2];
+
+  const month = (() => {
+    if (inputYear && inputMonth) return `${inputYear}-${inputMonth}`;
+    const d = new Date();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    return `${d.getFullYear()}-${m}`;
+  })();
+
+  getUserId(chatId, (userId) => {
+    if (!userId) return bot.sendMessage(chatId, '❌ Вы не привязаны к пользователю в системе.');
+
+    const sql = `
+      SELECT b.category, b.amount AS budget,
+             IFNULL(SUM(f.amount), 0) AS spent
+      FROM budgets b
+      LEFT JOIN finances f
+        ON f.user_id = b.user_id
+       AND f.type = 'expense'
+       AND strftime('%Y-%m', f.date) = b.month
+       AND LOWER(TRIM(f.category)) = LOWER(TRIM(b.category))
+      WHERE b.user_id = ? AND b.month = ?
+      GROUP BY b.category, b.amount
+      ORDER BY b.category
+    `;
+
+    db.all(sql, [userId, month], (err, rows) => {
+      if (err) {
+        console.error('budget cmd error:', err);
+        return bot.sendMessage(chatId, '❌ Ошибка при получении бюджетов.');
+      }
+
+      if (!rows || rows.length === 0) {
+        return bot.sendMessage(chatId, `🧾 Бюджеты на ${month} не заданы.`);
+      }
+
+      // Прогноз по темпу трат
+      const d = new Date();
+      const [yy, mm] = month.split('-').map(Number);
+      const daysInMonth = new Date(yy, mm, 0).getDate();
+      const currentDay = (yy === d.getFullYear() && mm === (d.getMonth() + 1)) ? d.getDate() : daysInMonth;
+
+      let totalBudget = 0, totalSpent = 0, totalForecast = 0;
+      const lines = rows.map(r => {
+        const pct = r.budget ? Math.round((r.spent / r.budget) * 100) : 0;
+        const remaining = Math.round((r.budget || 0) - (r.spent || 0));
+        const dailyRate = currentDay ? (r.spent / currentDay) : 0;
+        const forecast = Math.round(dailyRate * daysInMonth);
+        totalBudget += Number(r.budget || 0);
+        totalSpent += Number(r.spent || 0);
+        totalForecast += forecast;
+        const warn = forecast > r.budget ? ' ⚠️' : '';
+        return `• ${r.category}: ${pct}% | остаток *${remaining}* ₽ | прогноз *${forecast}* ₽${warn}`;
+      }).join('\n');
+
+      const header =
+        `🧾 *Бюджеты (${month})*\n` +
+        `Всего бюджет: *${Math.round(totalBudget)}* ₽\n` +
+        `Потрачено: *${Math.round(totalSpent)}* ₽\n` +
+        `Прогноз по месяцу: *${Math.round(totalForecast)}* ₽\n\n`;
+
+      bot.sendMessage(chatId, header + lines, { parse_mode: 'Markdown' });
+    });
+  });
+});
+
   if (text === '/train') {
     userStates[chatId] = { step: 'type', data: {} };
     return bot.sendMessage(chatId, 'Выбери тип активности:', {
@@ -243,7 +314,145 @@ function handleTrainingSteps(chatId, text) {
   }
 }
 
-// ========= ЕЖЕДНЕВНОЕ НАПОМИНАНИЕ ДЛЯ ВСЕХ ========= //
+// ===================== HELPERS =====================
+function currentMonth() {
+  const d = new Date();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${d.getFullYear()}-${m}`;
+}
+
+// chat_id по user_id — из таблицы telegram_users
+function getChatIdByUserId(userId) {
+  return new Promise((resolve, reject) => {
+    db.get('SELECT chat_id FROM telegram_users WHERE user_id = ?', [userId], (err, row) => {
+      if (err) return reject(err);
+      resolve(row?.chat_id || null);
+    });
+  });
+}
+
+// ===================== CRON: 75% бюджета (ежедневно 09:00 МСК) =====================
+cron.schedule('0 9 * * *', async () => {
+  const month = currentMonth();
+
+  const sql = `
+    SELECT b.user_id, b.category, b.amount AS budget,
+           IFNULL(SUM(f.amount), 0) AS spent
+    FROM budgets b
+    LEFT JOIN finances f
+      ON f.user_id = b.user_id
+     AND f.type = 'expense'
+     AND strftime('%Y-%m', f.date) = b.month
+     AND LOWER(TRIM(f.category)) = LOWER(TRIM(b.category))
+    WHERE b.month = ?
+    GROUP BY b.user_id, b.category, b.amount
+    HAVING spent >= 0.75 * budget AND spent < budget
+  `;
+
+  db.all(sql, [month], async (err, rows) => {
+    if (err) {
+      console.error('Budget 75% cron error:', err);
+      return;
+    }
+
+    for (const r of rows) {
+      try {
+        const chatId = await getChatIdByUserId(r.user_id);
+        if (!chatId) continue;
+
+        const pct = Math.round((r.spent / r.budget) * 100);
+        const remaining = Math.max(0, r.budget - r.spent);
+
+        const msg =
+          `⚠️ *Бюджет почти израсходован*\n` +
+          `Категория: *${r.category}*\n` +
+          `Потрачено: *${Math.round(r.spent)}* из *${Math.round(r.budget)}* ₽ (${pct}%)\n` +
+          `Остаток: *${Math.round(remaining)}* ₽`;
+
+        await bot.sendMessage(chatId, msg, { parse_mode: 'Markdown' });
+
+      } catch (e) {
+        console.error('Send warn error:', e);
+      }
+    }
+  });
+}, { timezone: 'Europe/Moscow' });
+
+// ===================== CRON: Дайджест по понедельникам 08:00 МСК =====================
+cron.schedule('0 8 * * 1', async () => {
+  const month = currentMonth();
+
+  // Берем всех привязанных к Telegram пользователей
+  db.all('SELECT user_id, chat_id FROM telegram_users', [], async (err, bindings) => {
+    if (err) {
+      console.error('Digest users error:', err);
+      return;
+    }
+    for (const { user_id, chat_id } of bindings) {
+      try {
+        // Топ-3 расходов за последние 7 дней
+        const top3 = await new Promise((resolve, reject) => {
+          db.all(
+            `SELECT category, SUM(amount) AS total
+             FROM finances
+             WHERE user_id = ?
+               AND type = 'expense'
+               AND date >= datetime('now', '-7 day')
+             GROUP BY category
+             ORDER BY total DESC
+             LIMIT 3`,
+            [user_id],
+            (e, rows) => e ? reject(e) : resolve(rows || [])
+          );
+        });
+
+        // Состояние бюджетов в текущем месяце
+        const stats = await new Promise((resolve, reject) => {
+          db.all(
+            `SELECT b.category, b.amount AS budget,
+                    IFNULL(SUM(f.amount), 0) AS spent
+             FROM budgets b
+             LEFT JOIN finances f
+               ON f.user_id = b.user_id
+              AND f.type = 'expense'
+              AND strftime('%Y-%m', f.date) = b.month
+              AND LOWER(TRIM(f.category)) = LOWER(TRIM(b.category))
+             WHERE b.user_id = ? AND b.month = ?
+             GROUP BY b.category, b.amount
+             ORDER BY b.category`,
+            [user_id, month],
+            (e, rows) => e ? reject(e) : resolve(rows || [])
+          );
+        });
+
+        const topLines = top3.length
+          ? top3.map((r, i) => `${i + 1}. ${r.category} — *${Math.round(r.total)}* ₽`).join('\n')
+          : 'нет расходов за неделю';
+
+        const budgetLines = stats.length
+          ? stats.map(s => {
+              const pct = s.budget ? Math.round((s.spent / s.budget) * 100) : 0;
+              const remain = Math.round((s.budget || 0) - (s.spent || 0));
+              return `• ${s.category}: ${pct}% | остаток *${remain}* ₽`;
+            }).join('\n')
+          : 'бюджеты не заданы';
+
+        const text =
+          `🧾 *Финансовый дайджест*\n` +
+          `Период: последние 7 дней\n\n` +
+          `*Топ-3 расходов:*\n${topLines}\n\n` +
+          `*Бюджеты (${month}):*\n${budgetLines}`;
+
+        await bot.sendMessage(chat_id, text, { parse_mode: 'Markdown' });
+
+      } catch (e) {
+        console.error('Digest send error:', e);
+      }
+    }
+  });
+}, { timezone: 'Europe/Moscow' });
+
+// ========= ЕЖЕДНЕВНОЕ НАПОМИНАНИЕ ДЛЯ ВСЕХ (твой существующий блок) ========= //
 const motivationalQuotes = [
   "🚀 Вперёд к целям!",
   "🔥 Ты справишься!",
