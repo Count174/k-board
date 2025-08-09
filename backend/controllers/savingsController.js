@@ -1,4 +1,4 @@
-const db = require('../db');
+const db = require('../db/db');
 
 // Получить все накопления пользователя
 exports.getSavings = (req, res) => {
