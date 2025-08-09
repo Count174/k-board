@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import styles from './SavingsWidget.module.css';
-import { get, post, del } from '../../api/api';
+import { get, post, remove } from '../../api/api';
 
 export default function SavingsWidget() {
   const [savings, setSavings] = useState([]);
@@ -24,7 +24,7 @@ export default function SavingsWidget() {
   };
 
   const deleteSavings = (id) => {
-    del(`/savings/${id}`).then(loadSavings);
+    remove(`/savings/${id}`).then(loadSavings);
   };
 
   return (
