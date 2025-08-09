@@ -17,7 +17,9 @@ exports.getAll = (req, res) => {
 
 // POST /api/budgets { category, amount, month }
 exports.upsert = (req, res) => {
-  const { category, amount, month } = req.body;
+    const category = String(req.body.category || '').trim().replace(/\s+/g, ' ');
+    const amount = Number(req.body.amount);
+    const month = String(req.body.month);
   if (!category || !amount || !month) {
     return res.status(400).json({ error: "category, amount, month обязательны" });
   }
@@ -60,7 +62,7 @@ exports.getStats = (req, res) => {
     LEFT JOIN finances f
       ON f.user_id = b.user_id
      AND f.type = 'expense'
-     AND f.category = b.category
+     AND LOWER(TRIM(f.category)) = LOWER(TRIM(b.category))
      AND strftime('%Y-%m', f.date) = b.month
     WHERE b.user_id = ? AND b.month = ?
     GROUP BY b.category, b.amount
