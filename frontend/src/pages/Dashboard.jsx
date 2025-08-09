@@ -6,6 +6,7 @@ import HealthWidget from '../components/HealthWidget/HealthWidget';
 import FinanceWidget from '../components/FinanceWidget/FinanceWidget';
 import GoalsWidget from '../components/GoalsWidget/GoalsWidget';
 import BuyingListWidget from '../components/BuyingListWidget/BuyingListWidget';
+import BudgetWidget from '../components/BudgetWidget/BudgetWidget';
 import GreetingHeader from '../components/Dashboard/GreetingsHeader';
 import TelegramModal from '../components/TelegramModal';
 
