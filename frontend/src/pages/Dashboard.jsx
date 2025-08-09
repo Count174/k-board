@@ -41,6 +41,7 @@ export default function Dashboard() {
       <div className={styles.widgetsColumn}>
         <GoalsWidget />
         <FinanceWidget />
+        <BudgetWidget />
       </div>
 
       {showTelegramModal && (

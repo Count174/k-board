@@ -16,6 +16,7 @@ const nutritionRoutes = require('./routes/nutrition');
 const buyingListRoutes = require('./routes/buyingList');
 const authRoutes = require('./routes/auth');
 const telegramRoutes = require('./routes/telegram');
+const budgetsRoutes = require('./routes/budgets');
 
 app.set('trust proxy', 1); // доверие первому прокси (nginx)
 app.use(cors({
@@ -35,6 +36,7 @@ app.use('/api/nutrition', nutritionRoutes);
 app.use('/api/telegram', telegramRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/buying-list', buyingListRoutes);
+app.use('/api/budgets', budgetsRoutes);
 
 
 // Статика фронта
