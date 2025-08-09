@@ -9,6 +9,7 @@ import BuyingListWidget from '../components/BuyingListWidget/BuyingListWidget';
 import BudgetWidget from '../components/BudgetWidget/BudgetWidget';
 import GreetingHeader from '../components/Dashboard/GreetingsHeader';
 import TelegramModal from '../components/TelegramModal';
+import SavingsWidget from '../components/SavingsWidget/SavingsWidget';
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
@@ -43,6 +44,7 @@ export default function Dashboard() {
         <GoalsWidget />
         <FinanceWidget />
         <BudgetWidget />
+        <SavingsWidget />
       </div>
 
       {showTelegramModal && (
