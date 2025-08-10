@@ -1,17 +1,24 @@
 const db = require('../db/db');
 
 exports.getAll = (req, res) => {
-  db.all("SELECT * FROM finances WHERE user_id = ? ORDER BY date DESC", [req.userId], (err, rows) => {
-    if (err) return res.status(500).send(err);
-    res.json(rows);
-  });
+  const limit = Math.min(parseInt(req.query.limit, 10) || 20, 200);
+  const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
+  db.all("SELECT * FROM finances WHERE user_id = ? ORDER BY date DESC LIMIT ? OFFSET ?",
+    [req.userId, limit, offset],
+    (err, rows) => {
+      if (err) return res.status(500).send(err);
+      res.json(rows);
+    }
+  );
 };
 
 exports.getByPeriod = (req, res) => {
   const { start, end } = req.query;
+  const limit = Math.min(parseInt(req.query.limit, 10) || 20, 200);
+  const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
   db.all(
-    "SELECT * FROM finances WHERE user_id = ? AND date BETWEEN ? AND ? ORDER BY date DESC",
-    [req.userId, start, end],
+    "SELECT * FROM finances WHERE user_id = ? AND date BETWEEN ? AND ? ORDER BY date DESC LIMIT ? OFFSET ?",
+    [req.userId, start, end, limit, offset],
     (err, rows) => {
       if (err) return res.status(500).send(err);
       res.json(rows);

@@ -16,28 +16,13 @@ import {
 import dayjs from "dayjs";
 
 const FinanceWidget = () => {
+  const PAGE = 20;
   const [transactions, setTransactions] = useState([]);
   const [period, setPeriod] = useState("month");
   const [tab, setTab] = useState("transactions");
   const [form, setForm] = useState({ type: "expense", category: "", amount: "" });
-
-  const fetchTransactions = async (selectedPeriod = "month") => {
-    try {
-      let url = "/finances";
-      if (selectedPeriod !== "all") {
-        const { start, end } = getPeriodDates(selectedPeriod);
-        url = `/finances/period?start=${start}&end=${end}`;
-      }
-      const data = await get(url);
-      setTransactions(data);
-    } catch (error) {
-      console.error("Ошибка при загрузке транзакций:", error);
-    }
-  };
-
-  useEffect(() => {
-    fetchTransactions(period);
-  }, [period]);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
 
   const getPeriodDates = (selectedPeriod) => {
     const today = dayjs().startOf("day");
@@ -49,18 +34,49 @@ const FinanceWidget = () => {
         return { start: yesterday.startOf("day").format("YYYY-MM-DD HH:mm:ss"), end: yesterday.endOf("day").format("YYYY-MM-DD HH:mm:ss") };
       case "month":
         return { start: today.startOf("month").format("YYYY-MM-DD HH:mm:ss"), end: today.endOf("month").format("YYYY-MM-DD HH:mm:ss") };
+      case "prevMonth":
+        const firstPrev = today.subtract(1, "month").startOf("month");
+        const lastPrev = today.subtract(1, "month").endOf("month");
+        return { start: firstPrev.format("YYYY-MM-DD HH:mm:ss"), end: lastPrev.format("YYYY-MM-DD HH:mm:ss") };
       case "all":
       default:
         return { start: "1970-01-01 00:00:00", end: dayjs().endOf("day").format("YYYY-MM-DD HH:mm:ss") };
     }
   };
 
+  const fetchTransactions = async (append = false, selectedPeriod = period) => {
+    try {
+      const { start, end } = getPeriodDates(selectedPeriod);
+      let url = `/finances/period?start=${start}&end=${end}&limit=${PAGE}&offset=${append ? offset : 0}`;
+      const data = await get(url);
+
+      if (append) {
+        setTransactions((prev) => [...prev, ...data]);
+        setOffset((prev) => prev + data.length);
+      } else {
+        setTransactions(data);
+        setOffset(data.length);
+      }
+      setHasMore(data.length === PAGE);
+    } catch (error) {
+      console.error("Ошибка при загрузке транзакций:", error);
+    }
+  };
+
+  useEffect(() => {
+    setOffset(0);
+    setHasMore(true);
+    fetchTransactions(false, period);
+  }, [period]);
+
   const handleAddTransaction = async () => {
     if (!form.category || !form.amount) return;
     try {
       await post("/finances", { ...form });
       setForm({ type: "expense", category: "", amount: "" });
-      fetchTransactions(period);
+      setOffset(0);
+      setHasMore(true);
+      fetchTransactions(false, period);
     } catch (error) {
       console.error("Ошибка при добавлении транзакции:", error);
     }
@@ -127,19 +143,19 @@ const FinanceWidget = () => {
       </div>
 
       <div className={styles.periodTabs}>
-        {["today", "yesterday", "month", "all"].map((p) => (
+        {[
+          { key: "today", label: "Сегодня" },
+          { key: "yesterday", label: "Вчера" },
+          { key: "month", label: "Текущий месяц" },
+          { key: "prevMonth", label: "Прошлый месяц" },
+          { key: "all", label: "За всё время" },
+        ].map(({ key, label }) => (
           <button
-            key={p}
-            onClick={() => setPeriod(p)}
-            className={period === p ? styles.activeTab : ""}
+            key={key}
+            onClick={() => setPeriod(key)}
+            className={period === key ? styles.activeTab : ""}
           >
-            {p === "today"
-              ? "Сегодня"
-              : p === "yesterday"
-              ? "Вчера"
-              : p === "month"
-              ? "Текущий месяц"
-              : "За всё время"}
+            {label}
           </button>
         ))}
       </div>
@@ -180,41 +196,109 @@ const FinanceWidget = () => {
               </li>
             ))}
           </ul>
+          {hasMore && (
+            <div className={styles.addTransaction}>
+              <button onClick={() => fetchTransactions(true)}>Загрузить ещё</button>
+            </div>
+          )}
         </>
       ) : (
         <>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={groupedByMonth}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="month" />
-              <YAxis />
-              <Tooltip />
+              <defs>
+                <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#4ade80" stopOpacity={0.8} />
+                  <stop offset="100%" stopColor="#4ade80" stopOpacity={0.1} />
+                </linearGradient>
+             </defs>
+             <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+              <XAxis
+                dataKey="month"
+                tickFormatter={(date) => dayjs(date).format("MMM YY")}
+                stroke="#aaa"
+              />
+              <YAxis stroke="#aaa" />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "#1e1f26",
+                  border: "none",
+                  borderRadius: "8px",
+                  color: "#fff",
+               }}
+               formatter={(value) => [`${value.toLocaleString()} ₽`]}
+              />
               <Legend />
-              <Line type="monotone" dataKey="income" stroke="green" name="Доходы" />
-              <Line type="monotone" dataKey="expense" stroke="red" name="Расходы" />
+              <Line
+                type="monotone"
+                dataKey="income"
+                stroke="#4ade80"
+                strokeWidth={3}
+                dot={{ r: 4, fill: "#4ade80", strokeWidth: 2, stroke: "#1e1f26" }}
+                activeDot={{ r: 6 }}
+                fill="url(#incomeGradient)"
+              />
+              <Line
+                type="monotone"
+                dataKey="expense"
+                stroke="#f87171"
+                strokeWidth={3}
+                dot={{ r: 4, fill: "#f87171", strokeWidth: 2, stroke: "#1e1f26" }}
+                activeDot={{ r: 6 }}
+                fill="url(#expenseGradient)"
+              />
             </LineChart>
           </ResponsiveContainer>
           <div className={styles.analyticsCharts}>
             <ResponsiveContainer width="50%" height={250}>
-              <BarChart data={topExpenses}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="category" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="amount" fill="red" />
-              </BarChart>
-            </ResponsiveContainer>
-            <ResponsiveContainer width="50%" height={250}>
-              <BarChart data={topIncomes}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="category" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="amount" fill="green" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </>
+            <BarChart data={topExpenses}>
+              <defs>
+                <linearGradient id="barExpense" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#f87171" stopOpacity={0.9} />
+                  <stop offset="100%" stopColor="#f87171" stopOpacity={0.4} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+              <XAxis dataKey="category" stroke="#aaa" />
+              <YAxis stroke="#aaa" />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: "#1e1f26",
+                  border: "none",
+                  borderRadius: "8px",
+                  color: "#fff",
+                }}
+                formatter={(value) => [`${value.toLocaleString()} ₽`]}
+              />
+              <Bar dataKey="amount" fill="url(#barExpense)" radius={[6, 6, 0, 0]} />
+            </BarChart>
+           </ResponsiveContainer>
+
+           <ResponsiveContainer width="50%" height={250}>
+             <BarChart data={topIncomes}>
+               <defs>
+                <linearGradient id="barIncome" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#4ade80" stopOpacity={0.9} />
+                  <stop offset="100%" stopColor="#4ade80" stopOpacity={0.4} />
+               </linearGradient>
+              </defs>
+             <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+             <XAxis dataKey="category" stroke="#aaa" />
+             <YAxis stroke="#aaa" />
+             <Tooltip
+               contentStyle={{
+                 backgroundColor: "#1e1f26",
+                 border: "none",
+                 borderRadius: "8px",
+                 color: "#fff",
+                }}
+                formatter={(value) => [`${value.toLocaleString()} ₽`]}
+             />
+            <Bar dataKey="amount" fill="url(#barIncome)" radius={[6, 6, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+     </div>
+    </>
       )}
     </div>
   );
