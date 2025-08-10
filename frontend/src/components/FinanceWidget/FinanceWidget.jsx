@@ -18,6 +18,8 @@ import dayjs from "dayjs";
 const FinanceWidget = () => {
   const PAGE = 20;
   const [transactions, setTransactions] = useState([]);
+  const [analyticsTx, setAnalyticsTx] = useState([]);    // полные транзакции на период
+  const [monthlySeries, setMonthlySeries] = useState([]); // агрегат по месяцам для линии
   const [period, setPeriod] = useState("month");
   const [tab, setTab] = useState("transactions");
   const [form, setForm] = useState({ type: "expense", category: "", amount: "" });
@@ -67,6 +69,8 @@ const FinanceWidget = () => {
     setOffset(0);
     setHasMore(true);
     fetchTransactions(false, period);
+    fetchAnalyticsTransactions(period); // ← полный набор для топов/баров
+    fetchMonthly(); // ← агрегат для линии
   }, [period]);
 
   const handleAddTransaction = async () => {
@@ -79,6 +83,33 @@ const FinanceWidget = () => {
       fetchTransactions(false, period);
     } catch (error) {
       console.error("Ошибка при добавлении транзакции:", error);
+    }
+  };
+
+  // Все транзакции на выбранный период (б/пагинации)
+  const fetchAnalyticsTransactions = async (selectedPeriod = period) => {
+    try {
+      const { start, end } = getPeriodDates(selectedPeriod);
+      // берём большой лимит, т.к. на бэке по умолчанию теперь пагинация
+      const url = `/finances/period?start=${start}&end=${end}&limit=100000&offset=0`;
+      const data = await get(url);
+      setAnalyticsTx(data);
+    } catch (e) {
+      console.error('Analytics TX load error:', e);
+    }
+  };
+
+// Агрегат помесячно для линейного графика
+  const fetchMonthly = async () => {
+    try {
+      const raw = await get(`/finances/monthly`);
+      // raw: { "2025-06": { income: 0, expense: 123 }, ... }
+      const arr = Object.entries(raw)
+        .map(([month, v]) => ({ month, income: v.income || 0, expense: v.expense || 0 }))
+        .sort((a, b) => a.month.localeCompare(b.month));
+      setMonthlySeries(arr);
+    } catch (e) {
+      console.error('Monthly stats error:', e);
     }
   };
 
@@ -100,29 +131,26 @@ const FinanceWidget = () => {
     }, {})
   );
 
+  // ТОПы считаем по analyticsTx (полный набор)
   const topExpenses = Object.values(
-    transactions
+    analyticsTx
       .filter((t) => t.type === "expense")
       .reduce((acc, t) => {
         if (!acc[t.category]) acc[t.category] = { category: t.category, amount: 0 };
         acc[t.category].amount += parseFloat(t.amount);
         return acc;
       }, {})
-  )
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, 3);
+  ).sort((a, b) => b.amount - a.amount).slice(0, 3);
 
   const topIncomes = Object.values(
-    transactions
+    analyticsTx
       .filter((t) => t.type === "income")
       .reduce((acc, t) => {
         if (!acc[t.category]) acc[t.category] = { category: t.category, amount: 0 };
         acc[t.category].amount += parseFloat(t.amount);
         return acc;
       }, {})
-  )
-    .sort((a, b) => b.amount - a.amount)
-    .slice(0, 3);
+  ).sort((a, b) => b.amount - a.amount).slice(0, 3);
 
   return (
     <div className={styles.widget}>
@@ -205,7 +233,7 @@ const FinanceWidget = () => {
       ) : (
         <>
           <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={groupedByMonth}>
+            <LineChart data={monthlySeries}>
               <defs>
                 <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#4ade80" stopOpacity={0.8} />
@@ -215,7 +243,7 @@ const FinanceWidget = () => {
              <CartesianGrid strokeDasharray="3 3" stroke="#444" />
               <XAxis
                 dataKey="month"
-                tickFormatter={(date) => dayjs(date).format("MMM YY")}
+                tickFormatter={(date) => dayjs(date + '-01').format('MMM YY')}
                 stroke="#aaa"
               />
               <YAxis stroke="#aaa" />
