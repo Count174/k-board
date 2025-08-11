@@ -18,6 +18,7 @@ const authRoutes = require('./routes/auth');
 const telegramRoutes = require('./routes/telegram');
 const budgetsRoutes = require('./routes/budgets');
 const savingsRoutes = require('./routes/savings');
+const analyticsRoutes = require('./routes/analytics');
 
 app.set('trust proxy', 1); // доверие первому прокси (nginx)
 app.use(cors({
@@ -39,6 +40,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/buying-list', buyingListRoutes);
 app.use('/api/budgets', budgetsRoutes);
 app.use('/api/savings', savingsRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 
 // Статика фронта
