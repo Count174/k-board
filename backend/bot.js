@@ -110,6 +110,172 @@ function currentMonth() {
   return `${d.getFullYear()}-${m}`;
 }
 
+// ===== helpers for weekly scoring (скоринг) =====
+const clamp01 = (x) => Math.max(0, Math.min(1, x));
+const toDateOnly = (s) => (s || '').slice(0, 10);
+
+function prevWeekRange() {
+  // прошлый понедельник — прошлое воскресенье
+  const now = new Date();
+  const dow = now.getDay() === 0 ? 7 : now.getDay(); // 1..7
+  const lastMonday = new Date(now);
+  lastMonday.setDate(now.getDate() - (dow + 6));
+  const lastSunday = new Date(lastMonday);
+  lastSunday.setDate(lastMonday.getDate() + 6);
+  const s = lastMonday.toISOString().slice(0, 10);
+  const e = lastSunday.toISOString().slice(0, 10);
+  return { startIso: s, endIso: e, label: `${s} — ${e}` };
+}
+
+function daysInMonthStr(yyyyMM) {
+  const [y, m] = yyyyMM.split('-').map(Number);
+  return new Date(y, m, 0).getDate();
+}
+
+// Подсчёт скоринга за произвольный период (повторяет логику backend/analytics)
+async function computeScoreForPeriod(userId, startIso, endIso) {
+  const startTs = `${startIso} 00:00:00`;
+  const endTs = `${endIso} 23:59:59`;
+
+  const checks = await new Promise((resolve) => {
+    db.all(
+      `SELECT date, sleep_hours, mood, energy, workout_done
+       FROM daily_checks
+       WHERE user_id = ? AND date BETWEEN ? AND ?`,
+      [userId, startIso, endIso],
+      (err, rows) => resolve(rows || [])
+    );
+  });
+
+  const expenses = await new Promise((resolve) => {
+    db.all(
+      `SELECT date(date) AS d, SUM(amount) AS spent
+       FROM finances
+       WHERE user_id = ?
+         AND type = 'expense'
+         AND date BETWEEN ? AND ?
+       GROUP BY date(date)`,
+      [userId, startTs, endTs],
+      (err, rows) => resolve(rows || [])
+    );
+  });
+
+  const startMonth = startIso.slice(0, 7);
+  const endMonth = endIso.slice(0, 7);
+  const budgets = await new Promise((resolve) => {
+    db.all(
+      `SELECT month, SUM(amount) AS total
+       FROM budgets
+       WHERE user_id = ?
+         AND month BETWEEN ? AND ?
+       GROUP BY month`,
+      [userId, startMonth, endMonth],
+      (err, rows) => resolve(rows || [])
+    );
+  });
+
+  const checkByDate = new Map(checks.map(r => [toDateOnly(r.date), r]));
+  const expenseByDate = new Map(expenses.map(r => [toDateOnly(r.d), Number(r.spent) || 0]));
+  const budgetByMonth = new Map(budgets.map(r => [r.month, Number(r.total) || 0]));
+
+  const days = [];
+  let dt = new Date(startIso);
+  const end = new Date(endIso);
+
+  while (dt <= end) {
+    const d = dt.toISOString().slice(0, 10);
+    const monthKey = d.slice(0, 7);
+    const dim = daysInMonthStr(monthKey);
+    const monthBudget = budgetByMonth.get(monthKey) || 0;
+    const dayAllowance = monthBudget > 0 ? monthBudget / dim : null;
+
+    const ch = checkByDate.get(d) || {};
+    const sleepH = typeof ch.sleep_hours === 'number' ? ch.sleep_hours : null;
+    const mood = typeof ch.mood === 'number' ? ch.mood : null;       // 1..5
+    const energy = typeof ch.energy === 'number' ? ch.energy : null; // 1..5
+    const workout = ch.workout_done ? 1 : 0;
+    const spent = expenseByDate.get(d) || 0;
+
+    const sleepScore   = sleepH == null ? 0 : clamp01(sleepH / 8); // 8ч = 100%
+    const moodScore    = mood == null ? 0 : clamp01(mood / 5);
+    const energyScore  = energy == null ? 0 : clamp01(energy / 5);
+    const workoutScore = workout ? 1 : 0;
+
+    const healthScore = 0.4*sleepScore + 0.3*moodScore + 0.2*energyScore + 0.1*workoutScore;
+
+    let financeScore = 0.7; // нейтрально, если бюджетов нет
+    if (dayAllowance != null) {
+      financeScore = spent <= dayAllowance ? 1 : clamp01(1 - ((spent - dayAllowance)/dayAllowance));
+    }
+
+    const engaged = (sleepH!=null || mood!=null || energy!=null || workout) ? 1 : 0;
+
+    const total = 0.5*healthScore + 0.3*financeScore + 0.2*engaged;
+
+    days.push({
+      date: d,
+      components: {
+        health: healthScore*100,
+        finance: financeScore*100,
+        engagement: engaged*100,
+      },
+      total: total*100,
+      facts: { sleepH, mood, energy, workout, spent, dayAllowance }
+    });
+
+    dt.setDate(dt.getDate() + 1);
+  }
+
+  const avg = days.reduce((s,x)=>s+x.total,0) / (days.length || 1);
+  const avgHealth  = days.reduce((s,x)=>s+x.components.health,0) / (days.length || 1);
+  const avgFinance = days.reduce((s,x)=>s+x.components.finance,0) / (days.length || 1);
+  const avgEngage  = days.reduce((s,x)=>s+x.components.engagement,0) / (days.length || 1);
+
+  return {
+    avg: Number(avg.toFixed(1)),
+    breakdown: {
+      health: Number(avgHealth.toFixed(1)),
+      finance: Number(avgFinance.toFixed(1)),
+      engagement: Number(avgEngage.toFixed(1)),
+    },
+    days
+  };
+}
+
+function buildAdvice(result) {
+  const { health, finance, engagement } = result.breakdown;
+  const pairs = [
+    ['Health', health],
+    ['Finance', finance],
+    ['Engagement', engagement],
+  ].sort((a,b)=>a[1]-b[1]);
+  const weakest = pairs[0][0];
+
+  const last7 = result.days;
+  const avgSleep = (() => {
+    const vals = last7.map(d=>d.facts.sleepH).filter(x=>typeof x==='number');
+    return vals.length ? vals.reduce((s,x)=>s+x,0)/vals.length : null;
+  })();
+  const workouts = last7.filter(d=>d.facts.workout).length;
+  const overBudgetDays = last7.filter(d => d.facts.dayAllowance!=null && d.facts.spent > d.facts.dayAllowance).length;
+  const engagedDays = last7.filter(d=>d.components.engagement>0).length;
+
+  let advice = '';
+  if (weakest === 'Health') {
+    if (avgSleep!=null && avgSleep < 7) advice = 'Старайся спать 7–8 часов. Попробуй лечь на 30 минут раньше всю неделю.';
+    else if (workouts < 3) advice = 'Добавь 1–2 лёгкие тренировки (даже 20 минут прогулки).';
+    else advice = 'Поддерживай рутину: лёгкая активность каждый день и вечерний чек-ин.';
+  } else if (weakest === 'Finance') {
+    if (overBudgetDays >= 3) advice = 'Часто превышаешь дневной лимит. Выбери 1–2 категории для жёсткого контроля и расплачивайся одной картой.';
+    else advice = 'Пересмотри лимиты по категориям — возможно, бюджет стоит чуть подправить.';
+  } else {
+    if (engagedDays < 5) advice = 'Заполняй daily check хотя бы в будни. Включи утреннее/вечернее напоминание.';
+    else advice = 'Отличная регулярность — продолжай в том же духе.';
+  }
+
+  return { weakest, advice };
+}
+
 // ========= ПРЕДПОЧТЕНИЯ ДЛЯ DAILY CHECKS (таблицу считаем созданной) ========= //
 function getPrefs(userId) {
   return new Promise((resolve) => {
@@ -641,6 +807,37 @@ cron.schedule('0 8 * * 1', async () => {
         await bot.sendMessage(chat_id, text, { parse_mode: 'Markdown' });
       } catch (e) {
         console.error('Digest send error:', e);
+      }
+    }
+  });
+}, { timezone: 'Europe/Moscow' });
+
+// ========= CRON: еженедельный отчёт по СКОРИНГУ (понедельник 11:00 МСК) ========= //
+cron.schedule('0 11 * * 1', () => {
+  const { startIso, endIso, label } = prevWeekRange();
+
+  db.all('SELECT user_id, chat_id FROM telegram_users', [], async (err, rows) => {
+    if (err || !rows?.length) return;
+
+    for (const { user_id, chat_id } of rows) {
+      try {
+        const result = await computeScoreForPeriod(user_id, startIso, endIso);
+        const { avg, breakdown } = result;
+        const { weakest, advice } = buildAdvice(result);
+
+        const msg =
+          `📊 *Еженедельный отчёт по скорингу*\n` +
+          `Период: *${label}*\n\n` +
+          `*Средний скоринг:* ${Math.round(avg)}%\n` +
+          `• Health: ${Math.round(breakdown.health)}%\n` +
+          `• Finance: ${Math.round(breakdown.finance)}%\n` +
+          `• Engagement: ${Math.round(breakdown.engagement)}%\n\n` +
+          `📉 *Слабое место:* ${weakest}\n` +
+          `💡 *Совет:* ${advice}`;
+
+        await bot.sendMessage(chat_id, msg, { parse_mode: 'Markdown' });
+      } catch (e) {
+        console.error('weekly score digest error:', e);
       }
     }
   });
