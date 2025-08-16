@@ -10,7 +10,6 @@ import BudgetWidget from '../components/BudgetWidget/BudgetWidget';
 import GreetingHeader from '../components/Dashboard/GreetingsHeader';
 import TelegramModal from '../components/TelegramModal';
 import SavingsWidget from '../components/SavingsWidget/SavingsWidget';
-import MedicationsWidget from '../components/MedicationsWidget/MedicationsWidget';
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
