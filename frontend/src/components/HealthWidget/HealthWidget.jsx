@@ -18,12 +18,16 @@ export default function HealthWidget() {
 
   const load = async () => {
     try {
-      const data = await get("health"); // твой текущий список событий
-      // показываем только тренировки и ближайшее будущее/сегодня
+      const data = await get("health"); // твой текущий эндпойнт
       const today = dayjs().format("YYYY-MM-DD");
+  
       setEvents(
         (data || [])
-          .filter((e) => e.type === "training")
+          .filter((e) =>
+            e.type === "training" &&
+            Number(e.completed) === 0 &&
+            dayjs(e.date).format("YYYY-MM-DD") >= today
+          )
           .sort((a, b) => (a.date + (a.time || "")).localeCompare(b.date + (b.time || "")))
       );
     } catch (e) {
