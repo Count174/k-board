@@ -1,0 +1,10 @@
+.wrap{display:flex;flex-direction:column;gap:12px}
+.tabs{display:flex;gap:8px}
+.tabs button{background:#2c2d35;border:none;color:#bbb;padding:8px 12px;border-radius:10px;cursor:pointer}
+.tabs button:hover{background:#383a42;color:#fff}
+.active{background:#4f46e5 !important;color:#fff !important}
+.input{background:#2c2d35;border:none;color:#fff;padding:10px 12px;border-radius:10px}
+.preview{border-radius:12px;overflow:hidden;background:#2c2d35;height:180px;display:flex;align-items:center;justify-content:center}
+.preview img{width:100%;height:100%;object-fit:cover}
+.placeholder{opacity:.6;color:#aaa}
+.hint{opacity:.7;font-size:12px}
