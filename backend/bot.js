@@ -276,6 +276,28 @@ function buildAdvice(result) {
   return { weakest, advice };
 }
 
+// хелпер для тренировок
+
+function sendTrainingActivityKeyboard(chatId) {
+  return bot.sendMessage(chatId, 'Выбери тип тренировки (или введи свой):', {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: 'Зал',  callback_data: 'trainact:Зал' },
+          { text: 'Бокс', callback_data: 'trainact:Бокс' }
+        ],
+        [
+          { text: 'Бег',  callback_data: 'trainact:Бег' },
+          { text: 'Йога', callback_data: 'trainact:Йога' }
+        ],
+        [
+          { text: 'Другое…', callback_data: 'trainact:other' }
+        ]
+      ]
+    }
+  });
+}
+
 // ========= ПРЕДПОЧТЕНИЯ ДЛЯ DAILY CHECKS (таблицу считаем созданной) ========= //
 function getPrefs(userId) {
   return new Promise((resolve) => {
@@ -424,17 +446,8 @@ bot.on('message', async (msg) => {
 
   // 7) /train
   if (text === '/train') {
-    userStates[chatId] = { step: 'type', data: {} };
-    return bot.sendMessage(chatId, 'Выбери тип активности:', {
-      reply_markup: {
-        inline_keyboard: [[
-          { text: '🏋️‍♂️ Тренировка', callback_data: 'type:training' },
-          { text: '👨‍⚕️ Врач', callback_data: 'type:doctor' },
-          { text: '🧪 Анализы', callback_data: 'type:analysis' },
-          { text: '💊 Лекарства', callback_data: 'type:medication' }
-        ]]
-      }
-    });
+    userStates[chatId] = { step: 'date', data: { type: 'training' } };
+    return bot.sendMessage(chatId, 'Введите дату в формате 17.08 или 17 августа:');
   }
 
   // Фоллбек
@@ -542,13 +555,6 @@ bot.on('callback_query', async (query) => {
   const parts = data.split(':');
   const key = parts[0];
 
-  // твой существующий сценарий выбора типа активности (/train)
-  if (key === 'type') {
-    const value = parts[1]; // training|doctor|analysis|medication
-    userStates[chatId] = { step: 'date', data: { type: value } };
-    return bot.sendMessage(chatId, 'Введите дату в формате 17.08 или 17 августа:');
-  }
-
   // daily_checks
   if (key === 'sleep') {
     // sleep:YYYY-MM-DD:7
@@ -593,6 +599,28 @@ bot.on('callback_query', async (query) => {
       await upsertDailyCheck(userId, { date: dateStr, workout_done: Number(val) });
       return bot.answerCallbackQuery(query.id, { text: Number(val) ? 'Тренировка: да' : 'Тренировка: нет' });
     });
+  }
+
+  if (key === 'trainact') {
+    const choice = parts[1]; // 'Зал' | 'Бокс' | 'Бег' | 'Йога' | 'other'
+    // Убедимся, что есть стейт
+    if (!userStates[chatId]) {
+      userStates[chatId] = { step: 'activity', data: { type: 'training' } };
+    }
+    const state = userStates[chatId];
+    const data = state.data || (state.data = { type: 'training' });
+  
+    if (choice === 'other') {
+      state.step = 'activity'; // переходим на ручной ввод
+      await bot.answerCallbackQuery(query.id, { text: 'Введи тип тренировки текстом' });
+      return bot.sendMessage(chatId, 'Напиши тип тренировки сообщением (например: «Кроссфит»):');
+    }
+  
+    // Выбран пресет кнопкой
+    data.activity = choice;
+    state.step = 'notes';
+    await bot.answerCallbackQuery(query.id, { text: `Выбрано: ${choice}` });
+    return bot.sendMessage(chatId, 'Введите заметки (или "-" если нет):');
   }
 
   if (key === 'checksave') {
@@ -648,7 +676,7 @@ bot.on('callback_query', async (query) => {
 });
 
 // ========= ПОШАГОВОЕ ДОБАВЛЕНИЕ (твой сценарий тренировки) ========= //
-function handleTrainingSteps(chatId, text) {
+async function handleTrainingSteps(chatId, text) {
   const state = userStates[chatId];
   const { step, data } = state;
 
@@ -659,7 +687,7 @@ function handleTrainingSteps(chatId, text) {
     }
     data.date = parsed;
     state.step = 'time';
-    bot.sendMessage(chatId, 'Введите время (HH:MM):');
+    return bot.sendMessage(chatId, 'Введите время (HH:MM):');
   } else if (step === 'time') {
     data.time = text;
     state.step = 'place';
@@ -667,9 +695,12 @@ function handleTrainingSteps(chatId, text) {
   } else if (step === 'place') {
     data.place = text;
     state.step = 'activity';
-    return bot.sendMessage(chatId, 'Введите описание:');
+    await sendTrainingActivityKeyboard(chatId); // теперь можно await
+    return bot.sendMessage(chatId, 'Можешь выбрать кнопкой выше или ввести свой вариант сообщением.');
   } else if (step === 'activity') {
-    data.activity = text;
+    const manual = (text || '').trim();
+    if (!manual) return bot.sendMessage(chatId, 'Укажи тип тренировки одним словом или фразой.');
+    data.activity = manual;
     state.step = 'notes';
     return bot.sendMessage(chatId, 'Введите заметки (или "-" если нет):');
   } else if (step === 'notes') {
@@ -972,24 +1003,13 @@ cron.schedule('0 5 * * *', () => {
         // 1. HEALTH
         const healthList = await new Promise(resolve => {
           db.all(
-            'SELECT type, time, activity FROM health WHERE user_id = ? AND date = ? AND completed = 0 ORDER BY time',
+            'SELECT time, activity, place FROM health WHERE user_id = ? AND date = ? AND completed = 0 AND type = "training" ORDER BY time',
             [user_id, today],
             (err, rows) => {
               if (err || !rows.length) return resolve('');
               const formatted = rows.map(h => {
-                const types = {
-                  training: 'Тренировка',
-                  doctor: 'Врач',
-                  analysis: 'Анализы',
-                  medication: 'Лекарства'
-                };
-                const emoji = {
-                  training: '💪',
-                  doctor: '👨‍⚕️',
-                  analysis: '🧪',
-                  medication: '💊'
-                };
-                return `${emoji[h.type] || '🏥'} ${types[h.type] || ''} — ${h.time} — ${h.activity}`;
+                const where = h.place ? ` — ${h.place}` : '';
+                return `💪 Тренировка — ${h.time || '—'} — ${h.activity}${where}`;
               }).join('\n');
               resolve(formatted);
             }

@@ -82,6 +82,8 @@
   margin-bottom: 8px;
 }
 
+.empty { opacity: .7; padding: 6px 2px; }
+
 .eventIcon {
   color: #6c63ff;
   margin-right: 12px;
