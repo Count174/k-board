@@ -613,6 +613,38 @@ bot.on('callback_query', async (query) => {
       return bot.sendMessage(chatId, `🔕 Вы отключили ${scope === 'morning' ? 'утренние' : 'вечерние'} напоминания. /checkon для включения.`);
     });
   }
+
+  if (key === 'med') {
+    const action = parts[1];       // take | skip
+    const medicationId = parts[2]; // id лекарства
+    const dateStr = parts[3];      // YYYY-MM-DD
+    const time = parts[4];         // HH:MM
+    const chatId = query.message.chat.id;
+  
+    return getUserId(chatId, async (userId) => {
+      if (!userId) return bot.answerCallbackQuery(query.id, { text: 'Нет привязки.', show_alert: true });
+  
+      // записываем в medication_intakes
+      await new Promise((resolve, reject) => {
+        db.run(
+          `INSERT INTO medication_intakes (medication_id, user_id, intake_date, intake_time, status)
+           VALUES (?, ?, ?, ?, ?)`,
+          [medicationId, userId, dateStr, time, action === 'take' ? 'taken' : 'skipped'],
+          (err) => err ? reject(err) : resolve()
+        );
+      });
+  
+      // меняем текст сообщения
+      let statusText = action === 'take' ? '✅ Выпил' : '⏭ Пропустил';
+      await bot.editMessageText(`${query.message.text}\n\n${statusText}`, {
+        chat_id: chatId,
+        message_id: query.message.message_id,
+        parse_mode: 'Markdown'
+      });
+  
+      return bot.answerCallbackQuery(query.id, { text: 'Записал 👍' });
+    });
+  }
 });
 
 // ========= ПОШАГОВОЕ ДОБАВЛЕНИЕ (твой сценарий тренировки) ========= //
@@ -739,8 +771,15 @@ cron.schedule('* * * * *', () => {
               if (r) return;           // уже отправляли — выходим
 
               const text = `💊 Напоминание: выпей *${m.name}*${m.dosage ? `, ${m.dosage}` : ''} (${hhmm})`;
-              bot.sendMessage(m.chat_id, text, { parse_mode: 'Markdown' })
-                .catch(() => { /* проглатываем, чтобы не сломать цикл */ });
+              bot.sendMessage(m.chat_id, text, {
+                parse_mode: 'Markdown',
+                reply_markup: {
+                  inline_keyboard: [[
+                    { text: '✅ Выпил', callback_data: `med:take:${m.id}:${today}:${hhmm}` },
+                    { text: '⏭ Пропустил', callback_data: `med:skip:${m.id}:${today}:${hhmm}` }
+                  ]]
+                }
+              });
 
               // фиксируем одноразовую отправку
               db.run(
