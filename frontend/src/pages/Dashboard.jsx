@@ -5,11 +5,12 @@ import ToDoWidget from '../components/ToDoWidget/ToDoWidget';
 import HealthWidget from '../components/HealthWidget/HealthWidget';
 import FinanceWidget from '../components/FinanceWidget/FinanceWidget';
 import GoalsWidget from '../components/GoalsWidget/GoalsWidget';
-import BuyingListWidget from '../components/BuyingListWidget/BuyingListWidget';
+import MedicationsWidget from '../components/MedicationsWidget/MedicationsWidget';
 import BudgetWidget from '../components/BudgetWidget/BudgetWidget';
 import GreetingHeader from '../components/Dashboard/GreetingsHeader';
 import TelegramModal from '../components/TelegramModal';
 import SavingsWidget from '../components/SavingsWidget/SavingsWidget';
+import MedicationsWidget from '../components/MedicationsWidget/MedicationsWidget';
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
@@ -37,7 +38,7 @@ export default function Dashboard() {
       <div className={styles.widgetsRow}>
         <ToDoWidget />
         <HealthWidget />
-        <BuyingListWidget />
+        <MedicationsWidget />
       </div>
 
       <div className={styles.widgetsColumn}>
