@@ -60,8 +60,8 @@ export default function HealthWidget() {
 
   const complete = async (id) => {
     try {
-      await post("health/complete", { id }); // у тебя уже есть complete в контроллере
-      setEvents((prev) => prev.map((e) => (e.id === id ? { ...e, completed: 1 } : e)));
+      await post(`health/complete/${id}`, {}); // <-- id в URL, тело пустое
+      setEvents((prev) => prev.filter(e => e.id !== id)); // можно сразу убрать из списка
     } catch (e) {
       console.error("complete training", e);
     }
