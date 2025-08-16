@@ -705,6 +705,73 @@ function sendEveningCheckin(chat_id, dateStr = ymd()) {
   return bot.sendMessage(chat_id, '🧭 Вечерний чек-ин:', { reply_markup: kb });
 }
 
+// ========= CRON: напоминания о лекарствах (каждую минуту, разово, МСК) ========= //
+cron.schedule('* * * * *', () => {
+  const now = new Date();
+  const hhmm = now.toTimeString().slice(0, 5);    // "HH:MM"
+  const today = now.toISOString().slice(0, 10);   // "YYYY-MM-DD"
+
+  // активные курсы на сегодня
+  db.all(
+    `SELECT m.*, tu.chat_id
+       FROM medications m
+       JOIN telegram_users tu ON tu.user_id = m.user_id
+      WHERE m.active = 1
+        AND m.start_date <= ?
+        AND (m.end_date IS NULL OR m.end_date >= ?)`,
+    [today, today],
+    (err, rows) => {
+      if (err || !rows?.length) return;
+
+      for (const m of rows) {
+        let times = [];
+        try { times = JSON.parse(m.times || '[]'); } catch {}
+
+        // если текущее время совпадает с одним из назначенных
+        if (times.includes(hhmm)) {
+          // проверяем, отправляли ли уже сегодня в это время для этого курса
+          db.get(
+            `SELECT 1 FROM medication_notifications
+              WHERE medication_id = ? AND notify_date = ? AND notify_time = ?`,
+            [m.id, today, hhmm],
+            (e, r) => {
+              if (e) return;           // в логах увидим, если что
+              if (r) return;           // уже отправляли — выходим
+
+              const text = `💊 Напоминание: выпей *${m.name}*${m.dosage ? `, ${m.dosage}` : ''} (${hhmm})`;
+              bot.sendMessage(m.chat_id, text, { parse_mode: 'Markdown' })
+                .catch(() => { /* проглатываем, чтобы не сломать цикл */ });
+
+              // фиксируем одноразовую отправку
+              db.run(
+                `INSERT OR IGNORE INTO medication_notifications (medication_id, notify_date, notify_time, sent)
+                 VALUES (?, ?, ?, 1)`,
+                [m.id, today, hhmm]
+              );
+            }
+          );
+        }
+      }
+    }
+  );
+}, { timezone: 'Europe/Moscow' });
+
+// ========= CRON: очистка старых отметок по лекарствам (вс 03:00 МСК, храним 30 дней) ========= //
+cron.schedule('0 3 * * 0', () => {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 30);
+  const cutoffDate = cutoff.toISOString().slice(0, 10); // YYYY-MM-DD
+
+  db.run(
+    `DELETE FROM medication_notifications WHERE notify_date < ?`,
+    [cutoffDate],
+    (err) => {
+      if (err) console.error('Ошибка очистки medication_notifications:', err);
+      else console.log('🧹 Удалены старые отметки medication_notifications до', cutoffDate);
+    }
+  );
+}, { timezone: 'Europe/Moscow' });
+
 // ========= CRON: ежедневное уведомление при 75% бюджета (08:00 МСК) ========= //
 cron.schedule('0 8 * * *', async () => {
   const month = currentMonth();
