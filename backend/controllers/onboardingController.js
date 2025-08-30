@@ -33,8 +33,12 @@ function nextDatesForWeekdays(weekdays, startDateISO, daysHorizon = 14) {
 exports.state = async (req, res) => {
   const userId = req.userId;
   try {
-    const row = await get(`SELECT status, step, payload_json
-                           FROM onboarding_state WHERE user_id=?`, [userId]);
+    const row = await get(
+      `SELECT status, step, payload_json
+         FROM onboarding_state
+        WHERE user_id=?`,
+      [userId]
+    );
     if (!row) {
       // по умолчанию — можно показывать
       return res.json({ status: 'not_started', step: null, payload: {}, can_show: true });
@@ -47,12 +51,17 @@ exports.state = async (req, res) => {
   }
 };
 
-// POST /onboarding/state
+// PATCH /onboarding/state
 exports.patch = async (req, res) => {
   const userId = req.userId;
   const { status = 'in_progress', step = 'welcome', patch = {} } = req.body || {};
   try {
-    const row = await get(`SELECT payload_json FROM onboarding_state WHERE user_id=?`, [userId]);
+    const row = await get(
+      `SELECT payload_json
+         FROM onboarding_state
+        WHERE user_id=?`,
+      [userId]
+    );
     const current = (() => { try { return JSON.parse(row?.payload_json || '{}'); } catch { return {}; }})();
     const nextPayload = { ...current, ...patch };
     await run(
@@ -91,7 +100,12 @@ exports.dismiss = async (req, res) => {
 exports.complete = async (req, res) => {
   const userId = req.userId;
   try {
-    const st = await get(`SELECT payload_json FROM onboarding_state WHERE user_id=?`, [userId]);
+    const st = await get(
+      `SELECT payload_json
+         FROM onboarding_state
+        WHERE user_id=?`,
+      [userId]
+    );
     const payload = (() => { try { return JSON.parse(st?.payload_json || '{}'); } catch { return {}; }})();
 
     // 1) ТРЕНИРОВКИ: training_days [1..7], training_time "HH:MM" — создаём на 2 недели
@@ -131,7 +145,10 @@ exports.complete = async (req, res) => {
         await run(
           `INSERT INTO goals (user_id, title, current, target, unit, is_binary, image)
            SELECT ?, ?, 0, ?, ?, ?, ''
-           WHERE NOT EXISTS (SELECT 1 FROM goals WHERE user_id=? AND LOWER(TRIM(title))=LOWER(TRIM(?)))`,
+           WHERE NOT EXISTS (
+             SELECT 1 FROM goals
+              WHERE user_id=? AND LOWER(TRIM(title))=LOWER(TRIM(?))
+           )`,
           [userId, title, target, unit, isBinary, userId, title]
         );
       }
@@ -157,7 +174,8 @@ exports.complete = async (req, res) => {
     await run(
       `INSERT INTO onboarding_state (user_id, status, step, payload_json, updated_at)
        VALUES (?, 'completed', 'finish', '{}', CURRENT_TIMESTAMP)
-       ON CONFLICT(user_id) DO UPDATE SET status='completed', step='finish', payload_json='{}', updated_at=CURRENT_TIMESTAMP`,
+       ON CONFLICT(user_id) DO UPDATE SET
+         status='completed', step='finish', payload_json='{}', updated_at=CURRENT_TIMESTAMP`,
       [userId]
     );
 
