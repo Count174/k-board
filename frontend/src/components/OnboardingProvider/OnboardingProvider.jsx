@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { get, post } from "../../api/api";
-import OnboardingWizard from "./OnboardingWizard";
+import OnboardingWizard from "./OnboardingWizard.jsx";
 
 const OnboardingContext = createContext(null);
 
