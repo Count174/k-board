@@ -51,6 +51,8 @@
     background: none;
     text-align: left;
     cursor: pointer;
+    color: #000;
+    font-size: 0.95rem;
   }
   
   .dropdown button:hover {
