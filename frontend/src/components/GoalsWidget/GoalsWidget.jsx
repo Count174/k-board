@@ -31,6 +31,34 @@ export default function GoalsWidget() {
       .catch(console.error);
   }, []);
 
+  function normalizeImageUrl(url) {
+    if (!url) return '';
+    try {
+      const u = new URL(url);
+  
+      // Если кинули ссылку на страницу фото Unsplash — конвертируем в source.unsplash.com/<id>/<w>x<h>
+      if (u.hostname.includes('unsplash.com') && u.pathname.startsWith('/photos/')) {
+        const last = u.pathname.split('/').pop() || ''; // "1-usa-dollar-banknotes-8lnbXtxFGZw"
+        const id = last.split('-').pop();               // "8lnbXtxFGZw"
+        if (id && id.length >= 8) {
+          return `https://source.unsplash.com/${id}/1200x400`; // под твою карточку
+        }
+      }
+  
+      // Если это уже прямая картинка — можно слегка нормализовать параметры
+      if (u.hostname.includes('images.unsplash.com')) {
+        // добавим мягкие параметры (не обязательно)
+        if (!u.search) u.search = '?auto=format&fit=crop&w=1200&h=400';
+        return u.toString();
+      }
+  
+      // Иначе вернём как есть — вдруг это другой CDN/картинка
+      return url;
+    } catch {
+      return url; // если строка не URL
+    }
+  }
+  
   const handleSliderChange = (id, value) => {
     setSliders((prev) => ({ ...prev, [id]: value }));
   };
@@ -74,7 +102,7 @@ export default function GoalsWidget() {
       target: form.is_binary ? 1 : Number(form.target || 0),
       unit: form.unit?.trim() || "",
       is_binary: form.is_binary ? 1 : 0,
-      image: form.image || ""
+      image: normalizeImageUrl(form.image)
     };
 
     try {
