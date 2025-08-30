@@ -1,0 +1,64 @@
+.overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.45);
+    display: grid;
+    place-items: center;
+    z-index: 3000;
+  }
+  
+  .modal {
+    width: min(720px, 94vw);
+    background: #1e1f26;
+    color: #fff;
+    border-radius: 16px;
+    box-shadow: 0 10px 40px rgba(0,0,0,.5);
+    padding: 20px 20px 16px;
+  }
+  
+  .progress {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(255,255,255,.25);
+  }
+  .dotActive { background: #4f46e5; }
+  
+  .header h3 { margin: 6px 0 4px; font-size: 20px; }
+  .sub { margin: 0 0 12px; color: #cfd2d7; }
+  
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .block { background: #2c2d35; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
+  .label { font-size: 13px; opacity: .9; margin-bottom: 6px; }
+  
+  .week { display: flex; flex-wrap: wrap; gap: 6px; }
+  .weekBtn {
+    background: #3a3b45; color: #cfd2d7; border: none; border-radius: 10px;
+    padding: 8px 10px; cursor: pointer;
+  }
+  .weekBtnActive { background: #4f46e5; color: #fff; }
+  
+  .input, .textarea, .select {
+    width: 100%; background: #3a3b45; color: #fff; border: none;
+    border-radius: 10px; padding: 10px 12px; outline: none;
+  }
+  .textarea { resize: vertical; min-height: 84px; }
+  
+  .switch { display: flex; align-items: center; gap: 8px; }
+  
+  .help { font-size: 12px; color: #aeb2b8; margin-top: 6px; }
+  
+  .actions {
+    display: flex; justify-content: space-between; gap: 8px; margin-top: 10px;
+  }
+  .primary {
+    background: #4f46e5; color: #fff; border: none; border-radius: 10px;
+    padding: 10px 14px; cursor: pointer;
+  }
+  .secondary {
+    background: #2c2d35; color: #cfd2d7; border: 1px solid #3c3d47; border-radius: 10px;
+    padding: 10px 14px; cursor: pointer;
+  }

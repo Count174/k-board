@@ -19,6 +19,7 @@ const telegramRoutes = require('./routes/telegram');
 const budgetsRoutes = require('./routes/budgets');
 const savingsRoutes = require('./routes/savings');
 const analyticsRoutes = require('./routes/analytics');
+const onboardingRoutes = require('./routes/onboarding');
 
 app.set('trust proxy', 1); // доверие первому прокси (nginx)
 app.use(cors({
@@ -41,6 +42,7 @@ app.use('/api/medications', medicationsRoutes);
 app.use('/api/budgets', budgetsRoutes);
 app.use('/api/savings', savingsRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/onboarding', onboardingRoutes);
 
 
 // Статика фронта

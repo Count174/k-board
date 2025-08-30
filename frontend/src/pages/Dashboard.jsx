@@ -10,6 +10,8 @@ import BudgetWidget from '../components/BudgetWidget/BudgetWidget';
 import GreetingHeader from '../components/Dashboard/GreetingsHeader';
 import TelegramModal from '../components/TelegramModal';
 import SavingsWidget from '../components/SavingsWidget/SavingsWidget';
+import OnboardingProvider from '../components/OnboardingProvider/OnboardingProvider';   
+
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
@@ -27,6 +29,7 @@ export default function Dashboard() {
   };
 
   return (
+    <OnboardingProvider>
     <div className={styles.dashboard}>
       <GreetingHeader
         user={user}
@@ -51,5 +54,6 @@ export default function Dashboard() {
         <TelegramModal onClose={() => setShowTelegramModal(false)} />
       )}
     </div>
+    </OnboardingProvider>
   );
 }
