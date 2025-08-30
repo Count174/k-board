@@ -66,22 +66,6 @@ export default function GoalsWidget() {
   const fallbackFor = (title) =>
     `https://picsum.photos/seed/${encodeURIComponent(title || 'goal')}/1200/400`;
   
-  {goal.image && (
-    <img
-      src={goal.image}
-      alt=""
-      className={styles.goalImage}
-      referrerPolicy="no-referrer"
-      onError={(e) => {
-        // один раз подменим на фолбэк, чтобы не попасть в бесконечный onError
-        if (!e.currentTarget.dataset.fallback) {
-          e.currentTarget.dataset.fallback = '1';
-          e.currentTarget.src = fallbackFor(goal.title);
-        }
-      }}
-    />
-  )} 
-  
   const handleSliderChange = (id, value) => {
     setSliders((prev) => ({ ...prev, [id]: value }));
   };
@@ -153,7 +137,22 @@ export default function GoalsWidget() {
       {/* список целей */}
       {goals.map((goal) => (
         <div key={goal.id} className={styles.goalCard}>
-          {goal.image && <img src={goal.image} alt="" className={styles.goalImage} />}
+          {goal.image && (
+            <img
+              src={goal.image}
+              alt=""
+              className={styles.goalImage}
+              referrerPolicy="no-referrer"
+              data-title={goal.title}                 // <- прокидываем заголовок в атрибут
+              onError={(e) => {
+                if (!e.currentTarget.dataset.fallback) {
+                  e.currentTarget.dataset.fallback = '1';
+                  const t = e.currentTarget.dataset.title || 'goal';
+                  e.currentTarget.src = fallbackFor(t);  // <- без обращения к goal
+           }
+         }}
+       />
+      )}
           <h3 className={styles.goalTitle}>{goal.title}</h3>
 
           {!goal.is_binary ? (
