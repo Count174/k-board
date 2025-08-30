@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useCallback } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import styles from "./MedicationsWidget.module.css";
 import { get, post } from "../../api/api";
 import dayjs from "dayjs";
@@ -20,12 +20,14 @@ const normalizeTime = (raw) => {
   if (!s) return null;
   const m = s.match(/^(\d{1,2}):(\d{1,2})$/);
   if (!m) return null;
-  let hh = Number(m[1]), mm = Number(m[2]);
+  let hh = Number(m[1]),
+    mm = Number(m[2]);
   if (hh < 0 || hh > 23 || mm < 0 || mm > 59) return null;
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 };
 
 const weekdayLabels = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+
 const emptyForm = {
   id: null,
   name: "",
@@ -33,18 +35,21 @@ const emptyForm = {
   times: [],
   start_date: dayjs().format("YYYY-MM-DD"),
   end_date: "",
-  frequency: "daily",
+  frequency: "daily", // значение в форме не используется при сохранении — мы шлём frequency из выбранных дней
   active: true,
 };
 
-/* ===== frequency helpers ===== */
+/* ===== days/frequency helpers ===== */
+const emptyDays = () => ({ 1:false,2:false,3:false,4:false,5:false,6:false,7:false });
+
 function parseFrequencyToDays(freq) {
-  const all = { 1:false,2:false,3:false,4:false,5:false,6:false,7:false };
-  if (!freq || freq === "daily") return { 1:true,2:true,3:true,4:true,5:true,6:true,7:true };
+  if (!freq) return emptyDays();           // <- теперь по умолчанию НИ один день не выбран
+  if (freq === "daily") return { 1:true,2:true,3:true,4:true,5:true,6:true,7:true };
   const m = String(freq).match(/^dow:([\d,]+)$/);
-  if (!m) return all;
-  (m[1].split(",").map(Number) || []).forEach((d) => (all[d] = true));
-  return all;
+  const map = emptyDays();
+  if (!m) return map;
+  (m[1].split(",").map(Number) || []).forEach((d) => (map[d] = true));
+  return map;
 }
 function buildFrequencyFromDays(daysMap) {
   const selected = Object.entries(daysMap)
@@ -52,7 +57,15 @@ function buildFrequencyFromDays(daysMap) {
     .map(([k]) => Number(k))
     .sort((a, b) => a - b);
   if (selected.length === 7) return "daily";
-  return selected.length ? `dow:${selected.join(",")}` : ""; // пусто => ошибка
+  return selected.length ? `dow:${selected.join(",")}` : ""; // пусто -> ошибка
+}
+function frequencyToLabel(freq) {
+  if (!freq) return "—";
+  if (freq === "daily") return "Ежедневно";
+  const m = freq.match(/^dow:([\d,]+)$/);
+  if (!m) return "—";
+  const picked = m[1].split(",").map((x) => Number(x));
+  return picked.map((d) => weekdayLabels[d - 1]).join(", ");
 }
 
 /* ===== Edit Dialog ===== */
@@ -61,61 +74,76 @@ function EditMedicationDialog({ item, onClose, onSaved }) {
     id: item.id,
     name: item.name,
     dosage: item.dosage || "",
-    frequency: item.frequency || "daily",
+    frequency: item.frequency || "",
     times: Array.isArray(item.times) ? [...item.times] : [],
     start_date: toISO(item.start_date),
     end_date: item.end_date ? toISO(item.end_date) : "",
     active: !!item.active,
   }));
-  const [days, setDays] = useState(parseFrequencyToDays(item.frequency || "daily"));
+  const [days, setDays] = useState(parseFrequencyToDays(item.frequency || ""));
   const [timeInput, setTimeInput] = useState("");
   const [timeError, setTimeError] = useState("");
   const [daysError, setDaysError] = useState("");
 
+  const toggleDay = (d) => {
+    setDays((prev) => {
+      const next = { ...prev, [d]: !prev[d] };
+      setDaysError("");
+      return next;
+    });
+  };
+
   const addTime = () => {
     const t = normalizeTime(timeInput);
-    if (!t) { setTimeError("Формат HH:MM"); return; }
+    if (!t) {
+      setTimeError("Формат HH:MM");
+      return;
+    }
     setTimeError("");
     if (!form.times.includes(t)) setForm((p) => ({ ...p, times: [...p.times, t].sort() }));
     setTimeInput("");
   };
   const removeTime = (t) => setForm((p) => ({ ...p, times: p.times.filter((x) => x !== t) }));
-  const toggleDay = (d) => {
-    setDays((prev) => {
-      const next = { ...prev, [d]: !prev[d] };
-      setDaysError(""); // снимаем ошибку при выборе
-      return next;
-    });
-  };
 
   const save = async () => {
-    // собираем частоту из выбранных дней
     const freq = buildFrequencyFromDays(days);
-    if (!freq) { setDaysError("Выберите хотя бы один день"); return; }
-
-    // если пользователь не нажал «Добавить ещё приём», забираем одиночное время из поля
+    if (!freq) {
+      setDaysError("Выберите хотя бы один день");
+      return;
+    }
     let times = [...new Set(form.times)].sort();
     const pending = normalizeTime(timeInput);
-    if (times.length === 0 && pending) { times = [pending]; setTimeError(""); }
-    if (times.length === 0) { setTimeError("Добавьте хотя бы один приём"); return; }
+    if (times.length === 0 && pending) {
+      times = [pending];
+      setTimeError("");
+    }
+    if (times.length === 0) {
+      setTimeError("Добавьте хотя бы один приём");
+      return;
+    }
 
     const payload = {
       id: form.id,
       name: form.name.trim(),
       dosage: form.dosage.trim(),
-      frequency: freq,            // <— дни гарантированно уходят
+      frequency: freq,     // дни уходят в payload
       times,
       start_date: toISO(form.start_date),
       end_date: form.end_date ? toISO(form.end_date) : null,
       active: form.active ? 1 : 0,
     };
-    try { await post("medications", payload); onSaved?.(); onClose(); }
-    catch (e) { console.error("medications upsert", e); }
+    try {
+      await post("medications", payload);
+      onSaved?.();
+      onClose();
+    } catch (e) {
+      console.error("medications upsert", e);
+    }
   };
 
   return (
     <div className={styles.modalBackdrop} onClick={onClose}>
-      <div className={styles.modal} onClick={(e)=>e.stopPropagation()} role="dialog" aria-modal="true">
+      <div className={styles.modal} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         <div className={styles.modalHeader}>
           <div className={styles.modalTitle}>Редактирование</div>
           <button type="button" className={styles.modalClose} onClick={onClose}>×</button>
@@ -126,7 +154,6 @@ function EditMedicationDialog({ item, onClose, onSaved }) {
         <input className={styles.input} placeholder="Дозировка (например, 1 капсула)"
                value={form.dosage} onChange={(e)=>setForm({...form, dosage: e.target.value})}/>
 
-        {/* Дни недели — цветовая подсветка активных */}
         <div className={styles.weekRow}>
           {weekdayLabels.map((label, i) => {
             const day = i + 1;
@@ -151,19 +178,19 @@ function EditMedicationDialog({ item, onClose, onSaved }) {
             className={`${styles.input} ${timeError ? styles.inputError : ""}`}
             placeholder="Время (HH:MM)"
             value={timeInput}
-            onChange={(e)=>{ setTimeInput(e.target.value); if (timeError) setTimeError(""); }}
-            onKeyDown={(e)=>e.key==='Enter' && addTime()}
+            onChange={(e) => { setTimeInput(e.target.value); if (timeError) setTimeError(""); }}
+            onKeyDown={(e) => e.key === "Enter" && addTime()}
           />
           <button type="button" className={styles.addBtn} onClick={addTime}>Добавить ещё приём</button>
         </div>
         {timeError && <div className={styles.errorHint}>{timeError}</div>}
 
-        {form.times.length>0 && (
+        {form.times.length > 0 && (
           <div className={styles.chips}>
-            {form.times.map((t)=>(
+            {form.times.map((t) => (
               <span key={t} className={styles.chip}>
                 {t}
-                <button type="button" className={styles.chipX} onClick={()=>removeTime(t)}>×</button>
+                <button type="button" className={styles.chipX} onClick={() => removeTime(t)}>×</button>
               </span>
             ))}
           </div>
@@ -205,23 +232,30 @@ function EditMedicationDialog({ item, onClose, onSaved }) {
 export default function MedicationsWidget() {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState(emptyForm);
-  const [days, setDays] = useState(parseFrequencyToDays("daily"));
+
+  // ДНИ НЕДЕЛИ: по умолчанию пусто (ничего не выбрано)
+  const [days, setDays] = useState(emptyDays());
+
   const [timeInput, setTimeInput] = useState("");
   const [timeError, setTimeError] = useState("");
   const [daysError, setDaysError] = useState("");
   const [editingItem, setEditingItem] = useState(null);
 
-  const activeItems = useMemo(() => items.filter(i => i.active), [items]);
+  const activeItems = useMemo(() => items.filter((i) => i.active), [items]);
   const endedItems = useMemo(
-    () => items.filter(i => !i.active || (i.end_date && dayjs(i.end_date).isBefore(dayjs().startOf("day")))),
+    () => items.filter((i) => !i.active || (i.end_date && dayjs(i.end_date).isBefore(dayjs().startOf("day")))),
     [items]
   );
 
   async function load() {
-    try { setItems(await get("medications") || []); }
-    catch (e) { console.error("medications load", e); }
+    try {
+      const data = await get("medications");
+      setItems(data || []);
+    } catch (e) {
+      console.error("medications load", e);
+    }
   }
-  useEffect(()=>{ load(); }, []);
+  useEffect(() => { load(); }, []);
 
   const toggleDay = (d) => {
     setDays((prev) => {
@@ -233,16 +267,19 @@ export default function MedicationsWidget() {
 
   const addTime = () => {
     const t = normalizeTime(timeInput);
-    if (!t) { setTimeError("Формат HH:MM"); return; }
+    if (!t) {
+      setTimeError("Формат HH:MM");
+      return;
+    }
     setTimeError("");
     if (!form.times.includes(t)) setForm({ ...form, times: [...form.times, t].sort() });
     setTimeInput("");
   };
-  const removeTime = (t) => setForm({ ...form, times: form.times.filter(x => x !== t) });
+  const removeTime = (t) => setForm({ ...form, times: form.times.filter((x) => x !== t) });
 
   const resetForm = () => {
     setForm(emptyForm);
-    setDays(parseFrequencyToDays("daily"));
+    setDays(emptyDays());     // <- после сохранения снова пустой выбор
     setTimeInput("");
     setTimeError("");
     setDaysError("");
@@ -251,32 +288,48 @@ export default function MedicationsWidget() {
   const save = async () => {
     if (!form.name || !form.start_date) return;
 
-    // превращаем выбранные дни в частоту
     const freq = buildFrequencyFromDays(days);
-    if (!freq) { setDaysError("Выберите хотя бы один день"); return; }
+    if (!freq) {
+      setDaysError("Выберите хотя бы один день");
+      return;
+    }
 
-    // забираем одиночное время из поля, если «приём» не добавлен вручную
     let times = [...new Set(form.times)].sort();
     const pending = normalizeTime(timeInput);
-    if (times.length === 0 && pending) { times = [pending]; setTimeError(""); }
-    if (times.length === 0) { setTimeError("Добавьте хотя бы один приём"); return; }
+    if (times.length === 0 && pending) {
+      times = [pending];
+      setTimeError("");
+    }
+    if (times.length === 0) {
+      setTimeError("Добавьте хотя бы один приём");
+      return;
+    }
 
     const payload = {
       id: form.id,
       name: form.name.trim(),
       dosage: form.dosage.trim(),
-      frequency: freq,                // <— дни гарантированно уходят
+      frequency: freq,     // <- гарантированно отправляем частоту
       times,
       start_date: toISO(form.start_date),
       end_date: form.end_date ? toISO(form.end_date) : null,
       active: form.active ? 1 : 0,
     };
-    try { await post("medications", payload); resetForm(); load(); }
-    catch (e) { console.error("medications upsert", e); }
+    try {
+      await post("medications", payload);
+      resetForm();
+      load();
+    } catch (e) {
+      console.error("medications upsert", e);
+    }
   };
 
-  const del = async (id) => { try { await post("medications/delete", { id }); load(); } catch (e) { console.error(e); } };
-  const toggleActive = async (it) => { try { await post("medications/toggle", { id: it.id, active: it.active ? 0 : 1 }); load(); } catch (e) { console.error(e); } };
+  const del = async (id) => {
+    try { await post("medications/delete", { id }); load(); } catch (e) { console.error(e); }
+  };
+  const toggleActive = async (it) => {
+    try { await post("medications/toggle", { id: it.id, active: it.active ? 0 : 1 }); load(); } catch (e) { console.error(e); }
+  };
 
   const daysLeft = (it) => {
     if (!it.end_date) return null;
@@ -288,14 +341,22 @@ export default function MedicationsWidget() {
     <div className={styles.widget}>
       <h2 className={styles.title}>Лекарства</h2>
 
-      {/* форма создания */}
+      {/* Форма создания */}
       <div className={styles.form}>
-        <input className={styles.input} placeholder="Название (например, Омега-3)"
-               value={form.name} onChange={(e)=>setForm({...form, name: e.target.value})}/>
-        <input className={styles.input} placeholder="Дозировка (например, 1 капсула)"
-               value={form.dosage} onChange={(e)=>setForm({...form, dosage: e.target.value})}/>
+        <input
+          className={styles.input}
+          placeholder="Название (например, Омега-3)"
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
+        />
+        <input
+          className={styles.input}
+          placeholder="Дозировка (например, 1 капсула)"
+          value={form.dosage}
+          onChange={(e) => setForm({ ...form, dosage: e.target.value })}
+        />
 
-        {/* Дни недели — цветовая подсветка активных */}
+        {/* Дни недели (по умолчанию пусто) */}
         <div className={styles.weekRow}>
           {weekdayLabels.map((label, i) => {
             const day = i + 1;
@@ -320,19 +381,21 @@ export default function MedicationsWidget() {
             className={`${styles.input} ${timeError ? styles.inputError : ""}`}
             placeholder="Время (HH:MM)"
             value={timeInput}
-            onChange={(e)=>{ setTimeInput(e.target.value); if (timeError) setTimeError(""); }}
-            onKeyDown={(e)=>e.key==='Enter' && addTime()}
+            onChange={(e) => { setTimeInput(e.target.value); if (timeError) setTimeError(""); }}
+            onKeyDown={(e) => e.key === "Enter" && addTime()}
           />
-          <button type="button" className={styles.addBtn} onClick={addTime}>Добавить ещё приём</button>
+          <button type="button" className={styles.addBtn} onClick={addTime}>
+            Добавить ещё приём
+          </button>
         </div>
         {timeError && <div className={styles.errorHint}>{timeError}</div>}
 
-        {form.times.length>0 && (
+        {form.times.length > 0 && (
           <div className={styles.chips}>
-            {form.times.map((t)=>(
+            {form.times.map((t) => (
               <span key={t} className={styles.chip}>
                 {t}
-                <button type="button" className={styles.chipX} onClick={()=>removeTime(t)}>×</button>
+                <button type="button" className={styles.chipX} onClick={() => removeTime(t)}>×</button>
               </span>
             ))}
           </div>
@@ -341,72 +404,100 @@ export default function MedicationsWidget() {
         <div className={styles.dates}>
           <div className={styles.dateCol}>
             <div className={styles.label}>Начало</div>
-            <input type="date" className={styles.input}
-                   value={form.start_date}
-                   onChange={(e)=>setForm({...form, start_date: e.target.value})}/>
+            <input
+              type="date"
+              className={styles.input}
+              value={form.start_date}
+              onChange={(e) => setForm({ ...form, start_date: e.target.value })}
+            />
           </div>
           <div className={styles.dateCol}>
             <div className={styles.label}>Конец (опц.)</div>
-            <input type="date" className={styles.input}
-                   value={form.end_date}
-                   onChange={(e)=>setForm({...form, end_date: e.target.value})}/>
+            <input
+              type="date"
+              className={styles.input}
+              value={form.end_date}
+              onChange={(e) => setForm({ ...form, end_date: e.target.value })}
+            />
           </div>
         </div>
 
         <div className={styles.switchRow}>
           <label className={styles.switchLabel}>
-            <input type="checkbox" checked={form.active}
-                   onChange={(e)=>setForm({...form, active: e.target.checked})}/>
+            <input
+              type="checkbox"
+              checked={form.active}
+              onChange={(e) => setForm({ ...form, active: e.target.checked })}
+            />
             Активный курс
           </label>
         </div>
 
         <div className={styles.actions}>
           <button type="button" className={styles.saveBtn} onClick={save}>Добавить</button>
-          {form.id && <button type="button" className={styles.resetBtn} onClick={resetForm}>Очистить</button>}
         </div>
       </div>
 
       <h3 className={styles.subtitle}>Активные курсы</h3>
       <ul className={styles.list}>
-        {activeItems.map((it)=>(
+        {activeItems.map((it) => (
           <li key={it.id} className={styles.item}>
             <div className={styles.itemMain}>
-              <div className={styles.itemTitle}>💊 {it.name} <span className={styles.dosage}>{it.dosage}</span></div>
+              <div className={styles.itemTitle}>
+                💊 {it.name} <span className={styles.dosage}>{it.dosage}</span>
+              </div>
               <div className={styles.meta}>
                 {it.times?.length ? `⏰ ${it.times.join(", ")}` : "⏰ —"}
                 <span> · </span>
+                📅 {frequencyToLabel(it.frequency)}
+                <span> · </span>
                 {it.end_date ? `до ${dayjs(it.end_date).format("DD.MM.YYYY")}` : "без срока"}
-                {daysLeft(it) !== null && <span> · осталось {daysLeft(it)} д.</span>}
+                {it.end_date ? <> · осталось {Math.max(0, dayjs(it.end_date).diff(dayjs(), "day"))} д.</> : null}
               </div>
             </div>
             <div className={styles.itemActions}>
-              <button type="button" className={styles.secondaryBtn} onClick={()=>toggleActive(it)}>Отключить</button>
-              <button type="button" className={styles.secondaryBtn} onClick={()=>setEditingItem(it)}>Редактировать</button>
-              <button type="button" className={styles.dangerBtn} onClick={()=>del(it.id)}>Удалить</button>
+              <button type="button" className={styles.secondaryBtn} onClick={() => toggleActive(it)}>
+                Отключить
+              </button>
+              <button type="button" className={styles.secondaryBtn} onClick={() => setEditingItem(it)}>
+                Редактировать
+              </button>
+              <button type="button" className={styles.dangerBtn} onClick={() => del(it.id)}>
+                Удалить
+              </button>
             </div>
           </li>
         ))}
       </ul>
 
-      {endedItems.length>0 && (
+      {endedItems.length > 0 && (
         <>
           <h3 className={styles.subtitle}>Завершённые/выключенные</h3>
           <ul className={styles.list}>
-            {endedItems.map((it)=>(
+            {endedItems.map((it) => (
               <li key={it.id} className={`${styles.item} ${styles.itemDisabled}`}>
                 <div className={styles.itemMain}>
-                  <div className={styles.itemTitle}>💊 {it.name} <span className={styles.dosage}>{it.dosage}</span></div>
+                  <div className={styles.itemTitle}>
+                    💊 {it.name} <span className={styles.dosage}>{it.dosage}</span>
+                  </div>
                   <div className={styles.meta}>
                     {it.times?.length ? `⏰ ${it.times.join(", ")}` : "⏰ —"}
+                    <span> · </span>
+                    📅 {frequencyToLabel(it.frequency)}
                     <span> · </span>
                     {it.end_date ? `до ${dayjs(it.end_date).format("DD.MM.YYYY")}` : "без срока"}
                   </div>
                 </div>
                 <div className={styles.itemActions}>
-                  <button type="button" className={styles.secondaryBtn} onClick={()=>toggleActive(it)}>Включить</button>
-                  <button type="button" className={styles.secondaryBtn} onClick={()=>setEditingItem(it)}>Редактировать</button>
-                  <button type="button" className={styles.dangerBtn} onClick={()=>del(it.id)}>Удалить</button>
+                  <button type="button" className={styles.secondaryBtn} onClick={() => toggleActive(it)}>
+                    Включить
+                  </button>
+                  <button type="button" className={styles.secondaryBtn} onClick={() => setEditingItem(it)}>
+                    Редактировать
+                  </button>
+                  <button type="button" className={styles.dangerBtn} onClick={() => del(it.id)}>
+                    Удалить
+                  </button>
                 </div>
               </li>
             ))}
@@ -417,7 +508,7 @@ export default function MedicationsWidget() {
       {editingItem && (
         <EditMedicationDialog
           item={editingItem}
-          onClose={()=>setEditingItem(null)}
+          onClose={() => setEditingItem(null)}
           onSaved={load}
         />
       )}
