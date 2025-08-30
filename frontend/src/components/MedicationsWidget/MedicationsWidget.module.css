@@ -139,6 +139,9 @@
 }
 .dayBtn:hover { color: #fff; border-color: #4f46e5; }
 .daySelected { background: #4f46e5; color: #fff; border-color: transparent; }
+.dayBtnActive { background:#4f46e5; color:#fff; }
+.inputError { border:1px solid #e53935; }
+.errorHint { margin-top:6px; color:#e53935; font-size:12px; }
 
 .linkBtn {
   background: transparent;

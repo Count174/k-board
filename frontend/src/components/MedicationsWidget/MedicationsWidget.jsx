@@ -52,7 +52,7 @@ function buildFrequencyFromDays(daysMap) {
     .map(([k]) => Number(k))
     .sort((a, b) => a - b);
   if (selected.length === 7) return "daily";
-  return selected.length ? `dow:${selected.join(",")}` : "daily";
+  return selected.length ? `dow:${selected.join(",")}` : ""; // пусто => ошибка
 }
 
 /* ===== Edit Dialog ===== */
@@ -70,6 +70,7 @@ function EditMedicationDialog({ item, onClose, onSaved }) {
   const [days, setDays] = useState(parseFrequencyToDays(item.frequency || "daily"));
   const [timeInput, setTimeInput] = useState("");
   const [timeError, setTimeError] = useState("");
+  const [daysError, setDaysError] = useState("");
 
   const addTime = () => {
     const t = normalizeTime(timeInput);
@@ -79,10 +80,20 @@ function EditMedicationDialog({ item, onClose, onSaved }) {
     setTimeInput("");
   };
   const removeTime = (t) => setForm((p) => ({ ...p, times: p.times.filter((x) => x !== t) }));
-
-  const toggleDay = (d) => setDays((prev) => ({ ...prev, [d]: !prev[d] }));
+  const toggleDay = (d) => {
+    setDays((prev) => {
+      const next = { ...prev, [d]: !prev[d] };
+      setDaysError(""); // снимаем ошибку при выборе
+      return next;
+    });
+  };
 
   const save = async () => {
+    // собираем частоту из выбранных дней
+    const freq = buildFrequencyFromDays(days);
+    if (!freq) { setDaysError("Выберите хотя бы один день"); return; }
+
+    // если пользователь не нажал «Добавить ещё приём», забираем одиночное время из поля
     let times = [...new Set(form.times)].sort();
     const pending = normalizeTime(timeInput);
     if (times.length === 0 && pending) { times = [pending]; setTimeError(""); }
@@ -92,7 +103,7 @@ function EditMedicationDialog({ item, onClose, onSaved }) {
       id: form.id,
       name: form.name.trim(),
       dosage: form.dosage.trim(),
-      frequency: buildFrequencyFromDays(days),
+      frequency: freq,            // <— дни гарантированно уходят
       times,
       start_date: toISO(form.start_date),
       end_date: form.end_date ? toISO(form.end_date) : null,
@@ -115,7 +126,7 @@ function EditMedicationDialog({ item, onClose, onSaved }) {
         <input className={styles.input} placeholder="Дозировка (например, 1 капсула)"
                value={form.dosage} onChange={(e)=>setForm({...form, dosage: e.target.value})}/>
 
-        {/* Дни недели с явным индикатором */}
+        {/* Дни недели — цветовая подсветка активных */}
         <div className={styles.weekRow}>
           {weekdayLabels.map((label, i) => {
             const day = i + 1;
@@ -125,15 +136,15 @@ function EditMedicationDialog({ item, onClose, onSaved }) {
                 key={day}
                 type="button"
                 className={`${styles.dayBtn} ${active ? styles.dayBtnActive : ""}`}
-                data-active={active ? "true" : "false"}
                 aria-pressed={active}
                 onClick={() => toggleDay(day)}
               >
-                {active ? "✓ " : "○ "}{label}
+                {label}
               </button>
             );
           })}
         </div>
+        {daysError && <div className={styles.errorHint}>{daysError}</div>}
 
         <div className={styles.timesRow}>
           <input
@@ -197,6 +208,7 @@ export default function MedicationsWidget() {
   const [days, setDays] = useState(parseFrequencyToDays("daily"));
   const [timeInput, setTimeInput] = useState("");
   const [timeError, setTimeError] = useState("");
+  const [daysError, setDaysError] = useState("");
   const [editingItem, setEditingItem] = useState(null);
 
   const activeItems = useMemo(() => items.filter(i => i.active), [items]);
@@ -211,7 +223,13 @@ export default function MedicationsWidget() {
   }
   useEffect(()=>{ load(); }, []);
 
-  const toggleDay = (d) => setDays(prev => ({ ...prev, [d]: !prev[d] }));
+  const toggleDay = (d) => {
+    setDays((prev) => {
+      const next = { ...prev, [d]: !prev[d] };
+      setDaysError("");
+      return next;
+    });
+  };
 
   const addTime = () => {
     const t = normalizeTime(timeInput);
@@ -227,11 +245,17 @@ export default function MedicationsWidget() {
     setDays(parseFrequencyToDays("daily"));
     setTimeInput("");
     setTimeError("");
+    setDaysError("");
   };
 
   const save = async () => {
     if (!form.name || !form.start_date) return;
 
+    // превращаем выбранные дни в частоту
+    const freq = buildFrequencyFromDays(days);
+    if (!freq) { setDaysError("Выберите хотя бы один день"); return; }
+
+    // забираем одиночное время из поля, если «приём» не добавлен вручную
     let times = [...new Set(form.times)].sort();
     const pending = normalizeTime(timeInput);
     if (times.length === 0 && pending) { times = [pending]; setTimeError(""); }
@@ -241,7 +265,7 @@ export default function MedicationsWidget() {
       id: form.id,
       name: form.name.trim(),
       dosage: form.dosage.trim(),
-      frequency: buildFrequencyFromDays(days),
+      frequency: freq,                // <— дни гарантированно уходят
       times,
       start_date: toISO(form.start_date),
       end_date: form.end_date ? toISO(form.end_date) : null,
@@ -271,7 +295,7 @@ export default function MedicationsWidget() {
         <input className={styles.input} placeholder="Дозировка (например, 1 капсула)"
                value={form.dosage} onChange={(e)=>setForm({...form, dosage: e.target.value})}/>
 
-        {/* Дни недели с явным индикатором */}
+        {/* Дни недели — цветовая подсветка активных */}
         <div className={styles.weekRow}>
           {weekdayLabels.map((label, i) => {
             const day = i + 1;
@@ -281,15 +305,15 @@ export default function MedicationsWidget() {
                 key={day}
                 type="button"
                 className={`${styles.dayBtn} ${active ? styles.dayBtnActive : ""}`}
-                data-active={active ? "true" : "false"}
                 aria-pressed={active}
                 onClick={() => toggleDay(day)}
               >
-                {active ? "✓ " : "○ "}{label}
+                {label}
               </button>
             );
           })}
         </div>
+        {daysError && <div className={styles.errorHint}>{daysError}</div>}
 
         <div className={styles.timesRow}>
           <input
