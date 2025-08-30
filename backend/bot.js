@@ -298,6 +298,20 @@ function sendTrainingActivityKeyboard(chatId) {
   });
 }
 
+// медикаменты хелпер
+
+function shouldNotifyToday(frequency, now = new Date()) {
+  if (!frequency || frequency === 'daily') return true;
+  if (frequency.startsWith('dow:')) {
+    const set = new Set(
+      frequency.slice(4).split(',').map(x => parseInt(x, 10)).filter(Boolean)
+    );
+    const dow = ((now.getDay() + 6) % 7) + 1; // Mon=1..Sun=7
+    return set.has(dow);
+  }
+  return true; // фолбэк на всякий случай
+}
+
 // ========= ПРЕДПОЧТЕНИЯ ДЛЯ DAILY CHECKS (таблицу считаем созданной) ========= //
 function getPrefs(userId) {
   return new Promise((resolve) => {
@@ -789,6 +803,7 @@ cron.schedule('* * * * *', () => {
       for (const m of rows) {
         let times = [];
         try { times = JSON.parse(m.times || '[]'); } catch {}
+        if (!shouldNotifyToday(m.frequency, now)) continue;
 
         // если текущее время совпадает с одним из назначенных
         if (times.includes(hhmm)) {

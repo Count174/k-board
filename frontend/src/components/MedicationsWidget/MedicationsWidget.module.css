@@ -119,3 +119,33 @@
 }
 .modalClose:hover{ color:#fff; }
 .modalActions{ display:flex; gap:8px; margin-top:12px; }
+.daysRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0 4px;
+  flex-wrap: wrap;
+}
+
+.dayBtn {
+  background: #2c2d35;
+  color: #bbb;
+  border: 1px solid #3a3c46;
+  padding: 6px 10px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all .2s ease;
+}
+.dayBtn:hover { color: #fff; border-color: #4f46e5; }
+.daySelected { background: #4f46e5; color: #fff; border-color: transparent; }
+
+.linkBtn {
+  background: transparent;
+  border: none;
+  color: #8aa4ff;
+  padding: 6px 4px;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 13px;
+}
