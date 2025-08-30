@@ -31,33 +31,56 @@ export default function GoalsWidget() {
       .catch(console.error);
   }, []);
 
-  function normalizeImageUrl(url) {
-    if (!url) return '';
-    try {
-      const u = new URL(url);
+  function normalizeImageUrl(urlOrKeyword, opts = { w: 1200, h: 400 }) {
+    const { w, h } = opts;
+    const size = `${w}x${h}`;
+    if (!urlOrKeyword) return '';
   
-      // Если кинули ссылку на страницу фото Unsplash — конвертируем в source.unsplash.com/<id>/<w>x<h>
+    // Если это не URL — считаем, что это ключевое слово
+    try {
+      const u = new URL(urlOrKeyword);
+      // Страница фото Unsplash: /photos/<slug-or-id>
       if (u.hostname.includes('unsplash.com') && u.pathname.startsWith('/photos/')) {
-        const last = u.pathname.split('/').pop() || ''; // "1-usa-dollar-banknotes-8lnbXtxFGZw"
-        const id = last.split('-').pop();               // "8lnbXtxFGZw"
+        const last = u.pathname.split('/').pop() || '';
+        const id = last.split('-').pop(); // например "8lnbXtxFGZw"
         if (id && id.length >= 8) {
-          return `https://source.unsplash.com/${id}/1200x400`; // под твою карточку
+          // Стабильная прямая ссылка на файл
+          return `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=${w}&h=${h}&q=80`;
         }
       }
-  
-      // Если это уже прямая картинка — можно слегка нормализовать параметры
+      // Уже прямая картинка
       if (u.hostname.includes('images.unsplash.com')) {
-        // добавим мягкие параметры (не обязательно)
-        if (!u.search) u.search = '?auto=format&fit=crop&w=1200&h=400';
-        return u.toString();
+        const params = u.search ? `${u.search}&` : '?';
+        return `${u.origin}${u.pathname}${params}auto=format&fit=crop&w=${w}&h=${h}&q=80`;
       }
-  
-      // Иначе вернём как есть — вдруг это другой CDN/картинка
-      return url;
+      // Иначе — вернём как есть (вдруг свой CDN)
+      return urlOrKeyword;
     } catch {
-      return url; // если строка не URL
+      // Ключевое слово
+      const kw = encodeURIComponent(urlOrKeyword.trim());
+      // featured устойчивее, чем «/keyword/»; всё равно оставим фолбэк
+      return `https://source.unsplash.com/featured/${size}?${kw}`;
     }
   }
+
+  const fallbackFor = (title) =>
+    `https://picsum.photos/seed/${encodeURIComponent(title || 'goal')}/1200/400`;
+  
+  {goal.image && (
+    <img
+      src={goal.image}
+      alt=""
+      className={styles.goalImage}
+      referrerPolicy="no-referrer"
+      onError={(e) => {
+        // один раз подменим на фолбэк, чтобы не попасть в бесконечный onError
+        if (!e.currentTarget.dataset.fallback) {
+          e.currentTarget.dataset.fallback = '1';
+          e.currentTarget.src = fallbackFor(goal.title);
+        }
+      }}
+    />
+  )} 
   
   const handleSliderChange = (id, value) => {
     setSliders((prev) => ({ ...prev, [id]: value }));
