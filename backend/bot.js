@@ -302,6 +302,7 @@ function sendTrainingActivityKeyboard(chatId) {
 
 function shouldNotifyToday(frequency, now = new Date()) {
   if (!frequency || frequency === 'daily') return true;
+
   if (frequency.startsWith('dow:')) {
     const set = new Set(
       frequency.slice(4).split(',').map(x => parseInt(x, 10)).filter(Boolean)
@@ -309,7 +310,8 @@ function shouldNotifyToday(frequency, now = new Date()) {
     const dow = ((now.getDay() + 6) % 7) + 1; // Mon=1..Sun=7
     return set.has(dow);
   }
-  return true; // фолбэк на всякий случай
+
+  return false; // было true — теперь правильно
 }
 
 // ========= ПРЕДПОЧТЕНИЯ ДЛЯ DAILY CHECKS (таблицу считаем созданной) ========= //
