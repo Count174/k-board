@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import styles from "./Onboarding.module.css";
+import dayjs from "dayjs";
 
-// Набор шагов: можно расширять/менять порядок без ломки внешнего кода
+// порядок шагов
 const ORDER = ["welcome", "training", "meds", "goals", "budget", "bot", "finish"];
 
 function StepHeader({ title, subtitle }) {
@@ -17,9 +18,8 @@ export default function OnboardingWizard({ stepKey = "welcome", initialPayload =
   const [step, setStep] = useState(stepKey);
   const [payload, setPayload] = useState(initialPayload || {});
 
-  useEffect(() => {
-    setStep(stepKey);
-  }, [stepKey]);
+  useEffect(() => setStep(stepKey), [stepKey]);
+  useEffect(() => setPayload(initialPayload || {}), [initialPayload]);
 
   const idx = useMemo(() => Math.max(0, ORDER.indexOf(step)), [step]);
   const isFirst = idx === 0;
@@ -28,7 +28,7 @@ export default function OnboardingWizard({ stepKey = "welcome", initialPayload =
   const go = async (nextKey, patch = {}) => {
     const merged = { ...payload, ...patch };
     setPayload(merged);
-    await onPatch?.(patch, nextKey);
+    try { await onPatch?.(patch, nextKey); } catch (e) { /* swallow */ }
     setStep(nextKey);
   };
 
@@ -39,7 +39,7 @@ export default function OnboardingWizard({ stepKey = "welcome", initialPayload =
   const prev = async () => {
     if (isFirst) return;
     const prevKey = ORDER[Math.max(idx - 1, 0)];
-    await go(prevKey, {}); // без изменения payload
+    await go(prevKey, {}); // не меняем payload
   };
 
   return (
@@ -71,6 +71,7 @@ export default function OnboardingWizard({ stepKey = "welcome", initialPayload =
         {step === "goals" && <GoalsStep payload={payload} onNext={next} onBack={prev} />}
         {step === "budget" && <BudgetStep payload={payload} onNext={next} onBack={prev} />}
         {step === "bot" && <BotStep payload={payload} onNext={next} onBack={prev} />}
+
         {step === "finish" && (
           <>
             <StepHeader title="Готово!" subtitle="Онбординг завершён. Вы всегда сможете всё поменять позднее в настройках." />
@@ -84,14 +85,9 @@ export default function OnboardingWizard({ stepKey = "welcome", initialPayload =
   );
 }
 
-/* ==== Между шагами мы копим черновые данные в payload ====
-   Здесь простые формы: без авто-создания сущностей.
-   На этом этапе сохраняем ответы через onNext({ ...patch }).
-   Потом отдельно можно добавить «автоприменение» (создание health/meds/goals/budgets).
-*/
-
+/* ---------------- TrainingStep ---------------- */
 function TrainingStep({ payload, onNext, onBack }) {
-  const [days, setDays] = useState(payload.training_days || []); // массив дней: [1,3,5]
+  const [days, setDays] = useState(payload.training_days || []);
   const [time, setTime] = useState(payload.training_time || "19:00");
 
   const toggleDay = (d) => {
@@ -106,7 +102,7 @@ function TrainingStep({ payload, onNext, onBack }) {
           <div className={styles.label}>Дни недели</div>
           <div className={styles.week}>
             {["Пн","Вт","Ср","Чт","Пт","Сб","Вс"].map((lab, i) => {
-              const d = i + 1; // 1..7
+              const d = i + 1;
               const active = days.includes(d);
               return (
                 <button
@@ -121,6 +117,7 @@ function TrainingStep({ payload, onNext, onBack }) {
             })}
           </div>
         </div>
+
         <div className={styles.block}>
           <div className={styles.label}>Время по умолчанию</div>
           <input className={styles.input} type="time" value={time} onChange={(e) => setTime(e.target.value)} />
@@ -129,14 +126,13 @@ function TrainingStep({ payload, onNext, onBack }) {
 
       <div className={styles.actions}>
         <button className={styles.secondary} onClick={onBack}>Назад</button>
-        <button className={styles.primary} onClick={() => onNext({ training_days: days, training_time: time })}>
-          Далее
-        </button>
+        <button className={styles.primary} onClick={() => onNext({ training_days: days, training_time: time })}>Далее</button>
       </div>
     </>
   );
 }
 
+/* ---------------- MedsStep ---------------- */
 function MedsStep({ payload, onNext, onBack }) {
   const [hasMeds, setHasMeds] = useState(!!payload.meds_has || false);
   const [example, setExample] = useState(payload.meds_example || "Омега-3, 1 капсула утром");
@@ -158,82 +154,86 @@ function MedsStep({ payload, onNext, onBack }) {
       </div>
       <div className={styles.actions}>
         <button className={styles.secondary} onClick={onBack}>Назад</button>
-        <button className={styles.primary} onClick={() => onNext({ meds_has: hasMeds, meds_example: example })}>
-          Далее
-        </button>
+        <button className={styles.primary} onClick={() => onNext({ meds_has: hasMeds, meds_example: example })}>Далее</button>
       </div>
     </>
   );
 }
 
+/* ---------------- GoalsStep (исправлено) ---------------- */
 function GoalsStep({ payload, onNext, onBack }) {
-  const [goals, setGoals] = useState(
-    payload.goals || [{ title: '', target: '', unit: '', is_binary: false }]
-  );
+  const initial = Array.isArray(payload.goals) && payload.goals.length
+    ? payload.goals
+    : [{ title: '', target: '', unit: '', is_binary: false }];
+
+  const [goals, setGoals] = useState(initial);
+
+  useEffect(() => {
+    // если payload изменился извне — синхронизировать
+    if (payload && Array.isArray(payload.goals)) setGoals(payload.goals);
+  }, [payload]);
 
   const updateGoal = (i, field, value) => {
-    const next = [...goals];
-    next[i][field] = value;
+    const next = goals.map((g, idx) => (idx === i ? { ...g, [field]: value } : g));
     setGoals(next);
   };
 
-  const addGoal = () => {
-    setGoals([...goals, { title: '', target: '', unit: '', is_binary: false }]);
-  };
-
-  const removeGoal = (i) => {
-    setGoals(goals.filter((_, idx) => idx !== i));
-  };
+  const addGoal = () => setGoals([...goals, { title: '', target: '', unit: '', is_binary: false }]);
+  const removeGoal = (i) => setGoals(goals.filter((_, idx) => idx !== i));
 
   return (
     <>
       <StepHeader title="Цели" subtitle="Пара стартовых целей поможет увидеть прогресс." />
-
-      {goals.map((g, i) => (
-        <div key={i} className="goal-card">
-          <input
-            placeholder="Название"
-            value={g.title}
-            onChange={e => updateGoal(i, 'title', e.target.value)}
-          />
-          <input
-            type="number"
-            placeholder="Цель"
-            value={g.target}
-            onChange={e => updateGoal(i, 'target', e.target.value)}
-          />
-          <input
-            placeholder="Единица (₽, кг, книги)"
-            value={g.unit}
-            onChange={e => updateGoal(i, 'unit', e.target.value)}
-          />
-          <label>
-            <input
-              type="checkbox"
-              checked={g.is_binary}
-              onChange={e => updateGoal(i, 'is_binary', e.target.checked)}
-            />
-            Бинарная цель
-          </label>
-          {i > 0 && <button onClick={() => removeGoal(i)}>Удалить</button>}
+      <div className={styles.block}>
+        <div className={styles.goalList}>
+          {goals.map((g, i) => (
+            <div key={i} className={styles.goalRow}>
+              <input
+                className={styles.inputSmall}
+                placeholder="Название"
+                value={g.title}
+                onChange={e => updateGoal(i, 'title', e.target.value)}
+              />
+              <input
+                className={styles.inputSmall}
+                type="number"
+                placeholder="Цель"
+                value={g.target}
+                onChange={e => updateGoal(i, 'target', e.target.value)}
+              />
+              <input
+                className={styles.inputSmall}
+                placeholder="Единица (₽, кг, книги)"
+                value={g.unit}
+                onChange={e => updateGoal(i, 'unit', e.target.value)}
+              />
+              <label className={styles.goalCheckbox}>
+                <input
+                  type="checkbox"
+                  checked={!!g.is_binary}
+                  onChange={e => updateGoal(i, 'is_binary', e.target.checked)}
+                />
+                Бинарная
+              </label>
+              {i > 0 && <button type="button" className={styles.removeBtn} onClick={() => removeGoal(i)}>Удалить</button>}
+            </div>
+          ))}
         </div>
-      ))}
 
-      <button onClick={addGoal}>+ Добавить цель</button>
+        <div style={{ marginTop: 12 }}>
+          <button type="button" className={styles.ghostBtn} onClick={addGoal}>+ Добавить цель</button>
+        </div>
+      </div>
 
       <div className={styles.actions}>
         <button className={styles.secondary} onClick={onBack}>Назад</button>
-        <button
-          className={styles.primary}
-          onClick={() => onNext({ goals })}
-        >
-          Далее
-        </button>
+        <button className={styles.primary} onClick={() => onNext({ goals })}>Далее</button>
       </div>
     </>
   );
 }
 
+/* ---------------- BudgetStep ---------------- */
 function BudgetStep({ payload, onNext, onBack }) {
   const [preset, setPreset] = useState(
     payload.budget_preset || [
@@ -269,6 +269,7 @@ function BudgetStep({ payload, onNext, onBack }) {
   );
 }
 
+/* ---------------- BotStep ---------------- */
 function BotStep({ payload, onNext, onBack }) {
   return (
     <>

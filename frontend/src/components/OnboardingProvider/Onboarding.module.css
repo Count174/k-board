@@ -1,64 +1,186 @@
+/* Onboarding modal styles (схожие с общим стилем приложения) */
+
 .overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,.45);
-    display: grid;
-    place-items: center;
-    z-index: 3000;
+    background: rgba(0,0,0,0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    padding: 20px;
   }
   
   .modal {
-    width: min(720px, 94vw);
-    background: #1e1f26;
-    color: #fff;
-    border-radius: 16px;
-    box-shadow: 0 10px 40px rgba(0,0,0,.5);
-    padding: 20px 20px 16px;
+    width: 100%;
+    max-width: 920px;
+    background: #121217;
+    border-radius: 14px;
+    color: #eee;
+    padding: 28px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+    box-sizing: border-box;
   }
   
   .progress {
     display: flex;
-    gap: 6px;
-    margin-bottom: 12px;
+    gap: 10px;
+    margin-bottom: 18px;
+    align-items: center;
   }
+  
   .dot {
-    width: 8px; height: 8px; border-radius: 50%;
-    background: rgba(255,255,255,.25);
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.12);
   }
-  .dotActive { background: #4f46e5; }
+  .dotActive {
+    background: linear-gradient(90deg,#6e42ff,#6a9bf8);
+    box-shadow: 0 2px 8px rgba(106,155,248,0.18);
+  }
   
-  .header h3 { margin: 6px 0 4px; font-size: 20px; }
-  .sub { margin: 0 0 12px; color: #cfd2d7; }
+  .header h3 {
+    margin: 0 0 8px 0;
+    font-size: 28px;
+    color: #fff;
+  }
+  .sub {
+    margin: 0 0 18px 0;
+    color: #cfd2da;
+    font-size: 15px;
+  }
   
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .block { background: #2c2d35; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
-  .label { font-size: 13px; opacity: .9; margin-bottom: 6px; }
+  /* layout blocks */
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    margin-bottom: 14px;
+  }
   
-  .week { display: flex; flex-wrap: wrap; gap: 6px; }
+  .block {
+    background: transparent;
+    padding: 6px 0;
+  }
+  
+  .label {
+    color: #bfc4cf;
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+  
+  /* week picker */
+  .week {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
   .weekBtn {
-    background: #3a3b45; color: #cfd2d7; border: none; border-radius: 10px;
-    padding: 8px 10px; cursor: pointer;
+    border: none;
+    background: rgba(255,255,255,0.03);
+    color: #ddd;
+    padding: 8px 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: transform .08s ease, background .12s ease;
   }
-  .weekBtnActive { background: #4f46e5; color: #fff; }
-  
-  .input, .textarea, .select {
-    width: 100%; background: #3a3b45; color: #fff; border: none;
-    border-radius: 10px; padding: 10px 12px; outline: none;
+  .weekBtn:hover { transform: translateY(-1px); }
+  .weekBtnActive {
+    background: linear-gradient(90deg,#6e42ff,#6a9bf8);
+    color: white;
+    box-shadow: 0 4px 14px rgba(106,155,248,0.16);
   }
-  .textarea { resize: vertical; min-height: 84px; }
   
-  .switch { display: flex; align-items: center; gap: 8px; }
+  /* inputs & textarea */
+  .input, .inputSmall, .textarea {
+    width: 100%;
+    padding: 10px 12px;
+    background: #14141a;
+    border: 1px solid rgba(255,255,255,0.04);
+    color: #fff;
+    border-radius: 10px;
+    outline: none;
+    font-size: 14px;
+    box-sizing: border-box;
+  }
+  .inputSmall { width: 220px; margin-right: 8px; }
+  .input:focus, .inputSmall:focus, .textarea:focus {
+    border-color: rgba(106,155,248,0.9);
+    box-shadow: 0 6px 22px rgba(106,155,248,0.06);
+  }
   
-  .help { font-size: 12px; color: #aeb2b8; margin-top: 6px; }
+  .textarea {
+    min-height: 90px;
+    resize: vertical;
+  }
   
+  /* buttons row */
   .actions {
-    display: flex; justify-content: space-between; gap: 8px; margin-top: 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 18px;
+    align-items: center;
   }
+  
   .primary {
-    background: #4f46e5; color: #fff; border: none; border-radius: 10px;
-    padding: 10px 14px; cursor: pointer;
+    background: linear-gradient(90deg,#6e42ff,#6a9bf8);
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 600;
   }
   .secondary {
-    background: #2c2d35; color: #cfd2d7; border: 1px solid #3c3d47; border-radius: 10px;
-    padding: 10px 14px; cursor: pointer;
+    background: rgba(255,255,255,0.03);
+    color: #ddd;
+    border: none;
+    padding: 12px 18px;
+    border-radius: 12px;
+    cursor: pointer;
+  }
+  
+  /* goal list */
+  .goalList {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .goalRow {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .goalCheckbox { color: #cfd3db; display:flex; align-items:center; gap:8px; }
+  .removeBtn {
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.04);
+    color: #f55;
+    padding: 8px 10px;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .ghostBtn {
+    background: rgba(255,255,255,0.03);
+    color: #cfe;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 10px;
+    cursor: pointer;
+  }
+  
+  /* small helpers */
+  .help { color: #98a0b0; font-size: 13px; margin-top: 6px; }
+  .switch { display:flex; gap:10px; align-items:center; color:#d2d7df; font-weight:600; }
+  .input[type="time"], input[type="date"], input[type="number"] { font-size: 14px; }
+  
+  /* responsive */
+  @media (max-width: 760px) {
+    .grid { grid-template-columns: 1fr; }
+    .inputSmall { width: 100%; }
+    .actions { flex-direction: column-reverse; align-items: stretch; }
   }
