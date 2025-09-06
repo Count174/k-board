@@ -166,34 +166,65 @@ function MedsStep({ payload, onNext, onBack }) {
   );
 }
 
-function GoalsStep({ payload, onNext, onBack }) {
-  const [want, setWant] = useState(payload.goals || [
-    { title: "НЗ 3 мес. расходов", target: 300000, unit: "₽", is_binary: 0 },
+function GoalsStep({ data, onChange }) {
+  const [goals, setGoals] = useState(data.goals || [
+    { title: '', target: '', unit: '', is_binary: false }
   ]);
 
+  const updateGoal = (i, field, value) => {
+    const next = [...goals];
+    next[i][field] = value;
+    setGoals(next);
+    onChange({ goals: next });
+  };
+
+  const addGoal = () => {
+    setGoals([...goals, { title: '', target: '', unit: '', is_binary: false }]);
+  };
+
+  const removeGoal = (i) => {
+    const next = goals.filter((_, idx) => idx !== i);
+    setGoals(next);
+    onChange({ goals: next });
+  };
+
   return (
-    <>
-      <StepHeader title="Цели" subtitle="Пара стартовых целей поможет увидеть прогресс." />
-      <div className={styles.block}>
-        <div className={styles.label}>Черновик целей (минимум 1)</div>
-        <textarea
-          className={styles.textarea}
-          rows={4}
-          value={JSON.stringify(want, null, 2)}
-          onChange={(e) => {
-            try {
-              const v = JSON.parse(e.target.value || "[]");
-              Array.isArray(v) && setWant(v);
-            } catch {}
-          }}
-        />
-        <div className={styles.help}>Можно оставить как есть — добавите позже в «Цели».</div>
-      </div>
-      <div className={styles.actions}>
-        <button className={styles.secondary} onClick={onBack}>Назад</button>
-        <button className={styles.primary} onClick={() => onNext({ goals: want })}>Далее</button>
-      </div>
-    </>
+    <div>
+      <h2>Цели</h2>
+      <p>Пара стартовых целей поможет увидеть прогресс.</p>
+
+      {goals.map((g, i) => (
+        <div key={i} className="goal-card">
+          <input
+            placeholder="Название"
+            value={g.title}
+            onChange={e => updateGoal(i, 'title', e.target.value)}
+          />
+          <input
+            type="number"
+            placeholder="Цель"
+            value={g.target}
+            onChange={e => updateGoal(i, 'target', e.target.value)}
+          />
+          <input
+            placeholder="Единица (₽, кг, книги)"
+            value={g.unit}
+            onChange={e => updateGoal(i, 'unit', e.target.value)}
+          />
+          <label>
+            <input
+              type="checkbox"
+              checked={g.is_binary}
+              onChange={e => updateGoal(i, 'is_binary', e.target.checked)}
+            />
+            Бинарная цель
+          </label>
+          {i > 0 && <button onClick={() => removeGoal(i)}>Удалить</button>}
+        </div>
+      ))}
+
+      <button onClick={addGoal}>+ Добавить цель</button>
+    </div>
   );
 }
 
