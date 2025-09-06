@@ -166,16 +166,15 @@ function MedsStep({ payload, onNext, onBack }) {
   );
 }
 
-function GoalsStep({ data, onChange }) {
-  const [goals, setGoals] = useState(data.goals || [
-    { title: '', target: '', unit: '', is_binary: false }
-  ]);
+function GoalsStep({ payload, onNext, onBack }) {
+  const [goals, setGoals] = useState(
+    payload.goals || [{ title: '', target: '', unit: '', is_binary: false }]
+  );
 
   const updateGoal = (i, field, value) => {
     const next = [...goals];
     next[i][field] = value;
     setGoals(next);
-    onChange({ goals: next });
   };
 
   const addGoal = () => {
@@ -183,15 +182,12 @@ function GoalsStep({ data, onChange }) {
   };
 
   const removeGoal = (i) => {
-    const next = goals.filter((_, idx) => idx !== i);
-    setGoals(next);
-    onChange({ goals: next });
+    setGoals(goals.filter((_, idx) => idx !== i));
   };
 
   return (
-    <div>
-      <h2>Цели</h2>
-      <p>Пара стартовых целей поможет увидеть прогресс.</p>
+    <>
+      <StepHeader title="Цели" subtitle="Пара стартовых целей поможет увидеть прогресс." />
 
       {goals.map((g, i) => (
         <div key={i} className="goal-card">
@@ -224,7 +220,17 @@ function GoalsStep({ data, onChange }) {
       ))}
 
       <button onClick={addGoal}>+ Добавить цель</button>
-    </div>
+
+      <div className={styles.actions}>
+        <button className={styles.secondary} onClick={onBack}>Назад</button>
+        <button
+          className={styles.primary}
+          onClick={() => onNext({ goals })}
+        >
+          Далее
+        </button>
+      </div>
+    </>
   );
 }
 
