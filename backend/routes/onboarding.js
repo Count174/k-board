@@ -8,7 +8,7 @@ const onboardingController = require('../controllers/onboardingController');
 router.get('/state', authMiddleware, onboardingController.state);
 
 // Обновить состояние/пэйлоад (частично)
-router.patch('/state', authMiddleware, onboardingController.patch);
+router.post('/state', authMiddleware, onboardingController.patch);
 
 // Скрыть онбординг (dismiss)
 router.post('/dismiss', authMiddleware, onboardingController.dismiss);
