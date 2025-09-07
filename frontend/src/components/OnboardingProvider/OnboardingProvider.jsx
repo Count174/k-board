@@ -52,9 +52,20 @@ export default function OnboardingProvider({ children }) {
         await fetchState();
       },
       complete: async () => {
-        await post("onboarding/complete", {});
-        await fetchState();
-        setOpen(false);
+        try {
+          await post("onboarding/complete", {});
+          // закрываем модалку, затем гарантированно показываем свежие данные
+          setOpen(false);
+          // маленькая пауза, чтобы закрытие модалки успело отрендериться
+          setTimeout(() => {
+            window.location.reload();
+          }, 100);
+        } catch (e) {
+          console.error(e);
+          // на случай ошибки просто обновим состояние (без перезагрузки)
+          await fetchState();
+          setOpen(false);
+        }
       },
       dismiss: async () => {
         await post("onboarding/dismiss", {});

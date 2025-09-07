@@ -157,30 +157,28 @@ exports.complete = async (req, res) => {
       }
 
     // 3) ЦЕЛИ: payload.goals — массив {title, target, unit, is_binary}
-    if (Array.isArray(payload.budget_preset) && payload.budget_preset.length) {
-        const month = dayjs().format('YYYY-MM');
+    if (Array.isArray(payload.goals) && payload.goals.length) {
+        for (const g of payload.goals) {
+          const title = String(g?.title || '').trim();
+          if (!title) continue; // без названия не добавляем
       
-        for (const b of payload.budget_preset) {
-          const category = String(b.category || '').trim().toLowerCase();
-          const amount = Number(b.amount || 0);
-          if (!category || amount <= 0) continue;
-      
-          // сначала пытаемся обновить
-          const upd = await run(
-            `UPDATE budgets
-               SET amount = ?
-             WHERE user_id = ? AND month = ? AND LOWER(TRIM(category)) = LOWER(TRIM(?))`,
-            [amount, userId, month, category]
+          // не плодим дубликаты по названию цели
+          const exists = await get(
+            `SELECT id FROM goals WHERE user_id = ? AND LOWER(TRIM(title)) = LOWER(TRIM(?))`,
+            [userId, title]
           );
+          if (exists) continue;
       
-          // если ни одна строка не тронута — вставляем
-          if (!upd.changes) {
-            await run(
-              `INSERT INTO budgets (user_id, month, category, amount)
-               VALUES (?, ?, ?, ?)`,
-              [userId, month, category, amount]
-            );
-          }
+          const isBinary = g?.is_binary ? 1 : 0;
+          const rawTarget = g?.target;
+          const target = isBinary ? 1 : Math.max(0, Number(rawTarget || 0));
+          const unit = String(g?.unit || '').trim();
+      
+          await run(
+            `INSERT INTO goals (user_id, title, current, target, unit, is_binary, image)
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [userId, title, 0, target, unit, isBinary, '']
+          );
         }
       }
 
