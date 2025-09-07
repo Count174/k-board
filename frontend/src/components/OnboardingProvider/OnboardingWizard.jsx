@@ -235,49 +235,32 @@ function GoalsStep({ payload, onNext, onBack }) {
 
 /* ---------------- BudgetStep ---------------- */
 function BudgetStep({ payload, onNext, onBack }) {
-  const [rows, setRows] = useState(() => {
-    const seed =
-      Array.isArray(payload.budget_preset) && payload.budget_preset.length
-        ? payload.budget_preset
-        : [
-            { category: 'продукты',       amount: 20000 },
-            { category: 'еда вне дома',   amount: 15000 },
-            { category: 'транспорт',      amount: 5000  },
-          ];
-    return seed.map(r => ({
-      category: String(r.category || ''),
-      amount:   r.amount === '' ? '' : Number(r.amount || 0),
-    }));
-  });
+  const [rows, setRows] = useState(
+    payload.budget_preset?.length
+      ? payload.budget_preset
+      : [
+          { category: 'продукты', amount: 20000 },
+          { category: 'еда вне дома', amount: 15000 },
+          { category: 'транспорт', amount: 5000 },
+        ]
+  );
 
-  const setField = (i, field, value) => {
-    setRows(prev =>
+  const setRow = (i, key, val) => {
+    setRows((prev) =>
       prev.map((r, idx) =>
-        idx === i
-          ? {
-              ...r,
-              [field]:
-                field === 'amount'
-                  ? value === '' ? '' : Math.max(0, Number(value))
-                  : value,
-            }
-          : r
+        idx === i ? { ...r, [key]: key === 'amount' ? val.replace(/[^\d]/g, '') : val } : r
       )
     );
   };
 
-  const addRow = () => setRows(prev => [...prev, { category: '', amount: '' }]);
-  const removeRow = (i) => setRows(prev => prev.filter((_, idx) => idx !== i));
+  const add = () => setRows((prev) => [...prev, { category: '', amount: '' }]);
+  const remove = (i) => setRows((prev) => prev.filter((_, idx) => idx !== i));
 
-  const handleNext = () => {
-    const cleaned = rows
-      .map(r => ({
-        category: r.category.trim(),
-        amount: Number(r.amount || 0),
-      }))
-      .filter(r => r.category && r.amount > 0);
-
-    onNext({ budget_preset: cleaned });
+  const goNext = () => {
+    const clean = rows
+      .map((r) => ({ category: r.category.trim().toLowerCase(), amount: Number(r.amount) }))
+      .filter((r) => r.category && r.amount > 0);
+    onNext({ budget_preset: clean });
   };
 
   return (
@@ -287,62 +270,50 @@ function BudgetStep({ payload, onNext, onBack }) {
         subtitle="Поставим лимиты по основным категориям. Можно изменить позже в «Бюджеты»."
       />
 
-      <div className={styles.block}>
-        <div className={styles.table}>
-          <div className={styles.th}>Категория</div>
-          <div className={styles.th}>Сумма, ₽</div>
-          <div className={styles.th} />
-
-          {rows.map((r, i) => (
-            <Fragment key={i}>
-              <div className={styles.td}>
-                <input
-                  className={styles.input}
-                  placeholder="например, продукты"
-                  value={r.category}
-                  onChange={(e) => setField(i, 'category', e.target.value)}
-                />
-              </div>
-              <div className={styles.td}>
-                <input
-                  className={styles.input}
-                  type="number"
-                  min="0"
-                  step="100"
-                  placeholder="0"
-                  value={r.amount}
-                  onChange={(e) => setField(i, 'amount', e.target.value)}
-                />
-              </div>
-              <div className={`${styles.td} ${styles.rowActions}`}>
-                {rows.length > 1 && (
-                  <button
-                    type="button"
-                    className={styles.deleteRow}
-                    onClick={() => removeRow(i)}
-                    title="Удалить строку"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            </Fragment>
-          ))}
+      <div className={styles.budgetTable}>
+        <div className={styles.head}>
+          <div>Категория</div>
+          <div>Сумма, ₽</div>
         </div>
 
-        <div className={styles.actionsRow}>
-          <button type="button" className={styles.secondary} onClick={addRow}>
-            + Добавить категорию
-          </button>
-          <div className={styles.muted}>
-            Будут сохранены только непустые строки с суммой &gt; 0.
+        {rows.map((r, i) => (
+          <div key={i} className={styles.row}>
+            <button
+              type="button"
+              className={styles.rm}
+              onClick={() => remove(i)}
+              aria-label="Удалить строку"
+              title="Удалить"
+            >
+              ×
+            </button>
+
+            <input
+              className={styles.input}
+              placeholder="категория"
+              value={r.category}
+              onChange={(e) => setRow(i, 'category', e.target.value)}
+            />
+            <input
+              className={`${styles.input} ${styles.amount}`}
+              inputMode="numeric"
+              pattern="[0-9]*"
+              placeholder="0"
+              value={r.amount}
+              onChange={(e) => setRow(i, 'amount', e.target.value)}
+            />
           </div>
-        </div>
+        ))}
+
+        <button type="button" className={styles.addRow} onClick={add}>
+          + Добавить категорию
+        </button>
+        <div className={styles.help}>Будут сохранены только непустые строки с суммой &gt; 0.</div>
       </div>
 
       <div className={styles.actions}>
         <button className={styles.secondary} onClick={onBack}>Назад</button>
-        <button className={styles.primary} onClick={handleNext}>Далее</button>
+        <button className={styles.primary} onClick={goNext}>Далее</button>
       </div>
     </>
   );
