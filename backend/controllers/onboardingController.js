@@ -122,53 +122,67 @@ exports.complete = async (req, res) => {
 
     // 2) МЕДИКАМЕНТЫ: если пользователь указал, создаём один курс «черновик»
     // Простая логика: имя = meds_example (или «Добавка»), ежедневно в 09:00 на 30 дней.
-    if (payload.meds_has) {
-      const name = (payload.meds_example || '').trim() || 'Добавка';
-      const start = dayjs().format('YYYY-MM-DD');
-      const end = dayjs().add(30, 'day').format('YYYY-MM-DD');
-      await run(
-        `INSERT INTO medications (user_id, name, dosage, frequency, times, start_date, end_date, active)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
-        [userId, name, '', 'daily', JSON.stringify(['09:00']), start, end]
-      );
-    }
+    if (Array.isArray(payload.meds) && payload.meds.length) {
+        for (const m of payload.meds) {
+          const name = String(m.name || '').trim();
+          if (!name) continue;
+          // нормализация times
+          const times = Array.isArray(m.times)
+            ? m.times.map(s => String(s).slice(0,5)).filter(t => /^\d{2}:\d{2}$/.test(t))
+            : [];
+          if (!times.length) continue; // без времени не создаём
+      
+          // frequency: daily или dow:...
+          let frequency = 'daily';
+          if (typeof m.frequency === 'string' && m.frequency.startsWith('dow:')) {
+            frequency = m.frequency;
+          } else if (Array.isArray(m.days) && m.days.length) {
+            const uniq = [...new Set(m.days)].filter(n=>Number.isInteger(n) && n>=1 && n<=7).sort((a,b)=>a-b);
+            frequency = uniq.length ? `dow:${uniq.join(',')}` : 'daily';
+          }
+      
+          const start = (m.start_date && /^\d{4}-\d{2}-\d{2}$/.test(m.start_date))
+            ? m.start_date
+            : dayjs().format('YYYY-MM-DD');
+          const end   = (m.end_date && /^\d{4}-\d{2}-\d{2}$/.test(m.end_date))
+            ? m.end_date
+            : null;
+      
+          await run(
+            `INSERT INTO medications (user_id, name, dosage, frequency, times, start_date, end_date, active)
+             VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+            [userId, name, String(m.dosage||''), frequency, JSON.stringify(times), start, end]
+          );
+        }
+      }
 
     // 3) ЦЕЛИ: payload.goals — массив {title, target, unit, is_binary}
-    if (Array.isArray(payload.goals)) {
-      for (const g of payload.goals) {
-        const title = String(g.title || '').trim();
-        if (!title) continue;
-        const target = Number(g.target || (g.is_binary ? 1 : 0));
-        const unit = String(g.unit || '').trim();
-        const isBinary = g.is_binary ? 1 : 0;
-        // вставляем только если такой цели не было (по title)
-        await run(
-          `INSERT INTO goals (user_id, title, current, target, unit, is_binary, image)
-           SELECT ?, ?, 0, ?, ?, ?, ''
-           WHERE NOT EXISTS (
-             SELECT 1 FROM goals
-              WHERE user_id=? AND LOWER(TRIM(title))=LOWER(TRIM(?))
-           )`,
-          [userId, title, target, unit, isBinary, userId, title]
-        );
-      }
-    }
-
-    // 4) БЮДЖЕТЫ текущего месяца: payload.budget_preset — [{category, amount}]
     if (Array.isArray(payload.budget_preset) && payload.budget_preset.length) {
-      const month = dayjs().format('YYYY-MM');
-      for (const b of payload.budget_preset) {
-        const category = String(b.category || '').trim().toLowerCase();
-        const amount = Number(b.amount || 0);
-        if (!category || amount <= 0) continue;
-        await run(
-          `INSERT INTO budgets (user_id, month, category, amount)
-           VALUES (?, ?, ?, ?)
-           ON CONFLICT(user_id, month, category) DO UPDATE SET amount=excluded.amount`,
-          [userId, month, category, amount]
-        );
+        const month = dayjs().format('YYYY-MM');
+      
+        for (const b of payload.budget_preset) {
+          const category = String(b.category || '').trim().toLowerCase();
+          const amount = Number(b.amount || 0);
+          if (!category || amount <= 0) continue;
+      
+          // сначала пытаемся обновить
+          const upd = await run(
+            `UPDATE budgets
+               SET amount = ?
+             WHERE user_id = ? AND month = ? AND LOWER(TRIM(category)) = LOWER(TRIM(?))`,
+            [amount, userId, month, category]
+          );
+      
+          // если ни одна строка не тронута — вставляем
+          if (!upd.changes) {
+            await run(
+              `INSERT INTO budgets (user_id, month, category, amount)
+               VALUES (?, ?, ?, ?)`,
+              [userId, month, category, amount]
+            );
+          }
+        }
       }
-    }
 
     // 5) финальный статус
     await run(

@@ -134,27 +134,203 @@ function TrainingStep({ payload, onNext, onBack }) {
 
 /* ---------------- MedsStep ---------------- */
 function MedsStep({ payload, onNext, onBack }) {
-  const [hasMeds, setHasMeds] = useState(!!payload.meds_has || false);
-  const [example, setExample] = useState(payload.meds_example || "Омега-3, 1 капсула утром");
+  // один или несколько курсов, которые пользователь соберёт на шаге
+  const [items, setItems] = useState(payload.meds || []);
+
+  // локальная форма «как в виджете»
+  const [name, setName] = useState('');
+  const [dosage, setDosage] = useState(''); // например "1 капсула"
+  const [days, setDays] = useState([]);     // массив 1..7 (пн..вс), по умолчанию пусто
+  const [times, setTimes] = useState([]);   // ["09:00", "20:00"]
+  const [timeInput, setTimeInput] = useState('');
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0,10));
+  const [endDate, setEndDate] = useState('');
+
+  const toggleDay = (d) => {
+    setDays(prev => prev.includes(d) ? prev.filter(x=>x!==d) : [...prev, d].sort());
+  };
+
+  const addTime = () => {
+    const t = (timeInput || '').trim();
+    if (!/^\d{2}:\d{2}$/.test(t)) return;
+    if (!times.includes(t)) setTimes(prev => [...prev, t].sort());
+    setTimeInput('');
+  };
+  const removeTime = (t) => setTimes(prev => prev.filter(x => x !== t));
+
+  const makeFrequency = (daysArr) =>
+    Array.isArray(daysArr) && daysArr.length ? `dow:${daysArr.slice().sort((a,b)=>a-b).join(',')}` : 'daily';
+
+  const addMedication = () => {
+    // валидации: имя и хотя бы одно время
+    if (!name.trim()) return;
+    const finalTimes = times.length ? times : (timeInput && /^\d{2}:\d{2}$/.test(timeInput) ? [timeInput] : []);
+    if (!finalTimes.length) return;
+
+    const item = {
+      name: name.trim(),
+      dosage: dosage.trim(),
+      frequency: makeFrequency(days),
+      times: finalTimes,
+      start_date: startDate,
+      end_date: endDate || null,
+      active: 1
+    };
+    setItems(prev => [...prev, item]);
+
+    // сброс локальной формы
+    setName('');
+    setDosage('');
+    setDays([]);
+    setTimes([]);
+    setTimeInput('');
+    setStartDate(new Date().toISOString().slice(0,10));
+    setEndDate('');
+  };
+
+  const removeItem = (idx) => {
+    setItems(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const proceed = () => {
+    // просто прокинем, бэк создаст записи
+    onNext({ meds: items });
+  };
 
   return (
     <>
-      <StepHeader title="Добавки и медикаменты" subtitle="Если вы что-то принимаете регулярно — отметим это сразу." />
-      <div className={styles.block}>
-        <label className={styles.switch}>
-          <input type="checkbox" checked={hasMeds} onChange={(e) => setHasMeds(e.target.checked)} />
-          Есть что добавить
-        </label>
-        {hasMeds && (
-          <>
-            <div className={styles.label}>Пример формулировки</div>
-            <input className={styles.input} value={example} onChange={(e) => setExample(e.target.value)} />
-          </>
-        )}
+      <StepHeader
+        title="Добавки и медикаменты"
+        subtitle="Добавьте один или несколько приёмов — напоминания будут приходить в нужные дни и время."
+      />
+
+      <div className={styles.grid}>
+        <div className={styles.block}>
+          <div className={styles.label}>Название</div>
+          <input
+            className={styles.input}
+            placeholder="Например: Омега-3"
+            value={name}
+            onChange={(e)=>setName(e.target.value)}
+          />
+        </div>
+
+        <div className={styles.block}>
+          <div className={styles.label}>Дозировка (опционально)</div>
+          <input
+            className={styles.input}
+            placeholder="Например: 1 капсула"
+            value={dosage}
+            onChange={(e)=>setDosage(e.target.value)}
+          />
+        </div>
       </div>
+
+      <div className={styles.block}>
+        <div className={styles.label}>Дни недели</div>
+        <div className={styles.week}>
+          {['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map((lab, i)=>{
+            const d = i+1;
+            const active = days.includes(d);
+            return (
+              <button
+                key={d}
+                type="button"
+                className={`${styles.weekBtn} ${active ? styles.weekBtnActive : ''}`}
+                onClick={()=>toggleDay(d)}
+              >
+                {lab}
+              </button>
+            );
+          })}
+        </div>
+        <div className={styles.help}>
+          Если ничего не выбрать — будет «каждый день».
+        </div>
+      </div>
+
+      <div className={styles.block}>
+        <div className={styles.label}>Время приёма</div>
+        <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+          <input
+            className={styles.inputSmall}
+            placeholder="HH:MM"
+            value={timeInput}
+            onChange={(e)=>setTimeInput(e.target.value)}
+            onKeyDown={(e)=>e.key==='Enter' && addTime()}
+          />
+          <button className={styles.ghostBtn} type="button" onClick={addTime}>Добавить приём</button>
+          {times.length>0 && (
+            <div className={styles.chips}>
+              {times.map(t=>(
+                <span key={t} className={styles.chip}>
+                  {t}
+                  <button type="button" className={styles.chipX} onClick={()=>removeTime(t)}>×</button>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className={styles.help}>
+          Можно указать несколько времен (например 09:00 и 21:00).
+        </div>
+      </div>
+
+      <div className={styles.grid}>
+        <div className={styles.block}>
+          <div className={styles.label}>Начало курса</div>
+          <input
+            className={styles.input}
+            type="date"
+            value={startDate}
+            onChange={(e)=>setStartDate(e.target.value)}
+          />
+        </div>
+        <div className={styles.block}>
+          <div className={styles.label}>Конец курса (опционально)</div>
+          <input
+            className={styles.input}
+            type="date"
+            value={endDate || ''}
+            onChange={(e)=>setEndDate(e.target.value)}
+          />
+        </div>
+      </div>
+
+      <div className={styles.actions} style={{ marginTop: 8 }}>
+        <button className={styles.secondary} type="button" onClick={addMedication}>
+          Добавить приём в список
+        </button>
+      </div>
+
+      {items.length > 0 && (
+        <div className={styles.block}>
+          <div className={styles.label}>К добавлению:</div>
+          <div className={styles.list}>
+            {items.map((it, i)=>(
+              <div key={i} className={styles.row} style={{ gridTemplateColumns:'1fr auto' }}>
+                <div>
+                  <div><b>{it.name}</b> {it.dosage ? `— ${it.dosage}` : ''}</div>
+                  <div className={styles.help}>
+                    {it.frequency.startsWith('dow:')
+                      ? `Дни: ${it.frequency.slice(4)}`
+                      : 'Каждый день'
+                    } · Время: {it.times.join(', ')} ·
+                    {it.end_date ? ` ${it.start_date} → ${it.end_date}` : ` c ${it.start_date}`}
+                  </div>
+                </div>
+                <button className={styles.rm} onClick={()=>removeItem(i)}>✕</button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className={styles.actions}>
         <button className={styles.secondary} onClick={onBack}>Назад</button>
-        <button className={styles.primary} onClick={() => onNext({ meds_has: hasMeds, meds_example: example })}>Далее</button>
+        <button className={styles.primary} onClick={proceed} disabled={items.length===0}>
+          Далее
+        </button>
       </div>
     </>
   );
