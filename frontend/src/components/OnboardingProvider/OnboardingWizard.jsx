@@ -235,35 +235,114 @@ function GoalsStep({ payload, onNext, onBack }) {
 
 /* ---------------- BudgetStep ---------------- */
 function BudgetStep({ payload, onNext, onBack }) {
-  const [preset, setPreset] = useState(
-    payload.budget_preset || [
-      { category: "продукты", amount: 20000 },
-      { category: "еда вне дома", amount: 15000 },
-      { category: "транспорт", amount: 5000 },
-    ]
-  );
+  const [rows, setRows] = useState(() => {
+    const seed =
+      Array.isArray(payload.budget_preset) && payload.budget_preset.length
+        ? payload.budget_preset
+        : [
+            { category: 'продукты',       amount: 20000 },
+            { category: 'еда вне дома',   amount: 15000 },
+            { category: 'транспорт',      amount: 5000  },
+          ];
+    return seed.map(r => ({
+      category: String(r.category || ''),
+      amount:   r.amount === '' ? '' : Number(r.amount || 0),
+    }));
+  });
+
+  const setField = (i, field, value) => {
+    setRows(prev =>
+      prev.map((r, idx) =>
+        idx === i
+          ? {
+              ...r,
+              [field]:
+                field === 'amount'
+                  ? value === '' ? '' : Math.max(0, Number(value))
+                  : value,
+            }
+          : r
+      )
+    );
+  };
+
+  const addRow = () => setRows(prev => [...prev, { category: '', amount: '' }]);
+  const removeRow = (i) => setRows(prev => prev.filter((_, idx) => idx !== i));
+
+  const handleNext = () => {
+    const cleaned = rows
+      .map(r => ({
+        category: r.category.trim(),
+        amount: Number(r.amount || 0),
+      }))
+      .filter(r => r.category && r.amount > 0);
+
+    onNext({ budget_preset: cleaned });
+  };
 
   return (
     <>
-      <StepHeader title="Бюджет месяца" subtitle="Поставим лимиты по основным категориям." />
+      <StepHeader
+        title="Бюджет месяца"
+        subtitle="Поставим лимиты по основным категориям. Можно изменить позже в «Бюджеты»."
+      />
+
       <div className={styles.block}>
-        <div className={styles.label}>Шаблон (JSON)</div>
-        <textarea
-          className={styles.textarea}
-          rows={4}
-          value={JSON.stringify(preset, null, 2)}
-          onChange={(e) => {
-            try {
-              const v = JSON.parse(e.target.value || "[]");
-              Array.isArray(v) && setPreset(v);
-            } catch {}
-          }}
-        />
-        <div className={styles.help}>Отредактируйте категории/суммы — применим позже.</div>
+        <div className={styles.table}>
+          <div className={styles.th}>Категория</div>
+          <div className={styles.th}>Сумма, ₽</div>
+          <div className={styles.th} />
+
+          {rows.map((r, i) => (
+            <Fragment key={i}>
+              <div className={styles.td}>
+                <input
+                  className={styles.input}
+                  placeholder="например, продукты"
+                  value={r.category}
+                  onChange={(e) => setField(i, 'category', e.target.value)}
+                />
+              </div>
+              <div className={styles.td}>
+                <input
+                  className={styles.input}
+                  type="number"
+                  min="0"
+                  step="100"
+                  placeholder="0"
+                  value={r.amount}
+                  onChange={(e) => setField(i, 'amount', e.target.value)}
+                />
+              </div>
+              <div className={`${styles.td} ${styles.rowActions}`}>
+                {rows.length > 1 && (
+                  <button
+                    type="button"
+                    className={styles.deleteRow}
+                    onClick={() => removeRow(i)}
+                    title="Удалить строку"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            </Fragment>
+          ))}
+        </div>
+
+        <div className={styles.actionsRow}>
+          <button type="button" className={styles.secondary} onClick={addRow}>
+            + Добавить категорию
+          </button>
+          <div className={styles.muted}>
+            Будут сохранены только непустые строки с суммой &gt; 0.
+          </div>
+        </div>
       </div>
+
       <div className={styles.actions}>
         <button className={styles.secondary} onClick={onBack}>Назад</button>
-        <button className={styles.primary} onClick={() => onNext({ budget_preset: preset })}>Далее</button>
+        <button className={styles.primary} onClick={handleNext}>Далее</button>
       </div>
     </>
   );
