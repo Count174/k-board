@@ -4,27 +4,36 @@ import styles from '../styles/Auth.module.css';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
-  const [form, setForm] = useState({ email: '', password: '' });
+  const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(null);
+
+    const payload = {
+      name: form.name.trim(),
+      email: form.email.trim(),
+      password: form.password,
+    };
+
     try {
       const res = await fetch('/k-board/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         setError(err.error || 'Ошибка регистрации');
         return;
       }
 
-      navigate('/login');
-    } catch (err) {
+      // можно сразу логинить, но раз у тебя флоу на /login — оставлю как есть
+      navigate('/k-board/login');
+    } catch {
       setError('Ошибка сети');
     }
   };
@@ -33,11 +42,11 @@ export default function RegisterPage() {
     <div className={styles.authContainer}>
       <h2>Регистрация</h2>
       <form onSubmit={handleSubmit} className={styles.form}>
-      <input
+        <input
           type="text"
           placeholder="Ваше имя"
-          value={form.username}
-          onChange={(e) => setForm({ ...form, username: e.target.value })}
+          value={form.name}
+          onChange={(e) => setForm({ ...form, name: e.target.value })}
           required
         />
         <input

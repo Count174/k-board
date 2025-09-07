@@ -46,7 +46,7 @@ exports.state = async (req, res) => {
     const payload = (() => { try { return JSON.parse(row.payload_json || '{}'); } catch { return {}; }})();
     const can_show = row.status === 'not_started' || row.status === 'in_progress';
     return res.json({ status: row.status, step: row.step, payload, can_show });
-  } catch (e) {
+  } catch {
     return res.json({ status: 'not_started', step: null, payload: {}, can_show: true });
   }
 };
@@ -75,7 +75,7 @@ exports.patch = async (req, res) => {
       [userId, status, step, JSON.stringify(nextPayload)]
     );
     return res.json({ ok: true });
-  } catch (e) {
+  } catch {
     return res.status(500).json({ error: 'db_error' });
   }
 };
@@ -120,67 +120,88 @@ exports.complete = async (req, res) => {
       }
     }
 
-    // 2) МЕДИКАМЕНТЫ: если пользователь указал, создаём один курс «черновик»
-    // Простая логика: имя = meds_example (или «Добавка»), ежедневно в 09:00 на 30 дней.
+    // 2) МЕДИКАМЕНТЫ: создаём курсы из payload.meds (как в виджете)
     if (Array.isArray(payload.meds) && payload.meds.length) {
-        for (const m of payload.meds) {
-          const name = String(m.name || '').trim();
-          if (!name) continue;
-          // нормализация times
-          const times = Array.isArray(m.times)
-            ? m.times.map(s => String(s).slice(0,5)).filter(t => /^\d{2}:\d{2}$/.test(t))
-            : [];
-          if (!times.length) continue; // без времени не создаём
-      
-          // frequency: daily или dow:...
-          let frequency = 'daily';
-          if (typeof m.frequency === 'string' && m.frequency.startsWith('dow:')) {
-            frequency = m.frequency;
-          } else if (Array.isArray(m.days) && m.days.length) {
-            const uniq = [...new Set(m.days)].filter(n=>Number.isInteger(n) && n>=1 && n<=7).sort((a,b)=>a-b);
-            frequency = uniq.length ? `dow:${uniq.join(',')}` : 'daily';
-          }
-      
-          const start = (m.start_date && /^\d{4}-\d{2}-\d{2}$/.test(m.start_date))
-            ? m.start_date
-            : dayjs().format('YYYY-MM-DD');
-          const end   = (m.end_date && /^\d{4}-\d{2}-\d{2}$/.test(m.end_date))
-            ? m.end_date
-            : null;
-      
-          await run(
-            `INSERT INTO medications (user_id, name, dosage, frequency, times, start_date, end_date, active)
-             VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
-            [userId, name, String(m.dosage||''), frequency, JSON.stringify(times), start, end]
-          );
+      for (const m of payload.meds) {
+        const name = String(m.name || '').trim();
+        if (!name) continue;
+
+        // нормализация times
+        const times = Array.isArray(m.times)
+          ? m.times.map(s => String(s).slice(0,5)).filter(t => /^\d{2}:\d{2}$/.test(t))
+          : [];
+        if (!times.length) continue; // без времени не создаём
+
+        // frequency: daily или dow:...
+        let frequency = 'daily';
+        if (typeof m.frequency === 'string' && m.frequency.startsWith('dow:')) {
+          frequency = m.frequency;
+        } else if (Array.isArray(m.days) && m.days.length) {
+          const uniq = [...new Set(m.days)].filter(n=>Number.isInteger(n) && n>=1 && n<=7).sort((a,b)=>a-b);
+          frequency = uniq.length ? `dow:${uniq.join(',')}` : 'daily';
         }
+
+        const start = (m.start_date && /^\d{4}-\d{2}-\d{2}$/.test(m.start_date))
+          ? m.start_date
+          : dayjs().format('YYYY-MM-DD');
+        const end   = (m.end_date && /^\d{4}-\d{2}-\d{2}$/.test(m.end_date))
+          ? m.end_date
+          : null;
+
+        await run(
+          `INSERT INTO medications (user_id, name, dosage, frequency, times, start_date, end_date, active)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+          [userId, name, String(m.dosage||''), frequency, JSON.stringify(times), start, end]
+        );
       }
+    }
 
     // 3) ЦЕЛИ: payload.goals — массив {title, target, unit, is_binary}
     if (Array.isArray(payload.goals) && payload.goals.length) {
-        for (const g of payload.goals) {
-          const title = String(g?.title || '').trim();
-          if (!title) continue; // без названия не добавляем
-      
-          // не плодим дубликаты по названию цели
-          const exists = await get(
-            `SELECT id FROM goals WHERE user_id = ? AND LOWER(TRIM(title)) = LOWER(TRIM(?))`,
-            [userId, title]
-          );
-          if (exists) continue;
-      
-          const isBinary = g?.is_binary ? 1 : 0;
-          const rawTarget = g?.target;
-          const target = isBinary ? 1 : Math.max(0, Number(rawTarget || 0));
-          const unit = String(g?.unit || '').trim();
-      
-          await run(
-            `INSERT INTO goals (user_id, title, current, target, unit, is_binary, image)
-             VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [userId, title, 0, target, unit, isBinary, '']
-          );
-        }
+      for (const g of payload.goals) {
+        const title = String(g?.title || '').trim();
+        if (!title) continue; // без названия не добавляем
+
+        // не плодим дубликаты по названию цели
+        const exists = await get(
+          `SELECT id FROM goals WHERE user_id = ? AND LOWER(TRIM(title)) = LOWER(TRIM(?))`,
+          [userId, title]
+        );
+        if (exists) continue;
+
+        const isBinary = g?.is_binary ? 1 : 0;
+        const rawTarget = g?.target;
+        const target = isBinary ? 1 : Math.max(0, Number(rawTarget || 0));
+        const unit = String(g?.unit || '').trim();
+
+        await run(
+          `INSERT INTO goals (user_id, title, current, target, unit, is_binary, image)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [userId, title, 0, target, unit, isBinary, '']
+        );
       }
+    }
+
+    // 4) БЮДЖЕТЫ текущего месяца: payload.budget_preset — [{category, amount}]
+    if (Array.isArray(payload.budget_preset) && payload.budget_preset.length) {
+      const month = dayjs().format('YYYY-MM');
+      for (const b of payload.budget_preset) {
+        const category = String(b.category || '').trim().toLowerCase();
+        const amount = Number(b.amount || 0);
+        if (!category || amount <= 0) continue;
+
+        // заменяем запись на месяц/категорию (без ON CONFLICT)
+        await run(
+          `DELETE FROM budgets WHERE user_id=? AND month=? AND LOWER(TRIM(category))=LOWER(TRIM(?))`,
+          [userId, month, category]
+        );
+        await run(
+          `INSERT INTO budgets (user_id, month, category, amount)
+           VALUES (?, ?, ?, ?)`,
+          [userId, month, category, amount]
+        );
+      }
+    }
 
     // 5) финальный статус
     await run(
