@@ -51,7 +51,7 @@ function AdjustModal({ saving, onClose, onSaved }) {
             className={`${styles.input} ${styles.inputLarge}`}
             type="number"
             inputMode="decimal"
-            placeholder="Сумма (например 5 000)"
+            placeholder="Сумма"
             value={amount}
             onChange={(e)=>setAmount(e.target.value)}
           />
@@ -61,7 +61,7 @@ function AdjustModal({ saving, onClose, onSaved }) {
         <div className={styles.field}>
           <input
             className={`${styles.input} ${styles.inputLarge}`}
-            placeholder="Комментарий (опционально)"
+            placeholder="Комментарий"
             value={note}
             onChange={(e)=>setNote(e.target.value)}
           />
