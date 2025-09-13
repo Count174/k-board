@@ -2,16 +2,54 @@ import { useEffect, useState } from 'react';
 import styles from './SavingsWidget.module.css';
 import { get, post, remove } from '../../api/api';
 
+function AdjustModal({ saving, onClose, onSaved }) {
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+
+  const save = async () => {
+    const value = Number(amount);
+    if (!saving?.id || !isFinite(value) || value === 0) return;
+    await post(`savings/${saving.id}/adjust`, { amount: value, note });
+    onSaved?.();
+    onClose();
+  };
+
+  return (
+    <div className={styles.overlay} onClick={onClose}>
+      <div className={styles.modal} onClick={(e)=>e.stopPropagation()}>
+        <h3 className={styles.modalTitle}>Изменить «{saving.name}»</h3>
+        <input
+          className={styles.input}
+          type="number"
+          placeholder="Сумма изменения (можно отрицательную)"
+          value={amount}
+          onChange={(e)=>setAmount(e.target.value)}
+        />
+        <input
+          className={styles.input}
+          placeholder="Комментарий (опционально)"
+          value={note}
+          onChange={(e)=>setNote(e.target.value)}
+        />
+        <div className={styles.modalActions}>
+          <button className={styles.secondaryBtn} onClick={onClose}>Отмена</button>
+          <button className={styles.primaryBtn} onClick={save}>Сохранить</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SavingsWidget() {
   const [savings, setSavings] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ id: null, name: '', target_amount: '', current_amount: '', category: '' });
+  const [editing, setEditing] = useState(null); // ← для модалки изменения
 
   const load = async () => {
-    const data = await get('savings');          // <— без слеша
+    const data = await get('savings');
     setSavings(data);
   };
-
   useEffect(() => { load(); }, []);
 
   const save = async () => {
@@ -86,11 +124,22 @@ export default function SavingsWidget() {
 
             <div className={styles.itemFooter}>
               <span className={styles.pct}>{Math.round(s.progress || 0)}%</span>
-              <button className={styles.dangerBtn} onClick={() => delItem(s.id)}>Удалить</button>
+              <div style={{ display:'flex', gap:8 }}>
+                <button className={styles.secondaryBtn} onClick={() => setEditing(s)}>Изменить</button>
+                <button className={styles.dangerBtn} onClick={() => delItem(s.id)}>Удалить</button>
+              </div>
             </div>
           </li>
         ))}
       </ul>
+
+      {editing && (
+        <AdjustModal
+          saving={editing}
+          onClose={() => setEditing(null)}
+          onSaved={load}
+        />
+      )}
     </div>
   );
 }

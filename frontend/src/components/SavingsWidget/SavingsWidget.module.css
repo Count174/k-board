@@ -35,3 +35,28 @@
   
   .progress { height:10px; background:#1e1f26; border-radius:999px; overflow:hidden; margin:10px 0; }
   .bar { height:100%; background:#4ade80; } /* зелёный как успех */
+  
+  /* modal */
+.overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2000;
+}
+.modal {
+  background: #2c2d35;
+  color: #fff;
+  width: 90%; max-width: 420px;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5);
+}
+.modalTitle { margin: 0 0 12px 0; }
+.modalActions { display:flex; justify-content:flex-end; gap:10px; margin-top:12px; }
+
+/* secondary button */
+.secondaryBtn {
+  background:#3b3c46; border:none; color:#fff;
+  padding:8px 12px; border-radius:10px; cursor:pointer;
+}
+.secondaryBtn:hover { opacity:.9; }

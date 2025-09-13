@@ -9,5 +9,7 @@ router.get('/', savingsController.getSavings);
 router.post('/', savingsController.upsertSavings);
 router.delete('/:id', savingsController.deleteSavings);
 router.post('/:id/add', savingsController.addToSavings);
+router.post('/:id/adjust', savingsController.adjustSavings);
+router.get('/:id/changes', savingsController.listSavingsChanges);
 
 module.exports = router;
