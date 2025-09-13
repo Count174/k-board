@@ -31,13 +31,6 @@ function parseFrequency(fq){
 
 /* ---- Health sub-metrics ---- */
 // workouts
-const pct = (x) => Math.round(Math.max(0, Math.min(1, x)) * 100);
-
-function all(sql, params = []) {
-  return new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => (err ? reject(err) : resolve(rows || [])));
-  });
-}
 
 async function calcWorkouts(userId, start, end) {
   const plannedRows = await all(
