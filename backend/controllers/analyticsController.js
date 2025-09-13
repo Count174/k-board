@@ -131,26 +131,36 @@ async function calcMeds(userId, start, end) {
 
   const dates = eachDate(start, end);
   let planned = 0;
+
   for (const m of meds) {
-    let times=[]; try { times = JSON.parse(m.times||'[]'); } catch {}
+    let times = [];
+    try { times = JSON.parse(m.times || '[]'); } catch {}
     if (!Array.isArray(times) || !times.length) continue;
+
     const fq = parseFrequency(m.frequency);
     for (const d of dates) {
       const inWindow = dayjs(d).isSameOrAfter(dayjs(m.start_date)) &&
                        (!m.end_date || dayjs(d).isSameOrBefore(dayjs(m.end_date)));
       if (!inWindow) continue;
-      const okDay = fq.type==='daily' || fq.days.includes(dayToDow1(d));
+      const okDay = fq.type === 'daily' || fq.days.includes(dayToDow1(d));
       if (okDay) planned += times.length;
     }
   }
 
-  const takenRow = await get(
-    `SELECT COUNT(*) cnt FROM medication_notifications
-      WHERE medication_id IN (SELECT id FROM medications WHERE user_id=?)
-        AND notify_date>=? AND notify_date<=? AND taken=1`,
-    [userId, start, end]
-  );
-  const taken = takenRow?.cnt || 0;
+  let taken = 0;
+  try {
+    const takenRow = await get(
+      `SELECT COUNT(*) cnt FROM medication_notifications
+        WHERE medication_id IN (SELECT id FROM medications WHERE user_id=?)
+          AND notify_date>=? AND notify_date<=? AND taken=1`,
+      [userId, start, end]
+    );
+    taken = takenRow?.cnt || 0;
+  } catch {
+    // нет таблицы/миграции — считаем как 0, не валим весь /score
+    taken = 0;
+  }
+
   const score = planned === 0 ? 100 : pct(taken / planned);
   return { score, planned, taken };
 }
@@ -206,22 +216,30 @@ async function calcFinance(userId, start, end) {
 /* ---- Engagement ---- */
 async function calcEngagement(userId, start, end) {
   const dates = eachDate(start, end);
+
   const rows = await all(
     `
     SELECT date FROM (
-      SELECT date FROM health WHERE user_id=? AND date>=? AND date<=?
+      SELECT date FROM health
+        WHERE user_id=? AND date>=? AND date<=?
       UNION ALL
-      SELECT date(date) as date FROM finances WHERE user_id=? AND date(date)>=? AND date(date)<=?
+      SELECT date(date) as date FROM finances
+        WHERE user_id=? AND date(date)>=? AND date(date)<=?
       UNION ALL
-      SELECT date FROM sleep_logs WHERE user_id=? AND date>=? AND date<=?
+      SELECT date FROM daily_checks              -- <— тут была ошибка: было sleep_logs
+        WHERE user_id=? AND date>=? AND date<=?
       UNION ALL
-      SELECT due_date as date FROM todos WHERE user_id=? AND due_date>=? AND due_date<=?
+      SELECT due_date as date FROM todos
+        WHERE user_id=? AND due_date>=? AND due_date<=?
     )
-    `, [userId, start, end, userId, start, end, userId, start, end, userId, start, end]
+    `,
+    [userId, start, end, userId, start, end, userId, start, end, userId, start, end]
   );
-  const set = new Set(rows.map(r => r.date));
-  const score = pct(set.size / dates.length);
-  return { score, activeDays: set.size, totalDays: dates.length };
+
+  const set = new Set(rows.map(r => String(r.date).slice(0,10)));
+  const denom = dates.length || 1;
+  const score = pct(set.size / denom);
+  return { score, activeDays: set.size, totalDays: denom };
 }
 
 /* ---- основной эндпоинт (совместим с текущим фронтом) ---- */
@@ -231,37 +249,34 @@ exports.getScore = async (req, res) => {
     const start = (req.query.start || dayjs().startOf('month').format('YYYY-MM-DD'));
     const end   = (req.query.end   || dayjs().endOf('month').format('YYYY-MM-DD'));
 
-    const workouts   = await calcWorkouts(userId, start, end);
-    const sleep      = await calcSleep(userId, start, end);
-    const meds       = await calcMeds(userId, start, end);
-    const health     = Math.round((workouts.score + sleep.score + meds.score) / 3);
+    const [workouts, sleep, meds, finance, engagement] = await Promise.all([
+      calcWorkouts(userId, start, end).catch(()=>({ score: 100, planned:0, done:0 })),
+      calcSleep(userId, start, end).catch(()=>({ score: 100 })),
+      calcMeds(userId, start, end).catch(()=>({ score: 100, planned:0, taken:0 })),
+      calcFinance(userId, start, end).catch(()=>({ score: 100, months:[] })),
+      calcEngagement(userId, start, end).catch(()=>({ score: 100, activeDays:0, totalDays:1 })),
+    ]);
 
-    const finance    = await calcFinance(userId, start, end);
-    const engagement = await calcEngagement(userId, start, end);
-
-    // веса доменов
+    const health = Math.round(((workouts.score ?? 100) + (sleep.score ?? 100) + (meds.score ?? 100)) / 3);
     const W = { health: 0.4, finance: 0.4, engagement: 0.2 };
     const total = Math.round(
-      health * W.health + finance.score * W.finance + engagement.score * W.engagement
+      (health * W.health) + ((finance.score ?? 100) * W.finance) + ((engagement.score ?? 100) * W.engagement)
     );
 
-    // old contract for ScorePill
     const days = eachDate(start, end).map(d => ({ date: d, total }));
 
     res.json({
       start, end,
       avg: total,
       days,
-
-      // новая детализация
       breakdown: {
         health: {
           score: health,
           workouts, sleep, meds,
-          top: workouts.score >= sleep.score && workouts.score >= meds.score ? 'workouts'
-             : sleep.score    >= meds.score   ? 'sleep' : 'meds',
-          weak: workouts.score <= sleep.score && workouts.score <= meds.score ? 'workouts'
-             : sleep.score    <= meds.score   ? 'sleep' : 'meds'
+          top:  (workouts.score >= sleep.score && workouts.score >= meds.score) ? 'workouts'
+              : (sleep.score    >= meds.score) ? 'sleep' : 'meds',
+          weak: (workouts.score <= sleep.score && workouts.score <= meds.score) ? 'workouts'
+              : (sleep.score    <= meds.score) ? 'sleep' : 'meds',
         },
         finance,
         engagement
