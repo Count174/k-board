@@ -1,3 +1,4 @@
+// src/components/GreetingsHeader/GreetingsHeader.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import styles from './GreetingsHeader.module.css';
 import { User } from 'lucide-react';
@@ -10,70 +11,59 @@ function useScoreData() {
   const [loading, setLoading] = useState(true);
   const [avg, setAvg] = useState(null);
   const [trend, setTrend] = useState(null);
-  const [detail, setDetail] = useState(null); // {health, finance, engagement, sleepAvg, sleepMissing, workouts, overspendDays}
+  const [detail, setDetail] = useState(null); // из breakdown за последние 7 дней
 
   useEffect(() => {
     const end = dayjs().format('YYYY-MM-DD');
-    const start = dayjs().subtract(13, 'day').format('YYYY-MM-DD'); // последние 14 дней для тренда
+    const start14 = dayjs().subtract(13, 'day').format('YYYY-MM-DD'); // 14 дней для тренда
+    const start7 = dayjs().subtract(6, 'day').format('YYYY-MM-DD');   // 7 дней для деталей
 
     async function load() {
       try {
-        const d = await get(`analytics/score?start=${start}&end=${end}`);
-        if (!d) return;
-
-        // Средний балл всего периода
-        setAvg(d.avg ?? null);
-
-        const days = d.days || [];
-        const last7 = days.slice(-7);
-        const prev7 = days.slice(-14, -7);
-
-        if (last7.length && prev7.length) {
-          const a = last7.reduce((s, x) => s + x.total, 0) / last7.length;
-          const b = prev7.reduce((s, x) => s + x.total, 0) / prev7.length;
-          setTrend(Math.round(a - b));
-        } else {
-          setTrend(0);
+        // 1) 14 дней — средний скоринг и тренд
+        const d14 = await get(`analytics/score?start=${start14}&end=${end}`);
+        if (d14) {
+          setAvg(d14.avg ?? null);
+          const days = d14.days || [];
+          const last7 = days.slice(-7);
+          const prev7 = days.slice(-14, -7);
+          if (last7.length && prev7.length) {
+            const a = last7.reduce((s, x) => s + x.total, 0) / last7.length;
+            const b = prev7.reduce((s, x) => s + x.total, 0) / prev7.length;
+            setTrend(Math.round(a - b));
+          } else {
+            setTrend(0);
+          }
         }
 
-        // Детализация по последним 7 дням
-        if (last7.length) {
-          const avgOf = (arr, path) => {
-            const nums = arr.map(x => {
-              const v = path(x);
-              return typeof v === 'number' ? v : null;
-            }).filter(v => v != null);
-            if (!nums.length) return 0;
-            return nums.reduce((s, v) => s + v, 0) / nums.length;
-          };
+        // 2) 7 дней — детальная раскладка из breakdown
+        const d7 = await get(`analytics/score?start=${start7}&end=${end}`);
+        if (d7?.breakdown) {
+          const br = d7.breakdown;
 
-          const health = avgOf(last7, x => x.components?.health ?? null);
-          const finance = avgOf(last7, x => x.components?.finance ?? null);
-          const engagement = avgOf(last7, x => x.components?.engagement ?? null);
+          // Health subparts
+          const hScore = Math.round(br.health?.score ?? 0);
+          const workoutsDone = br.health?.workouts?.done ?? 0;
+          const workoutsPlanned = br.health?.workouts?.planned ?? 0;
 
-          // Сон
-          const sleepVals = last7.map(x => x.facts?.sleep_hours).filter(v => typeof v === 'number');
-          const sleepAvg = sleepVals.length ? (sleepVals.reduce((s, v) => s + v, 0) / sleepVals.length) : 0;
-          const sleepMissing = 7 - sleepVals.length;
+          const totalHours = br.health?.sleep?.totalHours ?? 0; // суммарные часы сна за период
+          const norm = br.health?.sleep?.norm ?? 0;             // 7 * кол-во дней
+          const daysCnt = norm ? Math.round(norm / 7) : 7;      // защищённый фолбэк
+          const sleepAvg = daysCnt ? Number((totalHours / daysCnt).toFixed(1)) : 0;
 
-          // Тренировки (по daily_checks.workout_done)
-          const workouts = last7.filter(x => !!x.facts?.workout_done).length;
+          // Finance
+          const fScore = Math.round(br.finance?.score ?? 0);
 
-          // Дни перерасхода (spent > day_allowance, если бюджет есть)
-          const overspendDays = last7.filter(x => {
-            const a = x.facts?.day_allowance;
-            const spent = x.facts?.spent ?? 0;
-            return a != null && spent > a;
-          }).length;
+          // Engagement
+          const eScore = Math.round(br.engagement?.score ?? 0);
 
           setDetail({
-            health: Math.round(health),
-            finance: Math.round(finance),
-            engagement: Math.round(engagement),
-            sleepAvg: Number(sleepAvg.toFixed(1)),
-            sleepMissing,
-            workouts,
-            overspendDays,
+            health: hScore,
+            finance: fScore,
+            engagement: eScore,
+            sleepAvg,
+            workoutsDone,
+            workoutsPlanned,
           });
         }
       } catch {
@@ -135,13 +125,13 @@ function ScorePill() {
   const stroke =
     pct >= 80 ? '#4ade80' : pct >= 60 ? '#facc15' : '#f87171';
 
-  // Определим сильную/слабую сферу по последним 7 дням
+  // Сильная/слабая сфера по 7-дневной детализации
   let top = null, low = null;
   if (detail) {
     const arr = [
-      { key: 'Health', val: detail.health },
-      { key: 'Finance', val: detail.finance },
-      { key: 'Engagement', val: detail.engagement },
+      { key: 'Health', val: detail.health ?? 0 },
+      { key: 'Finance', val: detail.finance ?? 0 },
+      { key: 'Engagement', val: detail.engagement ?? 0 },
     ];
     arr.sort((a, b) => b.val - a.val);
     top = arr[0];
@@ -153,7 +143,7 @@ function ScorePill() {
       <button
         ref={btnRef}
         className={`${styles.scoreCard} ${levelClass}`}
-        title={`Средний скоринг за месяц: ${pct}%`}
+        title={`Средний скоринг: ${pct}%`}
         onClick={() => setOpen(v => !v)}
       >
         <div className={styles.scoreRing}>
@@ -182,7 +172,7 @@ function ScorePill() {
         <div ref={popRef} className={styles.scorePopover}>
           <div className={styles.popHeader}>
             <div className={styles.popTitle}>📊 Детали скоринга (7 дней)</div>
-            {detail && (top && low) && (
+            {detail && top && low && (
               <div className={styles.popBadges}>
                 <span className={styles.badgeGood}>Сильная: {top.key}</span>
                 <span className={styles.badgeWarn}>Зона роста: {low.key}</span>
@@ -200,8 +190,8 @@ function ScorePill() {
             <div className={styles.splitCard}>
               <div className={styles.splitTitle}>Здоровье</div>
               <ul className={styles.bullets}>
-                <li>Сон: {detail?.sleepAvg ?? 0} ч/д (данные за {7 - (detail?.sleepMissing ?? 7)} дн.)</li>
-                <li>Тренировки: {detail?.workouts ?? 0} дней из 7</li>
+                <li>Сон: {detail?.sleepAvg ?? 0} ч/д (ср. за 7 дней)</li>
+                <li>Тренировки: {detail?.workoutsDone ?? 0} из {detail?.workoutsPlanned ?? 0}</li>
                 {detail && detail.sleepAvg < 7 && (
                   <li className={styles.noteWarn}>Спишь меньше 7 ч/д — попробуй лечь на 30–45 мин раньше.</li>
                 )}
@@ -210,9 +200,9 @@ function ScorePill() {
             <div className={styles.splitCard}>
               <div className={styles.splitTitle}>Финансы</div>
               <ul className={styles.bullets}>
-                <li>Дней с перерасходом: {detail?.overspendDays ?? 0} из 7</li>
-                {detail && detail.overspendDays > 0 && (
-                  <li className={styles.noteWarn}>Есть перерасход по дням — проверь лимиты в «Бюджетах».</li>
+                <li>Оценка бюджета: {detail?.finance ?? 0}%</li>
+                {detail && detail.finance < 85 && (
+                  <li className={styles.noteWarn}>Есть риск перерасходов — проверь лимиты в «Бюджетах».</li>
                 )}
               </ul>
             </div>
@@ -259,7 +249,6 @@ function GreetingsHeader({ user, onConnectClick, onLogout }) {
 
       <div className={styles.right}>
         <ScorePill />
-
         <div className={styles.profileWrapper} ref={dropdownRef}>
           <button className={styles.profileButton} onClick={() => setDropdownOpen(!dropdownOpen)}>
             <User size={24} color="white" />

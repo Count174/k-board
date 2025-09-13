@@ -209,8 +209,11 @@ async function calcFinance(userId, start, end) {
     }
     monthScores.push(sumWeights ? Math.round(sumWeighted / sumWeights) : 100);
   }
-  const score = Math.round(monthScores.reduce((a,b)=>a+b,0) / monthScores.length);
-  return { score, months: monthScores.map((s,i)=>({ month: months[i], score: s })) };
+  const avg = monthScores.length
+    ? Math.round(monthScores.reduce((a,b)=>a+b,0) / monthScores.length)
+    : 100;                       // безопасный дефолт
+  
+  return { score: avg, months: monthScores.map((s,i)=>({ month: months[i], score: s })) };
 }
 
 /* ---- Engagement ---- */
