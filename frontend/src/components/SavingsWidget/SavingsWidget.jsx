@@ -3,13 +3,15 @@ import styles from './SavingsWidget.module.css';
 import { get, post, remove } from '../../api/api';
 
 function AdjustModal({ saving, onClose, onSaved }) {
+  const [type, setType] = useState('in'); // 'in' | 'out'
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
 
   const save = async () => {
-    const value = Number(amount);
-    if (!saving?.id || !isFinite(value) || value === 0) return;
-    await post(`savings/${saving.id}/adjust`, { amount: value, note });
+    const raw = Number(amount);
+    if (!saving?.id || !isFinite(raw) || raw <= 0) return; // просим > 0, знак задаём радиокнопкой
+    const signed = type === 'out' ? -Math.abs(raw) : Math.abs(raw);
+    await post(`savings/${saving.id}/adjust`, { amount: signed, note });
     onSaved?.();
     onClose();
   };
@@ -18,19 +20,53 @@ function AdjustModal({ saving, onClose, onSaved }) {
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={(e)=>e.stopPropagation()}>
         <h3 className={styles.modalTitle}>Изменить «{saving.name}»</h3>
-        <input
-          className={styles.input}
-          type="number"
-          placeholder="Сумма изменения (можно отрицательную)"
-          value={amount}
-          onChange={(e)=>setAmount(e.target.value)}
-        />
-        <input
-          className={styles.input}
-          placeholder="Комментарий (опционально)"
-          value={note}
-          onChange={(e)=>setNote(e.target.value)}
-        />
+
+        {/* тип операции */}
+        <div className={styles.radioGroup}>
+          <label className={`${styles.radio} ${type==='in' ? styles.radioActive : ''}`}>
+            <input
+              type="radio"
+              name="adjtype"
+              value="in"
+              checked={type === 'in'}
+              onChange={()=>setType('in')}
+            />
+            Поступление
+          </label>
+          <label className={`${styles.radio} ${type==='out' ? styles.radioActive : ''}`}>
+            <input
+              type="radio"
+              name="adjtype"
+              value="out"
+              checked={type === 'out'}
+              onChange={()=>setType('out')}
+            />
+            Расход
+          </label>
+        </div>
+
+        {/* сумма */}
+        <div className={styles.field}>
+          <input
+            className={`${styles.input} ${styles.inputLarge}`}
+            type="number"
+            inputMode="decimal"
+            placeholder="Сумма (например 5 000)"
+            value={amount}
+            onChange={(e)=>setAmount(e.target.value)}
+          />
+        </div>
+
+        {/* комментарий */}
+        <div className={styles.field}>
+          <input
+            className={`${styles.input} ${styles.inputLarge}`}
+            placeholder="Комментарий (опционально)"
+            value={note}
+            onChange={(e)=>setNote(e.target.value)}
+          />
+        </div>
+
         <div className={styles.modalActions}>
           <button className={styles.secondaryBtn} onClick={onClose}>Отмена</button>
           <button className={styles.primaryBtn} onClick={save}>Сохранить</button>

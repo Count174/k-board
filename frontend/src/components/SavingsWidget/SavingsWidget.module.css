@@ -60,3 +60,26 @@
   padding:8px 12px; border-radius:10px; cursor:pointer;
 }
 .secondaryBtn:hover { opacity:.9; }
+/* modal tweaks */
+.field { margin-top: 10px; } /* ↑ больше отступ между полями */
+.inputLarge { font-size: 16px; padding: 12px 14px; }
+
+/* radio buttons */
+.radioGroup {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0 4px;
+}
+.radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #3b3c46;
+  color: #fff;
+  border-radius: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+.radio input { display: none; }
+.radioActive { background: #4f46e5; }
