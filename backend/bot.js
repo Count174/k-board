@@ -133,113 +133,240 @@ function daysInMonthStr(yyyyMM) {
 }
 
 // Подсчёт скоринга за произвольный период (повторяет логику backend/analytics)
-async function computeScoreForPeriod(userId, startIso, endIso) {
-  const startTs = `${startIso} 00:00:00`;
-  const endTs = `${endIso} 23:59:59`;
+// ===== helpers for weekly scoring (скоринг) v2 =====
 
-  const checks = await new Promise((resolve) => {
-    db.all(
-      `SELECT date, sleep_hours, mood, energy, workout_done
-       FROM daily_checks
-       WHERE user_id = ? AND date BETWEEN ? AND ?`,
-      [userId, startIso, endIso],
-      (err, rows) => resolve(rows || [])
-    );
-  });
-
-  const expenses = await new Promise((resolve) => {
-    db.all(
-      `SELECT date(date) AS d, SUM(amount) AS spent
-       FROM finances
-       WHERE user_id = ?
-         AND type = 'expense'
-         AND date BETWEEN ? AND ?
-       GROUP BY date(date)`,
-      [userId, startTs, endTs],
-      (err, rows) => resolve(rows || [])
-    );
-  });
-
-  const startMonth = startIso.slice(0, 7);
-  const endMonth = endIso.slice(0, 7);
-  const budgets = await new Promise((resolve) => {
-    db.all(
-      `SELECT month, SUM(amount) AS total
-       FROM budgets
-       WHERE user_id = ?
-         AND month BETWEEN ? AND ?
-       GROUP BY month`,
-      [userId, startMonth, endMonth],
-      (err, rows) => resolve(rows || [])
-    );
-  });
-
-  const checkByDate = new Map(checks.map(r => [toDateOnly(r.date), r]));
-  const expenseByDate = new Map(expenses.map(r => [toDateOnly(r.d), Number(r.spent) || 0]));
-  const budgetByMonth = new Map(budgets.map(r => [r.month, Number(r.total) || 0]));
-
-  const days = [];
-  let dt = new Date(startIso);
-  const end = new Date(endIso);
-
-  while (dt <= end) {
-    const d = dt.toISOString().slice(0, 10);
-    const monthKey = d.slice(0, 7);
-    const dim = daysInMonthStr(monthKey);
-    const monthBudget = budgetByMonth.get(monthKey) || 0;
-    const dayAllowance = monthBudget > 0 ? monthBudget / dim : null;
-
-    const ch = checkByDate.get(d) || {};
-    const sleepH = typeof ch.sleep_hours === 'number' ? ch.sleep_hours : null;
-    const mood = typeof ch.mood === 'number' ? ch.mood : null;       // 1..5
-    const energy = typeof ch.energy === 'number' ? ch.energy : null; // 1..5
-    const workout = ch.workout_done ? 1 : 0;
-    const spent = expenseByDate.get(d) || 0;
-
-    const sleepScore   = sleepH == null ? 0 : clamp01(sleepH / 8); // 8ч = 100%
-    const moodScore    = mood == null ? 0 : clamp01(mood / 5);
-    const energyScore  = energy == null ? 0 : clamp01(energy / 5);
-    const workoutScore = workout ? 1 : 0;
-
-    const healthScore = 0.4*sleepScore + 0.3*moodScore + 0.2*energyScore + 0.1*workoutScore;
-
-    let financeScore = 0.7; // нейтрально, если бюджетов нет
-    if (dayAllowance != null) {
-      financeScore = spent <= dayAllowance ? 1 : clamp01(1 - ((spent - dayAllowance)/dayAllowance));
-    }
-
-    const engaged = (sleepH!=null || mood!=null || energy!=null || workout) ? 1 : 0;
-
-    const total = 0.5*healthScore + 0.3*financeScore + 0.2*engaged;
-
-    days.push({
-      date: d,
-      components: {
-        health: healthScore*100,
-        finance: financeScore*100,
-        engagement: engaged*100,
-      },
-      total: total*100,
-      facts: { sleepH, mood, energy, workout, spent, dayAllowance }
-    });
-
-    dt.setDate(dt.getDate() + 1);
+const pct = (x) => Math.round(clamp01(x) * 100);
+const eachDate = (start, end) => {
+  const out = []; let d = dayjs(start), e = dayjs(end);
+  while (d.isBefore(e) || d.isSame(e, 'day')) { out.push(d.format('YYYY-MM-DD')); d = d.add(1,'day'); }
+  return out;
+};
+const parseFrequency = (fq) => {
+  if (!fq || fq === 'daily') return { type:'daily', days:[] };
+  if (fq.startsWith('dow:')) {
+    const days = fq.slice(4).split(',').map(n=>parseInt(n,10)).filter(n=>n>=1 && n<=7);
+    return { type:'dow', days };
   }
+  return { type:'daily', days:[] };
+};
+const dow1 = (dateISO) => ((dayjs(dateISO).day()+6)%7)+1; // Пн=1..Вс=7
 
-  const avg = days.reduce((s,x)=>s+x.total,0) / (days.length || 1);
-  const avgHealth  = days.reduce((s,x)=>s+x.components.health,0) / (days.length || 1);
-  const avgFinance = days.reduce((s,x)=>s+x.components.finance,0) / (days.length || 1);
-  const avgEngage  = days.reduce((s,x)=>s+x.components.engagement,0) / (days.length || 1);
+// обёртки над SQLite без конфликтов имён
+const sqlAll = (sql, params=[]) => new Promise((resolve,reject)=>{
+  db.all(sql, params, (e, rows)=> e ? reject(e) : resolve(rows||[]));
+});
+const sqlGet = (sql, params=[]) => new Promise((resolve,reject)=>{
+  db.get(sql, params, (e, row)=> e ? reject(e) : resolve(row||null));
+});
+
+// ---- подметрики Health ----
+async function calcWorkouts(userId, start, end) {
+  const plannedRows = await sqlAll(
+    `SELECT date FROM health
+      WHERE user_id=? AND type='training' AND date>=? AND date<=?`,
+    [userId, start, end]
+  );
+  const plannedSet = new Set(plannedRows.map(r => String(r.date).slice(0,10)));
+  const totalPlannedDays = plannedSet.size;
+
+  const doneHealth = await sqlAll(
+    `SELECT date FROM health
+      WHERE user_id=? AND type='training' AND completed=1 AND date>=? AND date<=?`,
+    [userId, start, end]
+  );
+  const doneChecks = await sqlAll(
+    `SELECT date FROM daily_checks
+      WHERE user_id=? AND workout_done=1 AND date>=? AND date<=?`,
+    [userId, start, end]
+  );
+  const doneSet = new Set([
+    ...doneHealth.map(r => String(r.date).slice(0,10)),
+    ...doneChecks.map(r => String(r.date).slice(0,10)),
+  ]);
+
+  const doneForScore = Math.min(doneSet.size, totalPlannedDays);
+  const score = totalPlannedDays === 0 ? 100 : pct(doneForScore / totalPlannedDays);
+  return {
+    score,
+    planned_days: totalPlannedDays,
+    done_days: doneForScore,
+    extra_unplanned_days: Array.from(doneSet).filter(d=>!plannedSet.has(d)).length,
+  };
+}
+
+async function calcSleep(userId, start, end) {
+  const rows = await sqlAll(
+    `SELECT sleep_hours FROM daily_checks WHERE user_id=? AND date>=? AND date<=?`,
+    [userId, start, end]
+  );
+  const totalDays = eachDate(start, end).length;
+  const totalHours = rows.reduce((s,r)=> s + (Number(r.sleep_hours)||0), 0);
+  const norm = 7 * totalDays;
+
+  const rel = norm ? Math.abs(totalHours - norm) / norm : 0;
+  let score;
+  if (rel <= 0.10) score = 100 - (rel / 0.10)*10;                 // 90..100
+  else if (rel <= 0.25) score = 90 - ((rel-0.10)/0.15)*15;         // 75..90
+  else { const extra = Math.min(rel, 0.60); score = 75 - ((extra-0.25)/0.35)*25; } // 50..75
 
   return {
-    avg: Number(avg.toFixed(1)),
-    breakdown: {
-      health: Number(avgHealth.toFixed(1)),
-      finance: Number(avgFinance.toFixed(1)),
-      engagement: Number(avgEngage.toFixed(1)),
-    },
-    days
+    score: Math.round(score),
+    avg_hours_per_day: totalDays ? +(totalHours/totalDays).toFixed(1) : 0,
+    total_hours: Math.round(totalHours)
   };
+}
+
+async function calcMeds(userId, start, end) {
+  const meds = await sqlAll(
+    `SELECT id,frequency,times,start_date,end_date
+       FROM medications
+      WHERE user_id=? AND active=1`,
+    [userId]
+  );
+  if (!meds.length) return { score: 100, planned: 0, taken: 0 };
+
+  const dates = eachDate(start, end);
+  let planned = 0;
+  for (const m of meds) {
+    let times = []; try { times = JSON.parse(m.times||'[]'); } catch {}
+    if (!Array.isArray(times) || !times.length) continue;
+    const fq = parseFrequency(m.frequency);
+    for (const d of dates) {
+      const inWindow = dayjs(d).isSameOrAfter(dayjs(m.start_date)) &&
+                       (!m.end_date || dayjs(d).isSameOrBefore(dayjs(m.end_date)));
+      if (!inWindow) continue;
+      const okDay = fq.type==='daily' || fq.days.includes(dow1(d));
+      if (okDay) planned += times.length;
+    }
+  }
+  const takenRow = await sqlGet(
+    `SELECT COUNT(*) cnt FROM medication_notifications
+      WHERE medication_id IN (SELECT id FROM medications WHERE user_id=?)
+        AND notify_date>=? AND notify_date<=? AND taken=1`,
+    [userId, start, end]
+  );
+  const taken = takenRow?.cnt || 0;
+  return { score: planned===0 ? 100 : pct(taken/planned), planned, taken };
+}
+
+// ---- Finance / Engagement ----
+async function calcFinance(userId, start, end) {
+  const months = []; let d=dayjs(start).startOf('month'), last=dayjs(end).startOf('month');
+  while (d.isSameOrBefore(last)) { months.push(d.format('YYYY-MM')); d = d.add(1,'month'); }
+  const monthScores = [];
+
+  for (const month of months) {
+    const budgets = await sqlAll(
+      `SELECT lower(category) category, amount FROM budgets WHERE user_id=? AND month=?`,
+      [userId, month]
+    );
+    if (!budgets.length) { monthScores.push(100); continue; }
+
+    const spend = await sqlAll(
+      `SELECT lower(category) category, SUM(amount) total
+         FROM finances
+        WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=?
+        GROUP BY lower(category)`,
+      [userId, month]
+    );
+    const mapSpend = Object.fromEntries(spend.map(r => [r.category, Math.abs(r.total||0)]));
+
+    let sumWeighted=0, sumWeights=0;
+    for (const b of budgets) {
+      const plan = Number(b.amount||0); if (plan<=0) continue;
+      const s = Number(mapSpend[b.category]||0);
+      let catScore;
+      if (s <= plan) {
+        catScore = Math.min(100, 100 - ((plan - s)/plan)*10); // небольшой «бонус»
+      } else {
+        const over = (s - plan)/plan;
+        if (over <= .10) catScore = 85;
+        else if (over <= .25) catScore = 70;
+        else if (over <= .50) catScore = 60;
+        else catScore = 50;
+      }
+      sumWeighted += catScore * plan;
+      sumWeights  += plan;
+    }
+    monthScores.push(sumWeights ? Math.round(sumWeighted/sumWeights) : 100);
+  }
+  const score = Math.round(monthScores.reduce((a,b)=>a+b,0) / monthScores.length);
+  return { score, months: monthScores.map((s,i)=>({ month: months[i], score:s })) };
+}
+
+async function calcEngagement(userId, start, end) {
+  const rows = await sqlAll(
+    `
+    SELECT date FROM (
+      SELECT date FROM health WHERE user_id=? AND date>=? AND date<=?
+      UNION ALL
+      SELECT date(date) as date FROM finances WHERE user_id=? AND date(date)>=? AND date(date)<=?
+      UNION ALL
+      SELECT date FROM daily_checks WHERE user_id=? AND date>=? AND date<=?
+    )
+    `,
+    [userId, start, end, userId, start, end, userId, start, end]
+  );
+  const active = new Set(rows.map(r => String(r.date).slice(0,10)));
+  const totalDays = eachDate(start, end).length;
+  return { score: pct(active.size/totalDays), activeDays: active.size, totalDays };
+}
+
+// ---- главный агрегатор периода (возвращает ДОП. детали)
+async function computeScoreForPeriod(userId, startIso, endIso) {
+  const workouts   = await calcWorkouts(userId, startIso, endIso);
+  const sleep      = await calcSleep(userId, startIso, endIso);
+  const meds       = await calcMeds(userId, startIso, endIso);
+  const health     = Math.round((workouts.score + sleep.score + meds.score) / 3);
+
+  const finance    = await calcFinance(userId, startIso, endIso);
+  const engagement = await calcEngagement(userId, startIso, endIso);
+
+  const W = { health: 0.4, finance: 0.4, engagement: 0.2 };
+  const total = Math.round(health * W.health + finance.score * W.finance + engagement.score * W.engagement);
+
+  return {
+    avg: total,
+    breakdown: {
+      health,                // число
+      finance,               // { score, months: [...] }
+      engagement,            // { score, activeDays, totalDays }
+      details: { workouts, sleep, meds }
+    }
+  };
+}
+
+// персонализированный совет
+function buildAdvice(result) {
+  const det = result.breakdown.details;
+  const pairs = [
+    ['Health', result.breakdown.health],
+    ['Finance', result.breakdown.finance.score],
+    ['Engagement', result.breakdown.engagement.score],
+  ].sort((a,b)=>a[1]-b[1]);
+
+  const weakest = pairs[0][0];
+  let advice = '';
+
+  if (weakest === 'Health') {
+    if (det.sleep.avg_hours_per_day < 7) {
+      advice = 'Сон проседает: постарайся ложиться на 30–45 минут раньше, цель — 7–8 ч/д.';
+    } else if (det.workouts.done_days < Math.max(2, Math.round((det.workouts.planned_days||0)*0.6))) {
+      advice = 'Добавь 1–2 короткие тренировки (даже 20 минут прогулки).';
+    } else {
+      advice = 'Поддерживай рутину: лёгкая активность каждый день и вечерний чек-ин.';
+    }
+  } else if (weakest === 'Finance') {
+    advice = result.breakdown.finance.score < 85
+      ? 'Есть риск перерасходов. Подкрути лимиты в «Бюджетах» и следи за «еда вне дома».'
+      : 'Финансы стабильны — при необходимости уточни лимиты по категориям.';
+  } else {
+    advice = result.breakdown.engagement.score < 70
+      ? 'Заполняй daily-чек хотя бы в будни. Включи напоминание утром/вечером.'
+      : 'Отличная регулярность — продолжай в том же духе!';
+  }
+
+  return { weakest, advice };
 }
 
 function buildAdvice(result) {
@@ -968,26 +1095,44 @@ cron.schedule('0 8 * * 1', async () => {
 
 // ========= CRON: еженедельный отчёт по СКОРИНГУ (понедельник 11:00 МСК) ========= //
 cron.schedule('0 11 * * 1', () => {
-  const { startIso, endIso, label } = prevWeekRange();
+  const cur = prevWeekRange();
+  const prevStart = dayjs(cur.startIso).subtract(7, 'day').format('YYYY-MM-DD');
+  const prevEnd   = dayjs(cur.endIso).subtract(7, 'day').format('YYYY-MM-DD');
 
   db.all('SELECT user_id, chat_id FROM telegram_users', [], async (err, rows) => {
     if (err || !rows?.length) return;
 
     for (const { user_id, chat_id } of rows) {
       try {
-        const result = await computeScoreForPeriod(user_id, startIso, endIso);
-        const { avg, breakdown } = result;
-        const { weakest, advice } = buildAdvice(result);
+        const curScore  = await computeScoreForPeriod(user_id, cur.startIso, cur.endIso);
+        const prevScore = await computeScoreForPeriod(user_id, prevStart, prevEnd);
+        const delta = curScore.avg - prevScore.avg;
+
+        const { weakest, advice } = buildAdvice(curScore);
+        const det = curScore.breakdown.details;
 
         const msg =
-          `📊 *Еженедельный отчёт по скорингу*\n` +
-          `Период: *${label}*\n\n` +
-          `*Средний скоринг:* ${Math.round(avg)}%\n` +
-          `• Health: ${Math.round(breakdown.health)}%\n` +
-          `• Finance: ${Math.round(breakdown.finance)}%\n` +
-          `• Engagement: ${Math.round(breakdown.engagement)}%\n\n` +
-          `📉 *Слабое место:* ${weakest}\n` +
-          `💡 *Совет:* ${advice}`;
+          `📊 *Еженедельный отчёт*\n` +
+          `Период: *${cur.startIso} — ${cur.endIso}*\n\n` +
+          `Средний скоринг: *${curScore.avg}%* (${delta===0 ? '—0%' : delta>0 ? '↑ +' + delta + '%' : '↓ ' + delta + '%'})\n` +
+          `• Health: ${curScore.breakdown.health}%\n` +
+          `• Finance: ${curScore.breakdown.finance.score}%\n` +
+          `• Engagement: ${curScore.breakdown.engagement.score}%\n\n` +
+
+          `Здоровье\n` +
+          `• Сон: ${det.sleep.avg_hours_per_day} ч/д\n` +
+          `• Тренировки: ${det.workouts.done_days} / ${det.workouts.planned_days}` +
+          (det.workouts.extra_unplanned_days ? ` (+${det.workouts.extra_unplanned_days} вне плана)` : '') + `\n` +
+          `• Лекарства: ` + (det.meds.planned ? `${det.meds.taken}/${det.meds.planned}` : 'нет курсов') + `\n\n` +
+
+          `Финансы\n` +
+          `• Оценка бюджета: ${curScore.breakdown.finance.score}%\n\n` +
+
+          `Вовлечённость\n` +
+          `• Активные дни: ${curScore.breakdown.engagement.activeDays} из ${curScore.breakdown.engagement.totalDays}\n\n` +
+
+          `💡 Рекомендация (${weakest}):\n` +
+          `${advice}`;
 
         await bot.sendMessage(chat_id, msg, { parse_mode: 'Markdown' });
       } catch (e) {
