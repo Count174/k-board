@@ -1,0 +1,20 @@
+.widget{background:#1e1f26;color:#fff;border-radius:16px;padding:20px;margin-bottom:24px}
+.header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.title{font-size:20px;font-weight:700}
+.primary{background:#4f46e5;border:none;color:#fff;padding:10px 14px;border-radius:10px;cursor:pointer}
+.summary{display:flex;gap:16px;flex-wrap:wrap;margin:8px 0 14px;color:#cbd5e1}
+.list{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.card{background:#2c2d35;border-radius:12px;padding:12px}
+.row{display:flex;gap:14px;flex-wrap:wrap;justify-content:space-between}
+.name{font-weight:700}
+.lender{opacity:.8}
+.actions{display:flex;gap:8px;margin-top:10px}
+.ghost{background:rgba(255,255,255,.1);border:none;color:#fff;padding:8px 12px;border-radius:10px;cursor:pointer}
+.danger{background:#ef4444;border:none;color:#fff;padding:8px 12px;border-radius:10px;cursor:pointer}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:grid;place-items:center;z-index:3000}
+.modalBody{background:#111827;border-radius:14px;padding:18px;min-width:320px;max-width:720px;width:90%}
+.formGrid{display:grid;grid-template-columns:repeat(2,minmax(160px,1fr));gap:10px}
+.formGridTwo{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.input{background:#0f172a;border:1px solid rgba(255,255,255,.08);color:#fff;padding:10px;border-radius:10px}
+.modalActions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}
+.secondary{background:rgba(255,255,255,.1);border:none;color:#e2e8f0;padding:10px 14px;border-radius:10px;cursor:pointer}

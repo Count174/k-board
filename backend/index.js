@@ -20,6 +20,7 @@ const budgetsRoutes = require('./routes/budgets');
 const savingsRoutes = require('./routes/savings');
 const analyticsRoutes = require('./routes/analytics');
 const onboardingRoutes = require('./routes/onboarding');
+const loansRoutes = require('./routes/loans')
 
 app.set('trust proxy', 1); // доверие первому прокси (nginx)
 app.use(cors({
@@ -43,6 +44,7 @@ app.use('/api/budgets', budgetsRoutes);
 app.use('/api/savings', savingsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/onboarding', onboardingRoutes);
+app.use('/api/loans', loansRoutes);
 
 
 // Статика фронта
