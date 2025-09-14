@@ -1,47 +1,66 @@
+// frontend/src/components/loans/LoansWidget.jsx
 import { useEffect, useState } from 'react';
-import { get, post, remove as del } from '../../api/api';
 import styles from './LoansWidget.module.css';
+import { get, post, remove } from '../../api/api';
+
+function Money({ v }) { return <>{new Intl.NumberFormat('ru-RU').format(Math.round(v||0))} ₽</>; }
 
 export default function LoansWidget() {
-  const [list, setList] = useState([]);
-  const [sum, setSum] = useState(null);
+  const [items, setItems] = useState([]);
+  const [summary, setSummary] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [showPay, setShowPay] = useState(null); // loan объект
+  const [showPay, setShowPay] = useState(null); // loan object or null
+
   const [form, setForm] = useState({
-    name:'', lender:'', principal:'', rate_apy:'', term_months:'',
-    start_date: new Date().toISOString().slice(0,10), due_day: 25, extra_payment:''
+    id: null, name: '', lender: '', principal_total: '', principal_left: '',
+    interest_apr: '', monthly_payment: '', payment_day: 5, start_date: '', end_date: '', notes: ''
   });
-  const [pay, setPay] = useState({ pay_date: new Date().toISOString().slice(0,10), amount:'' });
+  const [payForm, setPayForm] = useState({ paid_date: new Date().toISOString().slice(0,10), amount: '', principal_part: '', notes: '' });
 
-  const load = async ()=>{
-    const [l, s] = await Promise.all([get('loans'), get('loans/summary')]);
-    setList(l||[]); setSum(s||null);
-  };
-  useEffect(()=>{ load(); },[]);
+  async function load() {
+    const data = await get('loans');
+    setItems(data.items || []);
+    setSummary(data.summary || null);
+  }
+  useEffect(()=>{ load(); }, []);
 
-  const save = async ()=>{
-    const body = {
-       ...form,
-       principal: Number(form.principal),
-       rate_apy: Number(form.rate_apy),
-       term_months: Number(form.term_months),
-       due_day: Number(form.due_day),
-       extra_payment: Number(form.extra_payment||0)
+  const save = async () => {
+    const payload = {
+      ...form,
+      principal_total: Number(form.principal_total),
+      principal_left: form.principal_left ? Number(form.principal_left) : undefined,
+      interest_apr: form.interest_apr ? Number(form.interest_apr) : undefined,
+      monthly_payment: Number(form.monthly_payment),
+      payment_day: Number(form.payment_day),
     };
-    await post('loans', body);
+    await post('loans', payload);
     setShowForm(false);
-    setForm({ name:'', lender:'', principal:'', rate_apy:'', term_months:'', start_date:new Date().toISOString().slice(0,10), due_day:25, extra_payment:'' });
+    setForm({ id: null, name: '', lender: '', principal_total: '', principal_left: '', interest_apr: '', monthly_payment: '', payment_day: 5, start_date: '', end_date: '', notes: '' });
     await load();
   };
 
-  const removeLoan = async (id)=>{
-    await del(`loans/${id}`);
-    await load();
-  };
+  const delItem = async (id) => { await remove(`loans/${id}`); await load(); };
 
-  const savePayment = async ()=>{
-    await post(`loans/${showPay.id}/payments`, { pay_date: pay.pay_date, amount: Number(pay.amount) });
-    setShowPay(null); setPay({ pay_date: new Date().toISOString().slice(0,10), amount:'' });
+  const openEdit = (l) => { setForm({
+    id: l.id, name: l.name, lender: l.lender||'',
+    principal_total: l.principal_total, principal_left: l.principal_left,
+    interest_apr: l.interest_apr||'', monthly_payment: l.monthly_payment,
+    payment_day: l.payment_day, start_date: l.start_date, end_date: l.end_date||'', notes: l.notes||''
+  }); setShowForm(true); };
+
+  const openPay = (l) => { setShowPay(l); setPayForm({
+    paid_date: new Date().toISOString().slice(0,10),
+    amount: l.monthly_payment,
+    principal_part: l.monthly_payment, notes: ''
+  }); };
+
+  const submitPay = async () => {
+    await post(`loans/${showPay.id}/payments`, {
+      ...payForm,
+      amount: Number(payForm.amount),
+      principal_part: payForm.principal_part ? Number(payForm.principal_part) : undefined
+    });
+    setShowPay(null);
     await load();
   };
 
@@ -49,72 +68,80 @@ export default function LoansWidget() {
     <div className={styles.widget}>
       <div className={styles.header}>
         <h3 className={styles.title}>Кредиты</h3>
-        <button className={styles.primary} onClick={()=>setShowForm(true)}>+ Добавить</button>
+        <div className={styles.headerRight}>
+          {summary && (
+            <div className={styles.summary}>
+              <span>Месячный платёж: <b><Money v={summary.total_monthly}/></b></span>
+              {summary.dti_percent!=null && <span> · DTI: <b>{summary.dti_percent}%</b></span>}
+            </div>
+          )}
+          <button className={styles.primaryBtn} onClick={()=>{ setShowForm(true); }}>+ Добавить</button>
+        </div>
       </div>
 
-      {sum && (
-        <div className={styles.summary}>
-          <div><b>DTI:</b> {sum.dti_percent!=null ? `${sum.dti_percent}%` : '—'}</div>
-          <div><b>Ежемесячно:</b> {sum.total_monthly_due?.toLocaleString()} ₽</div>
-          <div><b>Остаток:</b> {sum.total_remaining?.toLocaleString()} ₽</div>
-        </div>
-      )}
-
       <ul className={styles.list}>
-        {list.map(ln=>(
-          <li key={ln.id} className={styles.card}>
-            <div className={styles.row}>
-              <div className={styles.name}>{ln.name}</div>
-              {ln.lender && <div className={styles.lender}>{ln.lender}</div>}
+        {items.map(l => (
+          <li key={l.id} className={styles.item}>
+            <div className={styles.top}>
+              <div className={styles.name}>{l.name}{l.lender?` — ${l.lender}`:''}</div>
+              <div className={styles.actions}>
+                <button className={styles.ghostBtn} onClick={()=>openPay(l)}>Внести платёж</button>
+                <button className={styles.ghostBtn} onClick={()=>openEdit(l)}>Редактировать</button>
+                <button className={styles.dangerBtn} onClick={()=>delItem(l.id)}>Удалить</button>
+              </div>
             </div>
-            <div className={styles.row}>
-              <div>Ежемесячно: <b>{ln.effective_monthly_due.toLocaleString()} ₽</b></div>
-              <div>Остаток: <b>{ln.remaining_principal.toLocaleString()} ₽</b></div>
-              <div>След. платёж: <b>{ln.next_due_date}</b></div>
+
+            <div className={styles.progress}>
+              <div className={styles.progressBar} style={{ width: `${Math.max(0, Math.min(100, l.progress))}%` }} />
             </div>
-            <div className={styles.actions}>
-              <button className={styles.ghost} onClick={()=>{ setShowPay(ln); setPay({ pay_date: new Date().toISOString().slice(0,10), amount: ln.effective_monthly_due }); }}>
-                Внести платёж
-              </button>
-              <button className={styles.danger} onClick={()=>removeLoan(ln.id)}>Закрыть</button>
+            <div className={styles.meta}>
+              <span>Остаток: <b><Money v={l.principal_left}/></b> из <Money v={l.principal_total}/></span>
+              <span>Ставка: {l.interest_apr ? `${l.interest_apr}% APR` : '—'}</span>
+              <span>Платёж: <b><Money v={l.monthly_payment}/></b> · Дата: {l.payment_day} числа · Ближайший: {l.next_due_date}</span>
             </div>
           </li>
         ))}
       </ul>
 
+      {/* форма кредита */}
       {showForm && (
-        <div className={styles.modal}>
-          <div className={styles.modalBody}>
-            <h4>Новый кредит</h4>
+        <div className={styles.modalOverlay} onClick={()=>setShowForm(false)}>
+          <div className={styles.modal} onClick={(e)=>e.stopPropagation()}>
+            <h4>{form.id ? 'Редактировать кредит' : 'Новый кредит'}</h4>
             <div className={styles.formGrid}>
-              <input className={styles.input} placeholder="Название" value={form.name} onChange={e=>setForm({...form,name:e.target.value})}/>
-              <input className={styles.input} placeholder="Банк/Продавец (опц.)" value={form.lender} onChange={e=>setForm({...form,lender:e.target.value})}/>
-              <input className={styles.input} type="number" placeholder="Сумма (principal)" value={form.principal} onChange={e=>setForm({...form,principal:e.target.value})}/>
-              <input className={styles.input} type="number" placeholder="Ставка, % годовых" value={form.rate_apy} onChange={e=>setForm({...form,rate_apy:e.target.value})}/>
-              <input className={styles.input} type="number" placeholder="Срок, мес" value={form.term_months} onChange={e=>setForm({...form,term_months:e.target.value})}/>
-              <input className={styles.input} type="date" placeholder="Дата выдачи" value={form.start_date} onChange={e=>setForm({...form,start_date:e.target.value})}/>
-              <input className={styles.input} type="number" placeholder="День платежа (1..31)" value={form.due_day} onChange={e=>setForm({...form,due_day:e.target.value})}/>
-              <input className={styles.input} type="number" placeholder="Ежемес. досрочка (опц.)" value={form.extra_payment} onChange={e=>setForm({...form,extra_payment:e.target.value})}/>
+              <input className={styles.input} placeholder="Название (например iPhone 15)" value={form.name} onChange={e=>setForm(f=>({...f, name:e.target.value}))}/>
+              <input className={styles.input} placeholder="Банк (опц.)" value={form.lender} onChange={e=>setForm(f=>({...f, lender:e.target.value}))}/>
+              <input className={styles.input} type="number" placeholder="Сумма кредита" value={form.principal_total} onChange={e=>setForm(f=>({...f, principal_total:e.target.value}))}/>
+              <input className={styles.input} type="number" placeholder="Остаток долга (по умолчанию = сумма)" value={form.principal_left} onChange={e=>setForm(f=>({...f, principal_left:e.target.value}))}/>
+              <input className={styles.input} type="number" step="0.01" placeholder="Ставка APR, %" value={form.interest_apr} onChange={e=>setForm(f=>({...f, interest_apr:e.target.value}))}/>
+              <input className={styles.input} type="number" placeholder="Ежемесячный платёж" value={form.monthly_payment} onChange={e=>setForm(f=>({...f, monthly_payment:e.target.value}))}/>
+              <input className={styles.input} type="number" placeholder="День платежа (1..28)" value={form.payment_day} onChange={e=>setForm(f=>({...f, payment_day:e.target.value}))}/>
+              <input className={styles.input} type="date" placeholder="Начало" value={form.start_date} onChange={e=>setForm(f=>({...f, start_date:e.target.value}))}/>
+              <input className={styles.input} type="date" placeholder="Окончание (опц.)" value={form.end_date} onChange={e=>setForm(f=>({...f, end_date:e.target.value}))}/>
+              <input className={styles.inputWide} placeholder="Заметки" value={form.notes} onChange={e=>setForm(f=>({...f, notes:e.target.value}))}/>
             </div>
             <div className={styles.modalActions}>
-              <button className={styles.secondary} onClick={()=>setShowForm(false)}>Отмена</button>
-              <button className={styles.primary} onClick={save} disabled={!form.name || !form.principal || !form.rate_apy || !form.term_months}>Сохранить</button>
+              <button className={styles.secondaryBtn} onClick={()=>setShowForm(false)}>Отмена</button>
+              <button className={styles.primaryBtn} onClick={save}>Сохранить</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* форма платежа */}
       {showPay && (
-        <div className={styles.modal}>
-          <div className={styles.modalBody}>
-            <h4>Платёж по «{showPay.name}»</h4>
-            <div className={styles.formGridTwo}>
-              <input className={styles.input} type="date" value={pay.pay_date} onChange={e=>setPay({...pay, pay_date:e.target.value})}/>
-              <input className={styles.input} type="number" value={pay.amount} onChange={e=>setPay({...pay, amount:e.target.value})}/>
+        <div className={styles.modalOverlay} onClick={()=>setShowPay(null)}>
+          <div className={styles.modal} onClick={(e)=>e.stopPropagation()}>
+            <h4>Платёж — {showPay.name}</h4>
+            <div className={styles.formGrid}>
+              <input className={styles.input} type="date" value={payForm.paid_date} onChange={e=>setPayForm(f=>({...f, paid_date: e.target.value}))}/>
+              <input className={styles.input} type="number" placeholder="Сумма" value={payForm.amount} onChange={e=>setPayForm(f=>({...f, amount: e.target.value}))}/>
+              <input className={styles.input} type="number" placeholder="В тело кредита (опц.)" value={payForm.principal_part} onChange={e=>setPayForm(f=>({...f, principal_part: e.target.value}))}/>
+              <input className={styles.inputWide} placeholder="Заметки" value={payForm.notes} onChange={e=>setPayForm(f=>({...f, notes: e.target.value}))}/>
             </div>
             <div className={styles.modalActions}>
-              <button className={styles.secondary} onClick={()=>setShowPay(null)}>Отмена</button>
-              <button className={styles.primary} onClick={savePayment} disabled={!pay.amount}>Записать</button>
+              <button className={styles.secondaryBtn} onClick={()=>setShowPay(null)}>Отмена</button>
+              <button className={styles.primaryBtn} onClick={submitPay}>Записать платёж</button>
             </div>
           </div>
         </div>
