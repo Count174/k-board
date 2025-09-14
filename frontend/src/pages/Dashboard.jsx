@@ -11,6 +11,7 @@ import GreetingHeader from '../components/Dashboard/GreetingsHeader';
 import TelegramModal from '../components/TelegramModal';
 import SavingsWidget from '../components/SavingsWidget/SavingsWidget';
 import OnboardingProvider from '../components/OnboardingProvider/OnboardingProvider';   
+import LoansWidget from '../components/LoansWidget/LoansWidget';
 
 
 export default function Dashboard() {
@@ -48,6 +49,7 @@ export default function Dashboard() {
         <FinanceWidget />
         <BudgetWidget />
         <SavingsWidget />
+        <LoansWidget />
       </div>
 
       {showTelegramModal && (
