@@ -369,35 +369,48 @@ function buildAdvice(result) {
   return { weakest, advice };
 }
 
-function buildAdvice(result) {
-  const { health, finance, engagement } = result.breakdown;
+function buildAdviceFromBreakdown(result, startIso, endIso) {
+  const { breakdown } = result;
+  const healthScore      = Number(breakdown.health || 0);
+  const financeScore     = Number(breakdown.finance?.score || 0);
+  const engagementScore  = Number(breakdown.engagement?.score || 0);
+
   const pairs = [
-    ['Health', health],
-    ['Finance', finance],
-    ['Engagement', engagement],
-  ].sort((a,b)=>a[1]-b[1]);
+    ['Health', healthScore],
+    ['Finance', financeScore],
+    ['Engagement', engagementScore],
+  ].sort((a, b) => a[1] - b[1]);
+
   const weakest = pairs[0][0];
+  const det = breakdown.details || {};
+  const periodDays = dayjs(endIso).diff(dayjs(startIso), 'day') + 1;
 
-  const last7 = result.days;
-  const avgSleep = (() => {
-    const vals = last7.map(d=>d.facts.sleepH).filter(x=>typeof x==='number');
-    return vals.length ? vals.reduce((s,x)=>s+x,0)/vals.length : null;
-  })();
-  const workouts = last7.filter(d=>d.facts.workout).length;
-  const overBudgetDays = last7.filter(d => d.facts.dayAllowance!=null && d.facts.spent > d.facts.dayAllowance).length;
-  const engagedDays = last7.filter(d=>d.components.engagement>0).length;
-
-  let advice = '';
+  let advice = 'Продолжай в том же духе.';
   if (weakest === 'Health') {
-    if (avgSleep!=null && avgSleep < 7) advice = 'Старайся спать 7–8 часов. Попробуй лечь на 30 минут раньше всю неделю.';
-    else if (workouts < 3) advice = 'Добавь 1–2 лёгкие тренировки (даже 20 минут прогулки).';
-    else advice = 'Поддерживай рутину: лёгкая активность каждый день и вечерний чек-ин.';
+    const avgSleep = det?.sleep?.totalHours != null ? (det.sleep.totalHours / Math.max(1, periodDays)) : null;
+    const w = det?.workouts || {};
+    if (avgSleep != null && avgSleep < 7) {
+      advice = 'Старайся спать 7–8 часов. Попробуй лечь на 30–45 минут раньше и выставить напоминание.';
+    } else if (w.planned != null && w.done != null && w.done < Math.max(1, Math.round(w.planned * 0.6))) {
+      advice = 'Тренировки идут нерегулярно. Добавь 1 короткую сессию утром (10–15 минут) для закрепления привычки.';
+    } else if (det?.meds && det.meds.planned > 0 && det.meds.taken < det.meds.planned) {
+      advice = 'Есть пропуски по приёму добавок. Включи напоминания и ставь приём рядом с привычным действием (кофе/завтрак).';
+    } else {
+      advice = 'Поддерживай рутину: вечерний чек-ин и ежедневная лёгкая активность помогают держать тонус.';
+    }
   } else if (weakest === 'Finance') {
-    if (overBudgetDays >= 3) advice = 'Часто превышаешь дневной лимит. Выбери 1–2 категории для жёсткого контроля и расплачивайся одной картой.';
-    else advice = 'Пересмотри лимиты по категориям — возможно, бюджет стоит чуть подправить.';
-  } else {
-    if (engagedDays < 5) advice = 'Заполняй daily check хотя бы в будни. Включи утреннее/вечернее напоминание.';
-    else advice = 'Отличная регулярность — продолжай в том же духе.';
+    if (financeScore < 70) {
+      advice = 'Бюджет проседает. Выбери 1–2 проблемные категории и зафиксируй недельный лимит. Плати только одной картой для контроля.';
+    } else {
+      advice = 'Проверь лимиты по категориям и слегка ужесточи самые «текущие». Этого часто достаточно.';
+    }
+  } else { // Engagement
+    const act = breakdown.engagement || {};
+    if (act.activeDays < Math.max(5, Math.round(periodDays * 0.6))) {
+      advice = 'Отмечай чек-ин хотя бы в будни. Включи утреннее и вечернее напоминания (/checkon all).';
+    } else {
+      advice = 'Отличная регулярность — сохраняй темп и не пропускай вечернюю отметку.';
+    }
   }
 
   return { weakest, advice };
@@ -1106,24 +1119,41 @@ cron.schedule('0 11 * * 1', () => {
       try {
         const curScore  = await computeScoreForPeriod(user_id, cur.startIso, cur.endIso);
         const prevScore = await computeScoreForPeriod(user_id, prevStart, prevEnd);
-        const delta = curScore.avg - prevScore.avg;
+        const delta = Math.round(curScore.avg - prevScore.avg);
 
-        const { weakest, advice } = buildAdvice(curScore);
-        const det = curScore.breakdown.details;
+        const { weakest, advice } = buildAdviceFromBreakdown(curScore, cur.startIso, cur.endIso);
+        const det = curScore.breakdown.details; // { workouts, sleep, meds }
+
+        // sleep.avg: считаем из totalHours/дней
+        const periodDays = dayjs(cur.endIso).diff(dayjs(cur.startIso), 'day') + 1;
+        const sleepAvg = det?.sleep?.totalHours != null
+          ? (det.sleep.totalHours / Math.max(1, periodDays))
+          : null;
+
+        const w = det?.workouts || {};
+        const workoutsLine =
+          (w.planned != null && w.done != null)
+            ? `${w.done} / ${w.planned}` + (w.extra_unplanned ? ` (+${w.extra_unplanned} вне плана)` : '')
+            : '—';
+
+        const medsLine =
+          (det?.meds?.planned > 0)
+            ? `${det.meds.taken}/${det.meds.planned}`
+            : 'нет курсов';
 
         const msg =
           `📊 *Еженедельный отчёт*\n` +
           `Период: *${cur.startIso} — ${cur.endIso}*\n\n` +
-          `Средний скоринг: *${curScore.avg}%* (${delta===0 ? '—0%' : delta>0 ? '↑ +' + delta + '%' : '↓ ' + delta + '%'})\n` +
+          `Средний скоринг: *${curScore.avg}%* ` +
+          (delta === 0 ? '(—0%)' : delta > 0 ? `(↑ +${delta}%)` : `(↓ ${delta}%)`) + `\n` +
           `• Health: ${curScore.breakdown.health}%\n` +
           `• Finance: ${curScore.breakdown.finance.score}%\n` +
           `• Engagement: ${curScore.breakdown.engagement.score}%\n\n` +
 
           `Здоровье\n` +
-          `• Сон: ${det.sleep.avg_hours_per_day} ч/д\n` +
-          `• Тренировки: ${det.workouts.done_days} / ${det.workouts.planned_days}` +
-          (det.workouts.extra_unplanned_days ? ` (+${det.workouts.extra_unplanned_days} вне плана)` : '') + `\n` +
-          `• Лекарства: ` + (det.meds.planned ? `${det.meds.taken}/${det.meds.planned}` : 'нет курсов') + `\n\n` +
+          `• Сон: ${sleepAvg != null ? sleepAvg.toFixed(1) + ' ч/д' : '—'}\n` +
+          `• Тренировки: ${workoutsLine}\n` +
+          `• Лекарства: ${medsLine}\n\n` +
 
           `Финансы\n` +
           `• Оценка бюджета: ${curScore.breakdown.finance.score}%\n\n` +
@@ -1138,6 +1168,27 @@ cron.schedule('0 11 * * 1', () => {
       } catch (e) {
         console.error('weekly score digest error:', e);
       }
+    }
+  });
+}, { timezone: 'Europe/Moscow' });
+
+// ТЕСТ: каждые 2 минуты (удали после проверки)
+cron.schedule('*/2 * * * *', async () => {
+  const cur = prevWeekRange();
+  const prevStart = dayjs(cur.startIso).subtract(7, 'day').format('YYYY-MM-DD');
+  const prevEnd   = dayjs(cur.endIso).subtract(7, 'day').format('YYYY-MM-DD');
+
+  db.all('SELECT user_id, chat_id FROM telegram_users LIMIT 1', [], async (err, rows) => {
+    if (err || !rows?.length) return;
+    const { user_id, chat_id } = rows[0];
+    try {
+      const curScore  = await computeScoreForPeriod(user_id, cur.startIso, cur.endIso);
+      const prevScore = await computeScoreForPeriod(user_id, prevStart, prevEnd);
+      const delta = Math.round(curScore.avg - prevScore.avg);
+      const { weakest, advice } = buildAdviceFromBreakdown(curScore, cur.startIso, cur.endIso);
+      await bot.sendMessage(chat_id, `ТЕСТ-дайджест: avg ${curScore.avg}% (Δ ${delta}%), слабое место: ${weakest}\n${advice}`);
+    } catch (e) {
+      console.error('weekly score digest test error:', e);
     }
   });
 }, { timezone: 'Europe/Moscow' });
