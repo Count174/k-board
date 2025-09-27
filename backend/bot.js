@@ -223,36 +223,68 @@ async function calcSleep(userId, start, end) {
 }
 
 async function calcMeds(userId, start, end) {
-  const meds = await sqlAll(
-    `SELECT id,frequency,times,start_date,end_date
-       FROM medications
-      WHERE user_id=? AND active=1`,
-    [userId]
-  );
-  if (!meds.length) return { score: 100, planned: 0, taken: 0 };
+  // 1) Активные курсы, пересекающиеся с периодом
+  const meds = await new Promise((resolve, reject) => {
+    db.all(
+      `SELECT id, name, frequency, times, start_date, end_date
+         FROM medications
+        WHERE user_id = ?
+          AND active = 1
+          AND date(start_date) <= date(?)
+          AND (end_date IS NULL OR date(end_date) >= date(?))`,
+      [userId, end, start],
+      (err, rows) => err ? reject(err) : resolve(rows || [])
+    );
+  });
 
-  const dates = eachDate(start, end);
+  // 2) Считаем плановые дозы за период
+  const dates = eachDate(start, end); // массив 'YYYY-MM-DD'
   let planned = 0;
+
   for (const m of meds) {
-    let times = []; try { times = JSON.parse(m.times||'[]'); } catch {}
-    if (!Array.isArray(times) || !times.length) continue;
+    // times: JSON ["HH:MM", ...]
+    let times = [];
+    try { times = JSON.parse(m.times || '[]'); } catch { times = []; }
+    if (!Array.isArray(times) || times.length === 0) continue;
+
+    // frequency: 'daily' или 'dow:1,3,5'
     const fq = parseFrequency(m.frequency);
+
     for (const d of dates) {
-      const inWindow = dayjs(d).isSameOrAfter(dayjs(m.start_date)) &&
-                       (!m.end_date || dayjs(d).isSameOrBefore(dayjs(m.end_date)));
+      // дата d попадает в окно действия курса?
+      const inWindow =
+        dayjs(d).isSameOrAfter(dayjs(m.start_date), 'day') &&
+        (!m.end_date || dayjs(d).isSameOrBefore(dayjs(m.end_date), 'day'));
       if (!inWindow) continue;
-      const okDay = fq.type==='daily' || fq.days.includes(dow1(d));
-      if (okDay) planned += times.length;
+
+      // проверка дня недели, если это DOW-частота
+      const okDay = (fq.type === 'daily') || fq.days.includes(dayToDow1(d));
+      if (!okDay) continue;
+
+      planned += times.length; // по количеству времён в день
     }
   }
-  const takenRow = await sqlGet(
-    `SELECT COUNT(*) cnt FROM medication_notifications
-      WHERE medication_id IN (SELECT id FROM medications WHERE user_id=?)
-        AND notify_date>=? AND notify_date<=? AND taken=1`,
-    [userId, start, end]
-  );
-  const taken = takenRow?.cnt || 0;
-  return { score: planned===0 ? 100 : pct(taken/planned), planned, taken };
+
+  // 3) Фактические «выпито»
+  const takenRow = await new Promise((resolve, reject) => {
+    db.get(
+      `SELECT COUNT(*) AS cnt
+         FROM medication_intakes
+        WHERE user_id = ?
+          AND intake_date >= ?
+          AND intake_date <= ?
+          AND status = 'taken'`,
+      [userId, start, end],
+      (err, row) => err ? reject(err) : resolve(row || { cnt: 0 })
+    );
+  });
+
+  const taken = takenRow.cnt || 0;
+
+  // 4) Скор — доля принятых от плановых; если плановых нет — 100
+  const score = planned === 0 ? 100 : Math.round(Math.max(0, Math.min(1, taken / planned)) * 100);
+
+  return { score, planned, taken };
 }
 
 // ---- Finance / Engagement ----
