@@ -1299,6 +1299,51 @@ cron.schedule('0 5 * * *', () => {
   });
 });
 
+// ========= CRON: напоминание поставить бюджеты (1-е число, 07:00 МСК) ========= //
+cron.schedule('0 7 1 * *', () => {
+  const month = currentMonth(); // YYYY-MM
+
+  db.all('SELECT user_id, chat_id FROM telegram_users', [], async (err, rows) => {
+    if (err || !rows?.length) return;
+
+    for (const { user_id, chat_id } of rows) {
+      try {
+        // 1) есть ли у пользователя хотя бы 2 транзакции? (иначе не шлём)
+        const tx = await new Promise((resolve) => {
+          db.get(
+            `SELECT COUNT(*) AS cnt FROM finances WHERE user_id = ?`,
+            [user_id],
+            (e, r) => resolve(r?.cnt ?? 0)
+          );
+        });
+        if (tx <= 1) continue; // мало данных — не актуально
+
+        // 2) уже есть бюджеты на текущий месяц?
+        const bc = await new Promise((resolve) => {
+          db.get(
+            `SELECT COUNT(*) AS cnt FROM budgets WHERE user_id = ? AND month = ?`,
+            [user_id, month],
+            (e, r) => resolve(r?.cnt ?? 0)
+          );
+        });
+        if (bc > 0) continue; // бюджеты уже заданы — не тревожим
+
+        // 3) отправляем напоминание
+        const msg =
+          `📅 *Новый месяц — самое время задать бюджеты*\n` +
+          `Период: *${month}*\n\n` +
+          `Задай лимиты по ключевым категориям в веб-кабинете (раздел «Бюджеты»).\n` +
+          `Подсказка: в любой момент можно посмотреть /budget ${month}`;
+        await bot.sendMessage(chat_id, msg, { parse_mode: 'Markdown' });
+
+        console.log('monthly budget reminder sent', { user_id, chat_id, month });
+      } catch (e) {
+        console.error('monthly budget reminder error', { user_id, month, e });
+      }
+    }
+  });
+}, { timezone: 'Europe/Moscow' });
+
 // ========= CRON: DAILY CHECKS рассылки ========= //
 // Утро — 08:30 МСК
 cron.schedule('30 8 * * *', () => {
