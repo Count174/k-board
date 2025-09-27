@@ -222,6 +222,13 @@ async function calcSleep(userId, start, end) {
   };
 }
 
+// Вернёт номер дня недели: 1=понедельник ... 7=воскресенье
+function dayToDow1(dateStr) {
+  const d = dayjs(dateStr);
+  let dow = d.day(); // 0=воскресенье ... 6=суббота
+  return dow === 0 ? 7 : dow; // преобразуем: воскресенье = 7
+}
+
 async function calcMeds(userId, start, end) {
   // 1) Активные курсы, пересекающиеся с периодом
   const meds = await new Promise((resolve, reject) => {
