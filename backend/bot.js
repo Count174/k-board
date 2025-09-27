@@ -1217,27 +1217,6 @@ cron.schedule('0 11 * * 1', () => {
   });
 }, { timezone: 'Europe/Moscow' });
 
-// ТЕСТ: каждые 2 минуты (удали после проверки)
-cron.schedule('*/2 * * * *', async () => {
-  const cur = prevWeekRange();
-  const prevStart = dayjs(cur.startIso).subtract(7, 'day').format('YYYY-MM-DD');
-  const prevEnd   = dayjs(cur.endIso).subtract(7, 'day').format('YYYY-MM-DD');
-
-  db.all('SELECT user_id, chat_id FROM telegram_users LIMIT 1', [], async (err, rows) => {
-    if (err || !rows?.length) return;
-    const { user_id, chat_id } = rows[0];
-    try {
-      const curScore  = await computeScoreForPeriod(user_id, cur.startIso, cur.endIso);
-      const prevScore = await computeScoreForPeriod(user_id, prevStart, prevEnd);
-      const delta = Math.round(curScore.avg - prevScore.avg);
-      const { weakest, advice } = buildAdviceFromBreakdown(curScore, cur.startIso, cur.endIso);
-      await bot.sendMessage(chat_id, `ТЕСТ-дайджест: avg ${curScore.avg}% (Δ ${delta}%), слабое место: ${weakest}\n${advice}`);
-    } catch (e) {
-      console.error('weekly score digest test error:', e);
-    }
-  });
-}, { timezone: 'Europe/Moscow' });
-
 // ========= ЕЖЕДНЕВНОЕ НАПОМИНАНИЕ ДЛЯ ВСЕХ (твоя существующая логика) ========= //
 const motivationalQuotes = [
   "🚀 Вперёд к целям!",
