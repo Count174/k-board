@@ -2,6 +2,12 @@ require('dotenv').config();
 const TelegramBot = require('node-telegram-bot-api');
 const db = require('./db/db');
 const dayjs = require('dayjs');
+const isSameOrAfter = require('dayjs/plugin/isSameOrAfter');
+dayjs.extend(isSameOrAfter);
+const isSameOrBefore = require('dayjs/plugin/isSameOrBefore');
+const isBetween = require('dayjs/plugin/isBetween');
+dayjs.extend(isSameOrBefore);
+dayjs.extend(isBetween);
 const cron = require('node-cron');
 const crypto = require('crypto');
 
