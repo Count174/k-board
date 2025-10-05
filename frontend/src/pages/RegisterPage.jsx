@@ -31,7 +31,7 @@ export default function RegisterPage() {
 
       // успешная регистрация => cookie уже выставлена на бэке
       // ведём сразу в дэшборд (замените на ваш маршрут, если отличается)
-      navigate('/k-board'); // или navigate('/') — как у вас устроено
+      navigate('/'); // или navigate('/') — как у вас устроено
     } catch (err) {
       setError('Ошибка сети');
     }
