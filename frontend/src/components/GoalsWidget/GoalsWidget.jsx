@@ -3,10 +3,15 @@ import { get, post, remove } from '../../api/api';
 import Modal from "../Modal";
 import ImagePicker from "../ImagePicker";
 import styles from './GoalsWidget.module.css';
+import Toast from '../Toast';
 
 export default function GoalsWidget() {
   const [goals, setGoals] = useState([]);
   const [sliders, setSliders] = useState({});
+  const [toast, setToast] = useState({ open: false, title: '', message: '' });
+  const showToast = (title, message) =>
+    setToast({ open: true, title, message });
+  const hideToast = () => setToast(t => ({ ...t, open: false }));
 
   // модалка создания
   const [open, setOpen] = useState(false);
@@ -71,17 +76,28 @@ export default function GoalsWidget() {
   };
 
   const debounceSave = useCallback(
-    (id, value) => {
+    (id, value, goal) => {
       clearTimeout(debounceSave.timeout);
-      debounceSave.timeout = setTimeout(() => {
-        post(`goals/${id}`, { current: value }).catch(console.error);
+      debounceSave.timeout = setTimeout(async () => {
+        try {
+          const resp = await post(`goals/${id}`, { current: value });
+
+          // если бэк вернул флаг автозавершения
+          if (resp?.is_completed === 1) {
+            showToast('🎉 Цель достигнута', `«${goal.title}» закрыта на 100%`);
+            setGoals(prev => prev.filter(g => g.id !== id));
+          }
+        } catch (e) {
+          console.error(e);
+        }
       }, 500);
     },
-    []
+    [/* goals не нужен; используем id/goal из замыкания */]
   );
-
+  
   const handleSliderCommit = (id, value) => {
-    debounceSave(id, value);
+    const goal = goals.find(g => g.id === id);
+    debounceSave(id, value, goal);
   };
 
   const handleDeleteGoal = async (id) => {
@@ -90,11 +106,21 @@ export default function GoalsWidget() {
   };
 
   const handleCompleteBinaryGoal = async (goal) => {
-    const updated = { ...goal, current: goal.current === 1 ? 0 : 1 };
-    await post(`goals/${goal.id}`, { current: updated.current });
-    setGoals((prev) =>
-      prev.map((g) => (g.id === goal.id ? updated : g))
-    );
+    try {
+      const next = goal.current === 1 ? 0 : 1;
+      const resp = await post(`goals/${goal.id}`, { current: next });
+
+      if (resp?.is_completed === 1 || next === 1) {
+        showToast('🎉 Цель выполнена', `«${goal.title}» закрыта`);
+        setGoals(prev => prev.filter(g => g.id !== goal.id));
+      } else {
+        setGoals(prev =>
+          prev.map(g => g.id === goal.id ? { ...g, current: next } : g)
+        );
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   // создание через модалку
@@ -252,6 +278,7 @@ export default function GoalsWidget() {
           </div>
         </form>
       </Modal>
+      <Toast open={toast.open} title={toast.title} message={toast.message} onClose={hideToast} />
     </div>
   );
 }
