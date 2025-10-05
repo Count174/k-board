@@ -1,5 +1,11 @@
 const db = require('../db/db');
 const dayjs = require('dayjs');
+const isSameOrAfter  = require('dayjs/plugin/isSameOrAfter');
+const isSameOrBefore = require('dayjs/plugin/isSameOrBefore');
+const isBetween      = require('dayjs/plugin/isBetween'); // если используешь
+dayjs.extend(isSameOrAfter);
+dayjs.extend(isSameOrBefore);
+dayjs.extend(isBetween);
 
 // ---------- утилиты ----------
 const all = (sql,p=[])=>new Promise((res,rej)=>db.all(sql,p,(e,r)=>e?rej(e):res(r||[])));
