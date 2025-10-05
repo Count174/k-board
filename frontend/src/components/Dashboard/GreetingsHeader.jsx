@@ -43,27 +43,31 @@ function useScoreData() {
 
           // Health subparts
           const hScore = Math.round(br.health?.score ?? 0);
-          const workoutsDone = br.health?.workouts?.done ?? 0;
-          const workoutsPlanned = br.health?.workouts?.planned ?? 0;
 
-          const totalHours = br.health?.sleep?.totalHours ?? 0; // суммарные часы сна за период
-          const norm = br.health?.sleep?.norm ?? 0;             // 7 * кол-во дней
-          const daysCnt = norm ? Math.round(norm / 7) : 7;      // защищённый фолбэк
-          const sleepAvg = daysCnt ? Number((totalHours / daysCnt).toFixed(1)) : 0;
+          // сон: уже есть среднее и кол-во дней
+          const sleepAvg = Number((br.health?.sleep?.avg_hours_per_day ?? 0).toFixed(1));
+          const sleepDays = br.health?.sleep?.days_count ?? 0;
 
-          // Finance
+          // тренировки: done_days / target_days
+          const workoutsDone = br.health?.workouts?.done_days ?? 0;
+          const workoutsTarget = br.health?.workouts?.target_days ?? 0;
+
+          // финансы
           const fScore = Math.round(br.finance?.score ?? 0);
 
-          // Engagement
-          const eScore = Math.round(br.engagement?.score ?? 0);
+          // consistency вместо engagement
+          const cScore = Math.round(br.consistency?.score ?? 0);
+          const cStreak = br.consistency?.streak ?? 0;
 
           setDetail({
             health: hScore,
             finance: fScore,
-            engagement: eScore,
+            consistency: cScore,
+            consistencyStreak: cStreak,
             sleepAvg,
+            sleepDays,
             workoutsDone,
-            workoutsPlanned,
+            workoutsTarget,
           });
         }
       } catch {
@@ -131,7 +135,7 @@ function ScorePill() {
     const arr = [
       { key: 'Health', val: detail.health ?? 0 },
       { key: 'Finance', val: detail.finance ?? 0 },
-      { key: 'Engagement', val: detail.engagement ?? 0 },
+      { key: 'Consistency', val: detail.consistency ?? 0 },
     ];
     arr.sort((a, b) => b.val - a.val);
     top = arr[0];
@@ -183,15 +187,15 @@ function ScorePill() {
           <div className={styles.miniSection}>
             <MiniBar label="Health" value={detail?.health ?? 0} />
             <MiniBar label="Finance" value={detail?.finance ?? 0} />
-            <MiniBar label="Engagement" value={detail?.engagement ?? 0} />
+            <MiniBar label="Consistency" value={detail?.consistency ?? 0} />
           </div>
 
           <div className={styles.split}>
             <div className={styles.splitCard}>
               <div className={styles.splitTitle}>Здоровье</div>
               <ul className={styles.bullets}>
-                <li>Сон: {detail?.sleepAvg ?? 0} ч/д (ср. за 7 дней)</li>
-                <li>Тренировки: {detail?.workoutsDone ?? 0} из {detail?.workoutsPlanned ?? 0}</li>
+              <li>Сон: {detail?.sleepAvg ?? 0} ч/д (по {detail?.sleepDays ?? 0} дн.)</li>
+              <li>Тренировки: {detail?.workoutsDone ?? 0} из {detail?.workoutsTarget ?? 0}</li>
                 {detail && detail.sleepAvg < 7 && (
                   <li className={styles.noteWarn}>Спишь меньше 7 ч/д — попробуй лечь на 30–45 мин раньше.</li>
                 )}
@@ -203,6 +207,15 @@ function ScorePill() {
                 <li>Оценка бюджета: {detail?.finance ?? 0}%</li>
                 {detail && detail.finance < 85 && (
                   <li className={styles.noteWarn}>Есть риск перерасходов — проверь лимиты в «Бюджетах».</li>
+                )}
+              </ul>
+            </div>
+            <div className={styles.splitCard}>
+              <div className={styles.splitTitle}>Consistency</div>
+              <ul className={styles.bullets}>
+                <li>Серия «хороших» дней: {detail?.consistencyStreak ?? 0}</li>
+                {detail && detail.consistencyStreak < 3 && (
+                  <li className={styles.noteWarn}>Попробуй не прерывать цепочку 3+ дней подряд.</li>
                 )}
               </ul>
             </div>

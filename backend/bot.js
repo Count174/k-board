@@ -339,43 +339,124 @@ async function calcFinance(userId, start, end) {
   return { score, months: monthScores.map((s,i)=>({ month: months[i], score:s })) };
 }
 
-async function calcEngagement(userId, start, end) {
-  const rows = await sqlAll(
-    `
-    SELECT date FROM (
-      SELECT date FROM health WHERE user_id=? AND date>=? AND date<=?
-      UNION ALL
-      SELECT date(date) as date FROM finances WHERE user_id=? AND date(date)>=? AND date(date)<=?
-      UNION ALL
-      SELECT date FROM daily_checks WHERE user_id=? AND date>=? AND date<=?
-    )
-    `,
-    [userId, start, end, userId, start, end, userId, start, end]
+// ---- Consistency (вместо Engagement) ----
+// «Хороший день» = (сон >= 7ч) И (медикаменты по плану выполнены) ИЛИ (сон >= 7ч и была тренировка).
+// Скор = мягкая функция по доле «хороших дней» + бонус за текущую серию.
+// Возвращаем также goodDays/totalDays и streak.
+async function calcConsistency(userId, start, end) {
+  const dates = eachDate(start, end);
+  const totalDays = dates.length;
+
+  // сон + workout_done из daily_checks
+  const checks = await sqlAll(
+    `SELECT date, sleep_hours, workout_done
+       FROM daily_checks
+      WHERE user_id=? AND date>=? AND date<=?`,
+    [userId, start, end]
   );
-  const active = new Set(rows.map(r => String(r.date).slice(0,10)));
-  const totalDays = eachDate(start, end).length;
-  return { score: pct(active.size/totalDays), activeDays: active.size, totalDays };
+  const checkByDate = new Map(checks.map(r => [String(r.date).slice(0,10), r]));
+
+  // выполненные тренировки из health
+  const workoutsDone = new Set(
+    (await sqlAll(
+      `SELECT date FROM health
+        WHERE user_id=? AND type='training' AND completed=1 AND date>=? AND date<=?`,
+      [userId, start, end]
+    )).map(r => String(r.date).slice(0,10))
+  );
+
+  // план по медикаментам на каждый день (как в calcMeds, но с разложением по датам)
+  const meds = await sqlAll(
+    `SELECT id, frequency, times, start_date, end_date
+       FROM medications
+      WHERE user_id=? AND active=1
+        AND date(start_date) <= date(?)
+        AND (end_date IS NULL OR date(end_date) >= date(?))`,
+    [userId, end, start]
+  );
+
+  const plannedPerDay = Object.fromEntries(dates.map(d => [d, 0]));
+  for (const m of meds) {
+    let times = [];
+    try { times = JSON.parse(m.times || '[]'); } catch { times = []; }
+    if (!Array.isArray(times) || times.length === 0) continue;
+    const fq = parseFrequency(m.frequency);
+    for (const d of dates) {
+      const inWindow =
+        dayjs(d).isSameOrAfter(dayjs(m.start_date), 'day') &&
+        (!m.end_date || dayjs(d).isSameOrBefore(dayjs(m.end_date), 'day'));
+      if (!inWindow) continue;
+      const okDay = (fq.type === 'daily') || fq.days.includes(dow1(d));
+      if (!okDay) continue;
+      plannedPerDay[d] += times.length;
+    }
+  }
+
+  // фактические приёмы по дням
+  const intakeRows = await sqlAll(
+    `SELECT intake_date d, COUNT(*) cnt
+       FROM medication_intakes
+      WHERE user_id=? AND intake_date>=? AND intake_date<=? AND status='taken'
+      GROUP BY intake_date`,
+    [userId, start, end]
+  );
+  const takenPerDay = Object.fromEntries(intakeRows.map(r => [String(r.d).slice(0,10), Number(r.cnt)||0]));
+
+  // считаем «хорошие дни»
+  const goodFlags = [];
+  for (const d of dates) {
+    const ch = checkByDate.get(d) || {};
+    const sleepOK = (Number(ch.sleep_hours) || 0) >= 7;
+    const workoutOK = Number(ch.workout_done) === 1 || workoutsDone.has(d);
+
+    const planned = plannedPerDay[d] || 0;
+    const taken   = takenPerDay[d]   || 0;
+    const medsOK  = planned === 0 ? true : (taken >= planned);
+
+    // логика: хороший день = сон ок И (медикаменты ок ИЛИ была тренировка)
+    const good = sleepOK && (medsOK || workoutOK);
+    goodFlags.push(good ? 1 : 0);
+  }
+
+  const goodDays = goodFlags.reduce((s,x)=>s+x,0);
+
+  // streak (серия подряд с конца периода)
+  let streak = 0;
+  for (let i = goodFlags.length - 1; i >= 0; i--) {
+    if (goodFlags[i] === 1) streak++; else break;
+  }
+
+  // мягкий скор: база 30 + 70 * доля хороших дней + бонус за серию (до +10)
+  const base = 30 + 70 * (goodDays / Math.max(1, totalDays));
+  const bonus = Math.min(streak, 5) * 2; // до +10
+  const score = Math.round(Math.max(0, Math.min(100, base + bonus)));
+
+  return { score, goodDays, totalDays, streak };
 }
 
-// ---- главный агрегатор периода (возвращает ДОП. детали)
+// ---- главный агрегатор периода (теперь с Consistency) ----
 async function computeScoreForPeriod(userId, startIso, endIso) {
   const workouts   = await calcWorkouts(userId, startIso, endIso);
   const sleep      = await calcSleep(userId, startIso, endIso);
   const meds       = await calcMeds(userId, startIso, endIso);
-  const health     = Math.round((workouts.score + sleep.score + meds.score) / 3);
+  const healthNum  = Math.round((workouts.score + sleep.score + meds.score) / 3);
 
-  const finance    = await calcFinance(userId, startIso, endIso);
-  const engagement = await calcEngagement(userId, startIso, endIso);
+  const finance     = await calcFinance(userId, startIso, endIso);
+  const consistency = await calcConsistency(userId, startIso, endIso);
 
-  const W = { health: 0.4, finance: 0.4, engagement: 0.2 };
-  const total = Math.round(health * W.health + finance.score * W.finance + engagement.score * W.engagement);
+  const W = { health: 0.4, finance: 0.4, consistency: 0.2 };
+  const total = Math.round(
+    healthNum * W.health +
+    finance.score * W.finance +
+    consistency.score * W.consistency
+  );
 
   return {
     avg: total,
     breakdown: {
-      health,                // число
-      finance,               // { score, months: [...] }
-      engagement,            // { score, activeDays, totalDays }
+      health: healthNum,          // чтобы ничего не сломать в старом рендере
+      finance,                    // { score, months: [...] }
+      consistency,                // { score, goodDays, totalDays, streak }
       details: { workouts, sleep, meds }
     }
   };
@@ -387,7 +468,7 @@ function buildAdvice(result) {
   const pairs = [
     ['Health', result.breakdown.health],
     ['Finance', result.breakdown.finance.score],
-    ['Engagement', result.breakdown.engagement.score],
+    ['Consistency', result.breakdown.consistency.score],
   ].sort((a,b)=>a[1]-b[1]);
 
   const weakest = pairs[0][0];
@@ -406,7 +487,7 @@ function buildAdvice(result) {
       ? 'Есть риск перерасходов. Подкрути лимиты в «Бюджетах» и следи за «еда вне дома».'
       : 'Финансы стабильны — при необходимости уточни лимиты по категориям.';
   } else {
-    advice = result.breakdown.engagement.score < 70
+    advice = result.breakdown.consistency.score < 70
       ? 'Заполняй daily-чек хотя бы в будни. Включи напоминание утром/вечером.'
       : 'Отличная регулярность — продолжай в том же духе!';
   }
@@ -416,46 +497,38 @@ function buildAdvice(result) {
 
 function buildAdviceFromBreakdown(result, startIso, endIso) {
   const { breakdown } = result;
-  const healthScore      = Number(breakdown.health || 0);
-  const financeScore     = Number(breakdown.finance?.score || 0);
-  const engagementScore  = Number(breakdown.engagement?.score || 0);
+  const healthScore  = Number(breakdown.health || 0);
+  const financeScore = Number(breakdown.finance?.score || 0);
+  const consScore    = Number(breakdown.consistency?.score || 0);
 
   const pairs = [
     ['Health', healthScore],
     ['Finance', financeScore],
-    ['Engagement', engagementScore],
+    ['Consistency', consScore],
   ].sort((a, b) => a[1] - b[1]);
 
   const weakest = pairs[0][0];
   const det = breakdown.details || {};
-  const periodDays = dayjs(endIso).diff(dayjs(startIso), 'day') + 1;
+  const c  = breakdown.consistency || {};
 
   let advice = 'Продолжай в том же духе.';
+
   if (weakest === 'Health') {
-    const avgSleep = det?.sleep?.totalHours != null ? (det.sleep.totalHours / Math.max(1, periodDays)) : null;
-    const w = det?.workouts || {};
-    if (avgSleep != null && avgSleep < 7) {
-      advice = 'Старайся спать 7–8 часов. Попробуй лечь на 30–45 минут раньше и выставить напоминание.';
-    } else if (w.planned != null && w.done != null && w.done < Math.max(1, Math.round(w.planned * 0.6))) {
-      advice = 'Тренировки идут нерегулярно. Добавь 1 короткую сессию утром (10–15 минут) для закрепления привычки.';
-    } else if (det?.meds && det.meds.planned > 0 && det.meds.taken < det.meds.planned) {
-      advice = 'Есть пропуски по приёму добавок. Включи напоминания и ставь приём рядом с привычным действием (кофе/завтрак).';
-    } else {
-      advice = 'Поддерживай рутину: вечерний чек-ин и ежедневная лёгкая активность помогают держать тонус.';
+    if ((det.sleep?.avg_hours_per_day ?? 0) < 7) {
+      advice = 'Сон проседает: цель 7–8 ч/д. Попробуй лечь на 30–45 минут раньше и поставь напоминание.';
+    } else if ((det.workouts?.done_days ?? 0) < Math.max(2, Math.round((det.workouts?.planned_days || 0) * 0.6))) {
+      advice = 'Добавь 1–2 короткие тренировки (даже 20 минут прогулки).';
+    } else if ((det.meds?.planned || 0) > 0 && (det.meds?.taken || 0) < (det.meds?.planned || 0)) {
+      advice = 'Есть пропуски по приёму добавок. Включи напоминания и привяжи приём к завтраку/кофе.';
     }
   } else if (weakest === 'Finance') {
-    if (financeScore < 70) {
-      advice = 'Бюджет проседает. Выбери 1–2 проблемные категории и зафиксируй недельный лимит. Плати только одной картой для контроля.';
-    } else {
-      advice = 'Проверь лимиты по категориям и слегка ужесточи самые «текущие». Этого часто достаточно.';
-    }
-  } else { // Engagement
-    const act = breakdown.engagement || {};
-    if (act.activeDays < Math.max(5, Math.round(periodDays * 0.6))) {
-      advice = 'Отмечай чек-ин хотя бы в будни. Включи утреннее и вечернее напоминания (/checkon all).';
-    } else {
-      advice = 'Отличная регулярность — сохраняй темп и не пропускай вечернюю отметку.';
-    }
+    advice = financeScore < 70
+      ? 'Пересмотри лимиты в 1–2 «текущих» категориях и плати одной картой для контроля.'
+      : 'Финансы стабильны — при необходимости слегка ужесточи лимиты.';
+  } else { // Consistency
+    advice = c.streak < 3
+      ? 'Постарайся не прерывать цепочку 3+ дней подряд: сон ≥ 7ч, приём добавок, и по возможности тренировка.'
+      : 'Отличная серия — держи темп!';
   }
 
   return { weakest, advice };
@@ -1193,7 +1266,7 @@ cron.schedule('0 11 * * 1', () => {
           (delta === 0 ? '(—0%)' : delta > 0 ? `(↑ +${delta}%)` : `(↓ ${delta}%)`) + `\n` +
           `• Health: ${curScore.breakdown.health}%\n` +
           `• Finance: ${curScore.breakdown.finance.score}%\n` +
-          `• Engagement: ${curScore.breakdown.engagement.score}%\n\n` +
+          `• Consistency: ${curScore.breakdown.consistency.score}%\n\n` +
 
           `Здоровье\n` +
           `• Сон: ${sleepAvg != null ? sleepAvg.toFixed(1) + ' ч/д' : '—'}\n` +
@@ -1203,8 +1276,9 @@ cron.schedule('0 11 * * 1', () => {
           `Финансы\n` +
           `• Оценка бюджета: ${curScore.breakdown.finance.score}%\n\n` +
 
-          `Вовлечённость\n` +
-          `• Активные дни: ${curScore.breakdown.engagement.activeDays} из ${curScore.breakdown.engagement.totalDays}\n\n` +
+          `Consistency\n` +
+          `• Хорошие дни: ${curScore.breakdown.consistency.goodDays} из ${curScore.breakdown.consistency.totalDays}\n` +
+          `• Серия: ${curScore.breakdown.consistency.streak} подряд\n\n` +
 
           `💡 Рекомендация (${weakest}):\n` +
           `${advice}`;
