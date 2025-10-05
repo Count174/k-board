@@ -11,18 +11,16 @@ export default function RegisterPage() {
     e.preventDefault();
     setError(null);
 
-    const payload = {
-      name: form.name.trim(),
-      email: form.email.trim(),
-      password: form.password,
-    };
-
     try {
       const res = await fetch('/k-board/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          name: form.name?.trim(),
+          email: form.email?.trim(),
+          password: form.password,
+        }),
       });
 
       if (!res.ok) {
@@ -31,9 +29,10 @@ export default function RegisterPage() {
         return;
       }
 
-      // можно сразу логинить, но раз у тебя флоу на /login — оставлю как есть
-      navigate('/k-board/login');
-    } catch {
+      // успешная регистрация => cookie уже выставлена на бэке
+      // ведём сразу в дэшборд (замените на ваш маршрут, если отличается)
+      navigate('/k-board'); // или navigate('/') — как у вас устроено
+    } catch (err) {
       setError('Ошибка сети');
     }
   };
