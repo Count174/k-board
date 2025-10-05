@@ -198,56 +198,100 @@ async function calcFinanceTighter(userId, start, end) {
 }
 
 // ---------- CONSISTENCY: серия «хороших» дней ----------
-async function calcConsistency(userId, start, end) {
-  const days = eachDate(start,end);
+function daysInMonthCount(yyyyMM) {
+  const [y, m] = yyyyMM.split('-').map(Number);
+  return new Date(y, m, 0).getDate(); // m тут 1..12
+}
 
-  // sleep >= 7ч
+async function calcConsistency(userId, start, end) {
+  const days = eachDate(start, end);
+
+  // ---- SLEEP: >= 7h ----
   const sleepMap = new Map(
     (await all(
       `SELECT date, sleep_hours FROM daily_checks
        WHERE user_id=? AND date>=? AND date<=?`,
       [userId, start, end]
-    )).map(r=>[String(r.date).slice(0,10), Number(r.sleep_hours)||0])
+    )).map(r => [String(r.date).slice(0, 10), Number(r.sleep_hours) || 0])
   );
 
-  // финансы: не перерасход (если бюджет есть)
-  const months = Array.from(new Set(days.map(d=>d.slice(0,7))));
+  // ---- BUDGETS & SPEND (накопительно) ----
+  const months = Array.from(new Set(days.map(d => d.slice(0, 7))));
   const budgets = await all(
-    `SELECT month, SUM(amount) total FROM budgets WHERE user_id=? AND month IN (${months.map(()=>'?').join(',')}) GROUP BY month`,
+    `SELECT month, SUM(amount) AS total
+       FROM budgets
+      WHERE user_id=? AND month IN (${months.map(() => '?').join(',')})
+      GROUP BY month`,
     [userId, ...months]
   );
-  const bmap = new Map(budgets.map(r=>[r.month, Number(r.total)||0]));
+  const bmap = new Map(budgets.map(r => [r.month, Number(r.total) || 0]));
+
+  // Дневные траты за весь период
   const exp = await all(
-    `SELECT date(date) d, SUM(amount) spent
+    `SELECT date(date) AS d, SUM(amount) AS spent
        FROM finances
-      WHERE user_id=? AND type='expense' AND date(date)>=? AND date(date)<=?
+      WHERE user_id=? AND type='expense'
+        AND date(date)>=? AND date(date)<=?
       GROUP BY date(date)`,
     [userId, start, end]
   );
-  const sp = new Map(exp.map(r=>[r.d, Math.abs(Number(r.spent)||0)]));
+  const spendByDate = new Map(exp.map(r => [r.d, Math.abs(Number(r.spent) || 0)]));
 
-  // engaged proxy: был daily_check ИЛИ треня
+  // Для накопительной проверки быстро посчитаем "месячные" cumulative spends
+  // ключ: 'YYYY-MM' -> { dayN -> cumSpentДоДняВключительно }
+  const cumMonthSpend = new Map(); // Map<string, Map<number, number>>
+
+  for (const d of days) {
+    const ym = d.slice(0, 7);
+    const dd = Number(d.slice(8, 10));
+    const prevMap = cumMonthSpend.get(ym) || new Map();
+    const prev = prevMap.get(dd - 1) || 0;
+    const today = spendByDate.get(d) || 0;
+    prevMap.set(dd, prev + today);
+    cumMonthSpend.set(ym, prevMap);
+  }
+
+  // ---- ENGAGED proxy: daily_check ИЛИ тренировка ----
   const dcDays = new Set((await all(
-    `SELECT DISTINCT date FROM daily_checks WHERE user_id=? AND date>=? AND date<=?`,
+    `SELECT DISTINCT date FROM daily_checks
+      WHERE user_id=? AND date>=? AND date<=?`,
     [userId, start, end]
-  )).map(r=>String(r.date).slice(0,10)));
-  const trDays = new Set((await all(
-    `SELECT DISTINCT date FROM health WHERE user_id=? AND type='training' AND (completed=1 OR date>=? AND date<=?)`,
-    [userId, start, end]
-  )).map(r=>String(r.date).slice(0,10)));
+  )).map(r => String(r.date).slice(0, 10)));
 
-  // считаем streak с конца периода
+  // важно проскобочить условие по датам
+  const trDays = new Set((await all(
+    `SELECT DISTINCT date FROM health
+      WHERE user_id=? AND type='training'
+        AND (completed=1 OR (date>=? AND date<=?))`,
+    [userId, start, end]
+  )).map(r => String(r.date).slice(0, 10)));
+
+  // ---- считаем streak с конца периода ----
   let streak = 0;
-  for (let i=days.length-1; i>=0; i--) {
+
+  for (let i = days.length - 1; i >= 0; i--) {
     const d = days[i];
-    const m = d.slice(0,7);
-    const okSleep = (sleepMap.get(d)||0) >= 7;
+    const ym = d.slice(0, 7);
+    const dd = Number(d.slice(8, 10));
+
+    // sleep
+    const okSleep = (sleepMap.get(d) || 0) >= 7;
+
+    // finance (накопительно, с 10% допуском; если нет трат в день — считаем ok)
     let okFinance = true;
-    const mb = bmap.get(m)||0;
-    if (mb>0) {
-      const allowance = mb / daysInMonth(m);
-      okFinance = (sp.get(d)||0) <= allowance;
+    const monthBudget = bmap.get(ym) || 0;
+
+    if (monthBudget > 0) {
+      const dim = daysInMonthCount(ym);
+      const cumSpent = (cumMonthSpend.get(ym)?.get(dd)) || 0;
+      const cumAllowance = (monthBudget * dd) / dim;  // пропорциональная часть бюджета
+      const hasAnySpendToday = (spendByDate.get(d) || 0) > 0;
+
+      // если не тратили — не ломаем стрик финансами
+      okFinance = !hasAnySpendToday || (cumSpent <= cumAllowance * 1.10);
     }
+
+    // engaged
     const okEng = dcDays.has(d) || trDays.has(d);
 
     const good = okSleep && okFinance && okEng;
@@ -255,12 +299,13 @@ async function calcConsistency(userId, start, end) {
     else break;
   }
 
-  // Маппинг streak → score: 0 → 40, 1 → 55, 3 → 70, 5 → 85, 7+ → 100 (сглажено)
+  // ---- маппинг streak → score ----
+  // 0 → 40, 1 → 55, 3 → 70, 5 → 85, 7+ → 100
   let score = 40;
-  if (streak>=7) score = 100;
-  else if (streak>=5) score = 85;
-  else if (streak>=3) score = 70;
-  else if (streak>=1) score = 55;
+  if (streak >= 7) score = 100;
+  else if (streak >= 5) score = 85;
+  else if (streak >= 3) score = 70;
+  else if (streak >= 1) score = 55;
 
   return { score, streak, totalDays: days.length };
 }
