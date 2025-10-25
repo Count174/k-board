@@ -272,6 +272,9 @@ function GreetingsHeader({ user, onConnectClick, onLogout }) {
                 Подключить Telegram-бота
               </button>
               <button onClick={onLogout}>Выйти</button>
+              <button onClick={() => { setDropdownOpen(false); window.location.href = '/k-board/history'; }}>
+                История пользователя
+              </button>
             </div>
           )}
         </div>
