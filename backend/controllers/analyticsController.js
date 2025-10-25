@@ -11,8 +11,7 @@ const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const pct = (x) => Math.round(clamp01(x) * 100);
 const eachDate = (start, end) => {
   const out = [];
-  let d = dayjs(start),
-    e = dayjs(end);
+  let d = dayjs(start), e = dayjs(end);
   while (d.isBefore(e) || d.isSame(e, 'day')) {
     out.push(d.format('YYYY-MM-DD'));
     d = d.add(1, 'day');
@@ -31,11 +30,9 @@ async function calcSleepStrict(userId, start, end) {
      WHERE user_id=? AND date>=? AND date<=?`,
     [userId, start, end]
   );
-  const vals = rows.map((r) => Number(r.sleep_hours)).filter((v) => !isNaN(v) && v > 0);
-
+  const vals = rows.map(r => Number(r.sleep_hours)).filter(v => !isNaN(v) && v > 0);
   const avg = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
 
-  // Шкала
   let score = 40;
   if (avg >= 7.5 && avg <= 8.5) score = 100;
   else if ((avg >= 7.0 && avg < 7.5) || (avg > 8.5 && avg <= 9.0)) score = 90;
@@ -63,8 +60,8 @@ async function calcWorkoutsCombined(userId, start, end) {
   );
 
   const doneSet = new Set([
-    ...hDone.map((r) => String(r.date).slice(0, 10)),
-    ...dcDone.map((r) => String(r.date).slice(0, 10)),
+    ...hDone.map(r => String(r.date).slice(0, 10)),
+    ...dcDone.map(r => String(r.date).slice(0, 10)),
   ]);
   const doneDays = doneSet.size;
 
@@ -78,28 +75,19 @@ async function calcWorkoutsCombined(userId, start, end) {
   else if (doneDays === target + 1) score = 95;
   else score = Math.round(90 * clamp01(doneDays / target));
 
-  return {
-    score,
-    done_days: doneDays,
-    target_days: target,
-  };
+  return { score, done_days: doneDays, target_days: target };
 }
 
 // ---------- MEDS ----------
-function dayToDow1(dateISO) {
-  return ((dayjs(dateISO).day() + 6) % 7) + 1; // Пн=1..Вс=7
-}
+function dayToDow1(dateISO) { return ((dayjs(dateISO).day() + 6) % 7) + 1; }
 function parseFrequency(fq) {
   if (!fq || fq === 'daily') return { type: 'daily', days: [] };
-  if (fq.startsWith('dow:'))
+  if (fq.startsWith('dow:')) {
     return {
       type: 'dow',
-      days: fq
-        .slice(4)
-        .split(',')
-        .map((n) => parseInt(n, 10))
-        .filter((n) => n >= 1 && n <= 7),
+      days: fq.slice(4).split(',').map(n => parseInt(n, 10)).filter(n => n >= 1 && n <= 7)
     };
+  }
   return { type: 'daily', days: [] };
 }
 
@@ -119,9 +107,7 @@ async function calcMeds(userId, start, end) {
 
   for (const m of meds) {
     let times = [];
-    try {
-      times = JSON.parse(m.times || '[]');
-    } catch {}
+    try { times = JSON.parse(m.times || '[]'); } catch {}
     if (!Array.isArray(times) || !times.length) continue;
 
     const fq = parseFrequency(m.frequency);
@@ -133,9 +119,8 @@ async function calcMeds(userId, start, end) {
       const ed = m.end_date ? dayjs(m.end_date).startOf('day') : null;
 
       const afterStart = dd.isSame(sd, 'day') || dd.isAfter(sd, 'day');
-      const beforeEnd = !ed || dd.isSame(ed, 'day') || dd.isBefore(ed, 'day');
-      const inWin = afterStart && beforeEnd;
-      if (!inWin) continue;
+      const beforeEnd  = !ed || dd.isSame(ed, 'day') || dd.isBefore(ed, 'day');
+      if (!(afterStart && beforeEnd)) continue;
 
       const okDay = fq.type === 'daily' || fq.days.includes(dayToDow1(d));
       if (okDay) planned += times.length;
@@ -164,7 +149,7 @@ async function calcMeds(userId, start, end) {
 // ---------- FINANCE ----------
 async function calcFinanceTighter(userId, start, end) {
   const startMonth = dayjs(start).format('YYYY-MM');
-  const endMonth = dayjs(end).format('YYYY-MM');
+  const endMonth   = dayjs(end).format('YYYY-MM');
 
   const budgets = await all(
     `SELECT month, SUM(amount) total
@@ -173,7 +158,7 @@ async function calcFinanceTighter(userId, start, end) {
      GROUP BY month`,
     [userId, startMonth, endMonth]
   );
-  const byMonthBudget = new Map(budgets.map((r) => [r.month, Number(r.total) || 0]));
+  const byMonthBudget = new Map(budgets.map(r => [r.month, Number(r.total) || 0]));
 
   const expenses = await all(
     `SELECT date(date) d, SUM(amount) spent
@@ -183,29 +168,26 @@ async function calcFinanceTighter(userId, start, end) {
       GROUP BY date(date)`,
     [userId, start, end]
   );
-  const byDaySpent = new Map(expenses.map((r) => [r.d, Math.abs(Number(r.spent) || 0)]));
+  const byDaySpent = new Map(expenses.map(r => [r.d, Math.abs(Number(r.spent) || 0)]));
 
   const days = eachDate(start, end);
   let sumScores = 0;
   for (const d of days) {
     const m = d.slice(0, 7);
     const monthBudget = byMonthBudget.get(m) || 0;
-    if (!monthBudget) {
-      sumScores += 80; // нет бюджетов → «нейтрально+»
-      continue;
-    }
+    if (!monthBudget) { sumScores += 80; continue; }
     const allowance = monthBudget / daysInMonth(m);
     const spent = byDaySpent.get(d) || 0;
 
     let s;
     if (spent <= allowance) {
       const under = (allowance - spent) / allowance; // 0..1
-      s = 95 + Math.min(2, Math.round(under * 10)); // до 97
+      s = 95 + Math.min(2, Math.round(under * 10));  // до 97
     } else {
       const over = (spent - allowance) / allowance;
-      if (over <= 0.1) s = 85;
+      if (over <= 0.10) s = 85;
       else if (over <= 0.25) s = 70;
-      else if (over <= 0.5) s = 55;
+      else if (over <= 0.50) s = 55;
       else s = 45;
     }
     sumScores += s;
@@ -218,27 +200,29 @@ async function calcFinanceTighter(userId, start, end) {
 async function calcConsistency(userId, start, end) {
   const days = eachDate(start, end);
 
+  // сон
   const sleepMap = new Map(
-    (
-      await all(
-        `SELECT date, sleep_hours FROM daily_checks
-         WHERE user_id=? AND date>=? AND date<=?`,
-        [userId, start, end]
-      )
-    ).map((r) => [String(r.date).slice(0, 10), Number(r.sleep_hours) || 0])
+    (await all(
+      `SELECT date, sleep_hours FROM daily_checks
+       WHERE user_id=? AND date>=? AND date<=?`,
+      [userId, start, end]
+    )).map(r => [String(r.date).slice(0,10), Number(r.sleep_hours) || 0])
   );
 
-  const months = Array.from(new Set(days.map((d) => d.slice(0, 7))));
+  // месяцы
+  const months = Array.from(new Set(days.map(d => d.slice(0,7))));
 
+  // бюджеты по месяцам
   const budgets = await all(
     `SELECT month, SUM(amount) AS total
        FROM budgets
-      WHERE user_id=? AND month IN (${months.map(() => '?').join(',')})
+      WHERE user_id=? AND month IN (${months.map(()=>'?').join(',')})
       GROUP BY month`,
     [userId, ...months]
   );
-  const budgetByMonth = new Map(budgets.map((r) => [r.month, Number(r.total) || 0]));
+  const budgetByMonth = new Map(budgets.map(r => [r.month, Number(r.total) || 0]));
 
+  // расходы по дням
   const expRows = await all(
     `SELECT date(date) AS d, SUM(amount) AS spent
        FROM finances
@@ -247,45 +231,51 @@ async function calcConsistency(userId, start, end) {
       GROUP BY date(date)`,
     [userId, start, end]
   );
-  const spentByDate = new Map(expRows.map((r) => [String(r.d), Math.abs(Number(r.spent) || 0)]));
+  const spentByDate = new Map(expRows.map(r => [String(r.d), Math.abs(Number(r.spent) || 0)]));
 
-  const cumSpendByMonth = new Map();
+  // prefix-суммы по каждому месяцу (без dayjs.max/min)
+  const cumSpendByMonth = new Map(); // month -> Map(dateISO -> cum)
   for (const m of months) {
-    const monthStart = dayjs.max(dayjs(start), dayjs(m + '-01')).format('YYYY-MM-DD');
-    const monthEnd = dayjs.min(dayjs(end), dayjs(m + '-01').endOf('month')).format('YYYY-MM-DD');
+    const periodStart = dayjs(start);
+    const monthStartD = dayjs(`${m}-01`);
+    const startD = periodStart.isAfter(monthStartD) ? periodStart : monthStartD;
+
+    const periodEnd = dayjs(end);
+    const monthEndD = monthStartD.endOf('month');
+    const endD = periodEnd.isBefore(monthEndD) ? periodEnd : monthEndD;
+
+    const monthStartISO = startD.format('YYYY-MM-DD');
+    const monthEndISO   = endD.format('YYYY-MM-DD');
 
     let acc = 0;
     const prefix = new Map();
-    for (const d of eachDate(monthStart, monthEnd)) {
+    for (const d of eachDate(monthStartISO, monthEndISO)) {
       acc += spentByDate.get(d) || 0;
       prefix.set(d, acc);
     }
     cumSpendByMonth.set(m, prefix);
   }
 
+  // engagement proxy
   const dcDays = new Set(
-    (
-      await all(
-        `SELECT DISTINCT date FROM daily_checks WHERE user_id=? AND date>=? AND date<=?`,
-        [userId, start, end]
-      )
-    ).map((r) => String(r.date).slice(0, 10))
+    (await all(
+      `SELECT DISTINCT date FROM daily_checks WHERE user_id=? AND date>=? AND date<=?`,
+      [userId, start, end]
+    )).map(r => String(r.date).slice(0,10))
   );
-
   const trDays = new Set(
-    (
-      await all(
-        `SELECT DISTINCT date FROM health
-          WHERE user_id=? AND type='training' AND date>=? AND date<=?`,
-        [userId, start, end]
-      )
-    ).map((r) => String(r.date).slice(0, 10))
+    (await all(
+      `SELECT DISTINCT date FROM health
+        WHERE user_id=? AND type='training' AND date>=? AND date<=?`,
+      [userId, start, end]
+    )).map(r => String(r.date).slice(0,10))
   );
 
+  // считаем подряд с конца
   let streak = 0;
   for (let i = days.length - 1; i >= 0; i--) {
     const d = days[i];
-    const m = d.slice(0, 7);
+    const m = d.slice(0,7);
 
     const okSleep = (sleepMap.get(d) || 0) >= 7;
 
@@ -295,15 +285,14 @@ async function calcConsistency(userId, start, end) {
       const prefix = cumSpendByMonth.get(m) || new Map();
       const cumSpent = prefix.get(d) || 0;
       const dayOfMonth = dayjs(d).date();
-      const dim = dayjs(m + '-01').daysInMonth();
+      const dim = dayjs(`${m}-01`).daysInMonth();
       const allowed = monthBudget * (dayOfMonth / dim);
-      okFinance = cumSpent <= allowed + 1e-6;
+      okFinance = cumSpent <= (allowed + 1e-6);
     }
 
     const okEng = dcDays.has(d) || trDays.has(d);
 
-    const good = okSleep && okFinance && okEng;
-    if (good) streak++;
+    if (okSleep && okFinance && okEng) streak++;
     else break;
   }
 
@@ -321,7 +310,7 @@ exports.getScore = async (req, res) => {
   try {
     const userId = req.userId;
     const start = req.query.start || dayjs().startOf('month').format('YYYY-MM-DD');
-    const end = req.query.end || dayjs().endOf('month').format('YYYY-MM-DD');
+    const end   = req.query.end   || dayjs().endOf('month').format('YYYY-MM-DD');
 
     const [sleep, workouts, meds, finance, consistency] = await Promise.all([
       calcSleepStrict(userId, start, end),
@@ -331,14 +320,13 @@ exports.getScore = async (req, res) => {
       calcConsistency(userId, start, end),
     ]);
 
-    const health = Math.round(sleep.score * 0.55 + workouts.score * 0.35 + meds.score * 0.1);
-    const total = Math.round(health * 0.5 + finance.score * 0.35 + consistency.score * 0.15);
+    const health = Math.round(sleep.score * 0.55 + workouts.score * 0.35 + meds.score * 0.10);
+    const total  = Math.round(health * 0.50 + finance.score * 0.35 + consistency.score * 0.15);
 
-    const days = eachDate(start, end).map((d) => ({ date: d, total }));
+    const days = eachDate(start, end).map(d => ({ date: d, total }));
 
     res.json({
-      start,
-      end,
+      start, end,
       avg: total,
       days,
       breakdown: {
