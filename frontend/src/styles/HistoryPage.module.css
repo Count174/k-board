@@ -1,115 +1,126 @@
 .page {
-    min-height: 100vh;
-    width: 100%;
-    background: linear-gradient(180deg, #10121a 0%, #0b0d14 100%);
-    color: #e6e8ef;
-  }
-  
-  .wrap {
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 16px;
-  }
-  
-  .header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 16px;
-  }
-  
-  .title {
-    color: #fff;
-    font-size: 20px;
-    font-weight: 600;
-  }
-  
+  min-height: 100vh;
+  width: 100%;
+  background: linear-gradient(180deg, #10121a 0%, #0b0d14 100%);
+  color: #e6e8ef;
+}
+
+.wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.title {
+  color: #fff;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 980px) {
   .grid {
-    display: grid;
-    gap: 16px;
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
   }
-  @media (min-width: 980px) {
-    .grid {
-      grid-template-columns: 1fr 1fr;
-    }
-  }
-  
-  .card {
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 16px;
-    padding: 16px;
-  }
-  .cardTitle {
-    color: #fff;
-    font-weight: 600;
-    margin-bottom: 8px;
-  }
-  
-  .row {
-    display: flex;
-    gap: 8px;
-    margin: 8px 0;
-  }
-  
-  .input {
-    flex: 1;
-    padding: 8px 10px;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    background: rgba(255, 255, 255, 0.06);
-    color: #fff;
-  }
-  .input::placeholder {
-    color: rgba(255, 255, 255, 0.6);
-  }
-  
-  .btn {
-    padding: 8px 12px;
-    border-radius: 8px;
-    background: #4f46e5;
-    color: #fff;
-    border: none;
-    cursor: pointer;
-  }
-  .btn:hover {
-    filter: brightness(1.1);
-  }
-  
-  .btnGhost {
-    padding: 6px 10px;
-    border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    color: #fff;
-    background: transparent;
-    cursor: pointer;
-  }
-  .btnGhost:hover {
-    background: rgba(255, 255, 255, 0.08);
-  }
-  
-  .list {
-    margin-top: 8px;
-  }
-  .item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 0;
-    border-top: 1px dashed rgba(255, 255, 255, 0.08);
-    color: #ddd;
-  }
-  .item:first-child {
-    border-top: none;
-  }
-  
-  .chart {
-    width: 100%;
-    height: 160px;
-  }
-  
-  .hint {
-    color: #aaa;
-    font-size: 12px;
-  }
+}
+
+.card {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 16px;
+}
+.cardTitle {
+  color: #fff;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+}
+
+.input {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+.input::placeholder {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #4f46e5;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+.btn:hover { filter: brightness(1.1); }
+
+.btnGhost {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  background: transparent;
+  cursor: pointer;
+}
+.btnGhost:hover { background: rgba(255, 255, 255, 0.08); }
+
+.list { margin-top: 8px; }
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+  color: #ddd;
+}
+.item:first-child { border-top: none; }
+
+/* charts */
+.chartWrap {
+  position: relative;
+  width: 100%;
+  height: 160px;
+}
+.chart {
+  width: 100%;
+  height: 160px;
+}
+
+.tooltip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  background: rgba(23, 25, 36, 0.95);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: 0 6px 20px rgba(0,0,0,.3);
+  padding: 6px 8px;
+  border-radius: 8px;
+  pointer-events: none;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.15;
+}
+.tooltipLine { opacity: .85; }
+.tooltipValue { font-weight: 700; }
+.hint { color: #aaa; font-size: 12px; }

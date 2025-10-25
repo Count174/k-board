@@ -6,24 +6,80 @@ function Money({ v }) {
   return <>{new Intl.NumberFormat('ru-RU').format(Math.round(v || 0))} ₽</>;
 }
 
-// простой линейный чарт на SVG
-function LineChart({ data, xKey, yKey, minY, maxY }) {
+/** Линейный чарт на SVG с тултипами */
+function LineChart({
+  data,
+  xKey,
+  yKey,
+  minY,
+  maxY,
+  formatX = (x, item) => (item?.label ?? String(x)),
+  formatY = (y) => String(y),
+}) {
   if (!data?.length) return <div className={styles.hint}>Нет данных</div>;
+
   const w = 560, h = 160, p = 20;
-  const xs = data.map(d => d[xKey]);
   const ys = data.map(d => Number(d[yKey]) || 0);
-  const minx = 0, maxx = xs.length - 1;
+  const minx = 0, maxx = data.length - 1;
   const miny = minY ?? Math.min(...ys);
   const maxy = maxY ?? Math.max(...ys);
-  const fx = (i) => p + (i - minx) * (w - 2*p) / Math.max(1, (maxx - minx));
-  const fy = (v) => h - p - (v - miny) * (h - 2*p) / Math.max(1, (maxy - miny));
+  const fx = (i) => p + (i - minx) * (w - 2 * p) / Math.max(1, (maxx - minx));
+  const fy = (v) => h - p - (v - miny) * (h - 2 * p) / Math.max(1, (maxy - miny));
 
-  const path = ys.map((y, i) => `${i===0?'M':'L'} ${fx(i)} ${fy(y)}`).join(' ');
+  const path = ys.map((y, i) => `${i === 0 ? 'M' : 'L'} ${fx(i)} ${fy(y)}`).join(' ');
+
+  const [tip, setTip] = useState(null);
+  const showTip = (i) => {
+    const item = data[i];
+    const y = Number(item[yKey]) || 0;
+    setTip({
+      i,
+      left: fx(i),
+      top: fy(y),
+      xLabel: formatX(item[xKey], item),
+      yLabel: formatY(y, item),
+    });
+  };
+  const hideTip = () => setTip(null);
+
   return (
-    <svg className={styles.chart} viewBox={`0 0 ${w} ${h}`}>
-      <path d={path} fill="none" stroke="white" strokeOpacity="0.8" strokeWidth="2"/>
-      {ys.map((y,i)=>(<circle key={i} cx={fx(i)} cy={fy(y)} r="2.5" fill="white" />))}
-    </svg>
+    <div className={styles.chartWrap}>
+      <svg className={styles.chart} viewBox={`0 0 ${w} ${h}`} onMouseLeave={hideTip} aria-hidden>
+        <path d={path} fill="none" stroke="white" strokeOpacity="0.8" strokeWidth="2" />
+        {ys.map((y, i) => (
+          <g key={i}>
+            <circle
+              cx={fx(i)} cy={fy(y)} r="3"
+              fill="white"
+              onMouseEnter={() => showTip(i)}
+              onMouseMove={() => showTip(i)}
+            />
+            {/* щедрые hit-areas для удобного наведения */}
+            <rect
+              x={Math.max(0, fx(i) - 8)}
+              y={Math.max(0, fy(y) - 12)}
+              width="16" height="24"
+              fill="transparent"
+              onMouseEnter={() => showTip(i)}
+              onMouseMove={() => showTip(i)}
+            />
+          </g>
+        ))}
+      </svg>
+
+      {tip && (
+        <div
+          className={styles.tooltip}
+          style={{
+            left: Math.max(8, Math.min(tip.left + 10, w - 8)),
+            top: Math.max(8, Math.min(tip.top - 8, h - 8))
+          }}
+        >
+          <div className={styles.tooltipLine}>{tip.xLabel}</div>
+          <div className={styles.tooltipValue}>{tip.yLabel}</div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -114,7 +170,13 @@ export default function HistoryPage() {
                 value={incomeForm.amount} onChange={e=>setIncomeForm(f=>({...f, amount:e.target.value}))}/>
               <button className={styles.btn} onClick={addIncome}>Добавить</button>
             </div>
-            <LineChart data={incomesSorted.map(x=>({x:x.year, y:x.amount}))} xKey="x" yKey="y" />
+            <LineChart
+              data={incomesSorted.map(x=>({ x: x.year, y: x.amount }))}
+              xKey="x"
+              yKey="y"
+              formatX={(x)=>String(x)}
+              formatY={(y)=>new Intl.NumberFormat('ru-RU').format(Math.round(y)) + ' ₽'}
+            />
             <div className={styles.list}>
               {(data?.incomes||[]).sort((a,b)=>b.year-a.year).map(r=>(
                 <div key={r.id} className={styles.item}>
@@ -135,7 +197,13 @@ export default function HistoryPage() {
                 value={weightForm.kg} onChange={e=>setWeightForm(f=>({...f, kg:e.target.value}))}/>
               <button className={styles.btn} onClick={addWeight}>Добавить</button>
             </div>
-            <LineChart data={weightsSorted.map((w,i)=>({x:i, y:w.kg}))} xKey="x" yKey="y" />
+            <LineChart
+              data={weightsSorted.map((w,i)=>({ x: i, y: w.kg, label: w.date }))}
+              xKey="x"
+              yKey="y"
+              formatX={(_, item)=>item?.label || ''}
+              formatY={(y)=>`${y} кг`}
+            />
             <div className={styles.list}>
               {weightsSorted.slice().reverse().map(r=>(
                 <div key={r.id} className={styles.item}>
