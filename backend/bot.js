@@ -1240,18 +1240,24 @@ cron.schedule('0 11 * * 1', () => {
         const delta = Math.round(curScore.avg - prevScore.avg);
 
         const { weakest, advice } = buildAdviceFromBreakdown(curScore, cur.startIso, cur.endIso);
-        const det = curScore.breakdown.details; // { workouts, sleep, meds }
+        const det = curScore.breakdown.details || {};
 
         // sleep.avg: считаем из totalHours/дней
         const periodDays = dayjs(cur.endIso).diff(dayjs(cur.startIso), 'day') + 1;
-        const sleepAvg = det?.sleep?.totalHours != null
-          ? (det.sleep.totalHours / Math.max(1, periodDays))
-          : null;
+        let sleepAvg = null;
+        if (det.sleep) {
+          if (typeof det.sleep.avg_hours_per_day === 'number') {
+            sleepAvg = det.sleep.avg_hours_per_day;
+          } else if (typeof det.sleep.total_hours === 'number') {
+            sleepAvg = det.sleep.total_hours / Math.max(1, periodDays);
+          }
+        }
 
-        const w = det?.workouts || {};
+        const w = det.workouts || {};
         const workoutsLine =
-          (w.planned != null && w.done != null)
-            ? `${w.done} / ${w.planned}` + (w.extra_unplanned ? ` (+${w.extra_unplanned} вне плана)` : '')
+          (typeof w.planned_days === 'number' && typeof w.done_days === 'number')
+            ? `${w.done_days} из ${w.planned_days}` +
+              (w.extra_unplanned_days ? ` (+${w.extra_unplanned_days} вне плана)` : '')
             : '—';
 
         const medsLine =
@@ -1270,7 +1276,7 @@ cron.schedule('0 11 * * 1', () => {
 
           `Здоровье\n` +
           `• Сон: ${sleepAvg != null ? sleepAvg.toFixed(1) + ' ч/д' : '—'}\n` +
-          `• Тренировки: ${workoutsLine}\n` +
+          `• Тренировки: ${workoutsLine ? workoutsLine : '—'}\n` +
           `• Лекарства: ${medsLine}\n\n` +
 
           `Финансы\n` +
