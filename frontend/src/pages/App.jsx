@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Dashboard from './Dashboard';
 import LoginPage from './LoginPage';
 import RegisterPage from './RegisterPage';
+import UserHistoryPage from './HistoryPage';
 import '../styles/index.css';
 
 function PrivateRoute({ children }) {
@@ -23,7 +24,7 @@ export default function App() {
             </PrivateRoute>
           }
         />
-        <Route path="/history" element={<History />} />
+        <Route path="/history" element={<UserHistoryPage />} />
       </Routes>
     </BrowserRouter>
   );
