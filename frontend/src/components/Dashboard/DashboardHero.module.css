@@ -1,0 +1,57 @@
+.hero{
+    display:grid;
+    grid-template-columns: 2fr 1fr;
+    gap:16px;
+    margin-bottom:16px;
+  }
+  @media (max-width: 1100px){
+    .hero{ grid-template-columns: 1fr; }
+  }
+  
+  .leftCard, .rightCard{
+    position: relative;
+    padding:16px;
+    border-radius:20px;
+    background: radial-gradient(120% 100% at 0% 0%, rgba(99,102,241,.25) 0%, rgba(30,30,44,.6) 40%, rgba(22,22,32,.7) 100%);
+    border:1px solid rgba(255,255,255,.06);
+    backdrop-filter: blur(6px);
+  }
+  
+  .rightCard{
+    background: radial-gradient(120% 100% at 100% 0%, rgba(99,102,241,.20) 0%, rgba(30,30,44,.6) 40%, rgba(22,22,32,.7) 100%);
+  }
+  
+  .cardHeader{
+    display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;
+  }
+  .cardTitle{
+    display:flex; align-items:center; gap:8px;
+    color:#fff; font-weight:600;
+  }
+  .badge, .badgeAlt{
+    font-size:12px; padding:4px 8px; border-radius:999px;
+    background: rgba(255,255,255,.06); color:#ddd; border:1px solid rgba(255,255,255,.08);
+  }
+  .badgeAlt{ background: rgba(99,102,241,.18); color:#e5e7ff; }
+  
+  .primaryRow{ display:grid; grid-template-columns: repeat(4,1fr); gap:12px; margin:8px 0 12px; }
+  @media (max-width: 640px){ .primaryRow{ grid-template-columns: repeat(2,1fr); } }
+  
+  .primaryNumber{
+    padding:10px 12px; border-radius:14px;
+    background: rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.06);
+  }
+  .label{ color:#9aa0b4; font-size:12px; }
+  .value{ display:block; color:#fff; font-size:18px; font-weight:700; margin-top:2px; }
+  
+  .sparkWrap{ margin-top:8px; }
+  .spark{ width:100%; height:36px; color:#aeb2ff; }
+  .spark circle{ fill:#fff; opacity:.9 }
+  
+  .statsCol{ display:grid; gap:8px; }
+  .stat{ display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:14px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06); }
+  .statIcon{ width:24px; height:24px; border-radius:999px; display:grid; place-items:center; background:rgba(99,102,241,.2); color:#cfd2ff; }
+  .statLabel{ color:#9aa0b4; font-size:12px; }
+  .statValue{ color:#fff; font-weight:700; }
+  .statSub{ color:#a8acc2; font-size:12px; }
