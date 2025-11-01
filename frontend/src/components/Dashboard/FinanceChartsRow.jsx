@@ -20,17 +20,17 @@ function useFinanceSeries(rangeDays) {
     (async () => {
       try {
         const end = dayjs().format('YYYY-MM-DD');
-        const start30 = dayjs().subtract(rangeDays - 1, 'day').format('YYYY-MM-DD');
+        const start = dayjs().subtract(rangeDays - 1, 'day').format('YYYY-MM-DD');
         const month = dayjs().format('YYYY-MM');
 
-        // Берём сырые транзакции за период
-        const raw = await get(`finances/range?start=${start30}&end=${end}`); 
-        // Ожидается формат: [{date:'YYYY-MM-DD', type:'expense'|'income', amount:number}, ...]
+        // 1) сырые транзакции за период
+        const raw = await get(`finances/range?start=${start}&end=${end}`); 
+        // формат: [{date:'YYYY-MM-DD', type:'expense'|'income', amount:number}, ...]
 
-        // Безопасная агрегация
+        // 2) безопасная агрегация по дням
         const byDay = new Map(); // d -> { expense: sum, income: sum }
         for (let i = 0; i < rangeDays; i++) {
-          const d = dayjs(start30).add(i, 'day').format('YYYY-MM-DD');
+          const d = dayjs(start).add(i, 'day').format('YYYY-MM-DD');
           byDay.set(d, { expense: 0, income: 0 });
         }
         for (const t of raw || []) {
@@ -46,9 +46,9 @@ function useFinanceSeries(rangeDays) {
         const expenses = Array.from(byDay.entries()).map(([d, v]) => ({ date: d, value: v.expense }));
         const incomes  = Array.from(byDay.entries()).map(([d, v]) => ({ date: d, value: v.income  }));
 
-        // Overview (текущий месяц): траты, доходы, прогноз по расходам, % использования бюджетов
+        // 3) overview по текущему месяцу
         const monthData = await get(`finances/month-overview?month=${month}`);
-        // Ожидается: { expenses:number, incomes:number, forecast:number, budgetUsePct:number|null }
+        // { expenses:number, incomes:number, forecast:number, budgetUsePct:number|null }
 
         setSeries({
           expenses,
@@ -78,44 +78,41 @@ function MiniStat({ label, value }) {
   );
 }
 
+// компактный спарклайн (фиксированная высота через CSS)
 function Spark({ points }) {
-  // Не рисуем линию, если данных мало — только точки
   if (!points?.length) return <div className={styles.sparkEmpty}>нет данных</div>;
   const w = 560, h = 100, p = 14;
-  const xs = points.map((_, i) => i);
   const ys = points.map(p => p.value || 0);
-  const maxx = xs.length - 1;
+  const maxx = points.length - 1;
   const miny = Math.min(...ys);
   const maxy = Math.max(...ys);
-
   const fx = (i) => p + (i) * (w - 2 * p) / Math.max(1, maxx);
   const fy = (v) => h - p - (maxy === miny ? 0 : (v - miny) * (h - 2 * p) / (maxy - miny));
-
   const path = points.length >= 3
     ? ys.map((y, i) => `${i === 0 ? 'M' : 'L'} ${fx(i)} ${fy(y)}`).join(' ')
     : '';
 
   return (
-    <svg className={styles.spark} viewBox={`0 0 ${w} ${h}`} role="img" aria-label="trend">
-      {path && <path d={path} fill="none" stroke="white" strokeOpacity="0.6" strokeWidth="2" />}
-      {ys.map((y, i) => (
-        <circle key={i} cx={fx(i)} cy={fy(y)} r="2.5" fill="white" fillOpacity="0.85" />
-      ))}
-    </svg>
+    <div className={styles.sparkWrap}>
+      <svg className={styles.spark} viewBox={`0 0 ${w} ${h}`} role="img" aria-label="trend" preserveAspectRatio="none">
+        {path && <path d={path} fill="none" stroke="white" strokeOpacity="0.6" strokeWidth="2" />}
+        {ys.map((y, i) => (
+          <circle key={i} cx={fx(i)} cy={fy(y)} r="2.5" fill="white" fillOpacity="0.85" />
+        ))}
+      </svg>
+    </div>
   );
 }
 
-/** TOOLTIPS: общий компонент для полноразмерных графиков */
+/** Полноразмерный линейный график с тултипами */
 function LineChart({ title, series }) {
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null); // {i, x, y, date, value}
 
   const w = 760, h = 220, p = 28;
-
   const data = series || [];
-  const xs = data.map((_, i) => i);
   const ys = data.map(p => Number(p.value) || 0);
-  const maxx = xs.length - 1;
+  const maxx = Math.max(0, data.length - 1);
   const miny = Math.min(...ys, 0);
   const maxy = Math.max(...ys, 1);
 
@@ -127,10 +124,10 @@ function LineChart({ title, series }) {
     : '';
 
   function onMove(e) {
-    if (!svgRef.current) return;
+    if (!svgRef.current || !data.length) return;
     const rect = svgRef.current.getBoundingClientRect();
     const relX = e.clientX - rect.left;
-    // ближайший индекс по X
+    // ближайшая точка
     let bestI = 0, bestDist = Infinity;
     for (let i = 0; i < data.length; i++) {
       const dx = Math.abs(fx(i) - relX);
@@ -151,29 +148,31 @@ function LineChart({ title, series }) {
     <div className={styles.chartCard}>
       <div className={styles.chartHeader}>{title}</div>
       <div className={styles.chartBody}>
-        <svg
-          ref={svgRef}
-          className={styles.chart}
-          viewBox={`0 0 ${w} ${h}`}
-          onMouseMove={onMove}
-          onMouseLeave={() => setHover(null)}
-        >
-          {/* ослабленная сетка */}
-          <rect x="0" y="0" width={w} height={h} fill="transparent" />
-          {d && <path d={d} fill="none" stroke="white" strokeOpacity="0.8" strokeWidth="2.5" />}
-          {ys.map((y, i) => (
-            <circle key={i} cx={fx(i)} cy={fy(y)} r="3" fill="white" fillOpacity="0.9" />
-          ))}
-          {hover && (
-            <>
-              <line
-                x1={hover.x} x2={hover.x} y1={p / 2} y2={h - p / 2}
-                stroke="white" strokeOpacity="0.12"
-              />
-              <circle cx={hover.x} cy={hover.y} r="5" fill="white" />
-            </>
-          )}
-        </svg>
+        <div className={styles.chartWrap}>
+          <svg
+            ref={svgRef}
+            className={styles.chart}
+            viewBox={`0 0 ${w} ${h}`}
+            preserveAspectRatio="none"
+            onMouseMove={onMove}
+            onMouseLeave={() => setHover(null)}
+          >
+            <rect x="0" y="0" width={w} height={h} fill="transparent" />
+            {d && <path d={d} fill="none" stroke="white" strokeOpacity="0.8" strokeWidth="2.5" />}
+            {ys.map((y, i) => (
+              <circle key={i} cx={fx(i)} cy={fy(y)} r="3" fill="white" fillOpacity="0.9" />
+            ))}
+            {hover && (
+              <>
+                <line
+                  x1={hover.x} x2={hover.x} y1={p / 2} y2={h - p / 2}
+                  stroke="white" strokeOpacity="0.12"
+                />
+                <circle cx={hover.x} cy={hover.y} r="5" fill="white" />
+              </>
+            )}
+          </svg>
+        </div>
         {hover && (
           <div
             className={styles.tooltip}
@@ -189,8 +188,7 @@ function LineChart({ title, series }) {
 }
 
 export default function FinanceChartsRow() {
-  // тумблер 7/30/90 дней (по умолчанию 30)
-  const [range, setRange] = useState(30);
+  const [range, setRange] = useState(30); // 7/30/90
   const { loading, expenses, incomes, overview } = useFinanceSeries(range);
 
   const sumExp = useMemo(() => expenses.reduce((s, p) => s + (p.value || 0), 0), [expenses]);
@@ -212,7 +210,6 @@ export default function FinanceChartsRow() {
               overview.budgetUsePct == null ? '—' : (Math.round(overview.budgetUsePct) + '%')
             }/>
           </div>
-          {/* спарклайн по расходам за период; если точек <3 — без линии */}
           <Spark points={expenses} />
         </div>
 
@@ -221,9 +218,7 @@ export default function FinanceChartsRow() {
             <div className={styles.heroTitle}>Овервью здоровья</div>
             <div className={styles.heroBadge}>7 дней</div>
           </div>
-          {/* этот блок оставляем как был у тебя; можно подтянуть значения из /analytics/score */}
           <div className={styles.healthList}>
-            {/* заполняется твоей логикой; опущено ради краткости */}
             <div className={styles.hint}>Подтягиваем из /analytics/score</div>
           </div>
         </div>
