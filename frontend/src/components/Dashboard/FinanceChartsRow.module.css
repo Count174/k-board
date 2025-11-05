@@ -29,16 +29,9 @@
 .miniLabel{ color:#aeb2ff; font-size:12px; margin-bottom:4px; }
 .miniValue{ color:#fff; font-weight:600; }
 
-/* спарклайн в hero */
-.sparkWrap{ height:120px; width:100%; overflow:hidden; margin-top:12px; position:relative; }
-.spark{ width:100%; height:100%; display:block; }
-.sparkTip{
-  position:absolute; pointer-events:none;
-  background:rgba(17,17,24,.96);
-  border:1px solid rgba(255,255,255,.08);
-  padding:6px 8px; border-radius:8px; color:#fff; font-size:12px;
-  transform:translate(-50%,-110%);
-}
+/* ===== HERO Sparkline «как в референсе» ===== */
+.heroSparkWrap{ height:140px; width:100%; overflow:hidden; margin-top:12px; }
+.heroSpark{ width:100%; height:100%; display:block; }
 
 /* ===== HEALTH CARD ===== */
 .healthList{ padding:8px 0; }
@@ -57,25 +50,19 @@
 .segBtn{ font-size:12px; color:#cfd2ff; background:transparent; border:none; padding:6px 10px; border-radius:999px; cursor:pointer; }
 .segActive{ background:#4f46e5; color:#fff; border:none; }
 
-/* ===== Карточка графика ===== */
-.chartCard{
-  padding:16px;
-  border-radius:20px;
-  background: radial-gradient(120% 100% at 0% 0%, rgba(99,102,241,.10) 0%, rgba(30,30,44,.55) 40%, rgba(22,22,32,.65) 100%);
-  border:1px solid rgba(255,255,255,.06);
-}
+/* ===== Полноразмерные графики ===== */
+.chartCard{ padding:0 0 8px 0; border-radius:16px; }
 .chartHeader{ display:none; }
-
 .chartBody{ position:relative; }
 .chartWrap{ height:260px; width:100%; overflow:hidden; }
 @media (max-width: 900px){ .chartWrap{ height:210px; } }
-
 .chart{ width:100%; height:100%; display:block; }
 
 /* Tooltip */
 .tooltip{
   position:absolute;
   pointer-events:none;
+  transform: translateY(-100%);
   background: rgba(17,17,24,.96);
   border:1px solid rgba(255,255,255,.08);
   box-shadow: 0 10px 24px rgba(0,0,0,.35);
@@ -83,7 +70,6 @@
   border-radius:10px;
   color:#fff;
   white-space:nowrap;
-  transform: translate(-50%, -110%);
 }
 .tipDate{ font-size:12px; color:#aeb2ff; margin-bottom:2px; }
 .tipVal{ font-weight:600; }
