@@ -8,6 +8,7 @@ function formatMoney(v) {
   return new Intl.NumberFormat('ru-RU').format(Math.round(v || 0)) + ' ₽';
 }
 
+/* ---- DATA: финансы текущего месяца + спарк из последних 30 дней ---- */
 function useFinanceOverview() {
   const [state, setState] = useState({
     expenses: 0,
@@ -23,26 +24,26 @@ function useFinanceOverview() {
       try {
         const month = dayjs().format('YYYY-MM');
         const end = dayjs().format('YYYY-MM-DD');
-        const start = dayjs().subtract(29, 'day').format('YYYY-MM-DD');
+        const start30 = dayjs().subtract(29, 'day').format('YYYY-MM-DD');
 
-        // данные за месяц (итоги и прогноз приходит с бэка)
+        // агрегаты по месяцу
         const monthData = await get(`finances/month-overview?month=${month}`);
 
-        // для спарка возьмём последние 30 дней расходов
-        const raw = await get(`finances/range?start=${start}&end=${end}`);
+        // сырьё за 30 дней — на спарк
+        const rows = await get(`finances/range?start=${start30}&end=${end}`);
         const byDay = new Map();
         for (let i = 0; i < 30; i++) {
-          const d = dayjs(start).add(i, 'day').format('YYYY-MM-DD');
+          const d = dayjs(start30).add(i, 'day').format('YYYY-MM-DD');
           byDay.set(d, 0);
         }
-        for (const t of raw || []) {
-          const d = (t.date || '').slice(0, 10);
+        for (const r of rows || []) {
+          const d = (r.date || '').slice(0, 10);
           if (!byDay.has(d)) continue;
-          if (t.type === 'expense') {
-            byDay.set(d, (byDay.get(d) || 0) + Math.abs(Number(t.amount) || 0));
+          if (r.type === 'expense') {
+            byDay.set(d, (byDay.get(d) || 0) + Math.abs(Number(r.amount) || 0));
           }
         }
-        const spark = Array.from(byDay.values()).slice(-12); // последние 12 точек
+        const spark = Array.from(byDay.values()).slice(-12); // 12 последних точек
 
         setState({
           expenses: Math.round(monthData?.expenses || 0),
@@ -52,9 +53,7 @@ function useFinanceOverview() {
           spark,
           loading: false,
         });
-      } finally {
-        // noop
-      }
+      } finally {}
     })();
   }, []);
 
@@ -70,7 +69,7 @@ function MiniStat({ label, value }) {
   );
 }
 
-/** Красивый мини-график (сглаженная линия, свечение, заливка, пунктир) */
+/* ---- красивый MINIspark c заливкой/свечением (как в референсе) ---- */
 function HeroSpark({ points = [] }) {
   const N = points.length;
   if (!N) return null;
@@ -82,24 +81,22 @@ function HeroSpark({ points = [] }) {
   const fx = (i) => P + (i * (W - 2 * P)) / Math.max(1, N - 1);
   const fy = (v) => H - P - ((v - min) / span) * (H - 2 * P);
 
-  const path = [];
+  const segs = [];
   for (let i = 0; i < N; i++) {
-    const x = fx(i);
-    const y = fy(points[i]);
-    if (i === 0) path.push(`M ${x} ${y}`);
+    const x = fx(i), y = fy(points[i]);
+    if (i === 0) segs.push(`M ${x} ${y}`);
     else {
       const x0 = fx(i - 1), y0 = fy(points[i - 1]);
       const xm = (x0 + x) / 2;
-      path.push(`C ${xm} ${y0}, ${xm} ${y}, ${x} ${y}`);
+      segs.push(`C ${xm} ${y0}, ${xm} ${y}, ${x} ${y}`);
     }
   }
-  const d = path.join(' ');
-
+  const d = segs.join(' ');
   const lastX = fx(N - 1), firstX = fx(0), baseY = H - P;
   const areaD = `${d} L ${lastX} ${baseY} L ${firstX} ${baseY} Z`;
 
-  const baseVal = (min + max) / 2;
-  const baseYMid = fy(baseVal);
+  const mid = (min + max) / 2;
+  const baseYMid = fy(mid);
 
   return (
     <div className={styles.heroSparkWrap}>
@@ -118,14 +115,21 @@ function HeroSpark({ points = [] }) {
           </filter>
         </defs>
 
+        {/* пунктирная «база» */}
         <line x1={P} x2={W - P} y1={baseYMid} y2={baseYMid} stroke="rgba(255,255,255,.08)" strokeDasharray="6 6" />
+
+        {/* заливка */}
         <path d={areaD} fill="url(#hs-grad)" />
+
+        {/* линия с мягким свечением */}
         <path d={d} stroke="rgba(160,168,255,.6)" strokeWidth="4" fill="none" filter="url(#hs-glow)" />
         <path d={d} stroke="rgba(198,203,255,1)" strokeWidth="2" fill="none" />
+
+        {/* точки */}
         {points.map((v, i) => (
           <g key={i}>
             <circle cx={fx(i)} cy={fy(v)} r="3.8" fill="#fff" opacity="0.9" />
-            <circle cx={fx(i)} cy={fy(v)} r="6.5" fill="white" opacity="0.12" />
+            <circle cx={fx(i)} cy={fy(v)} r="6.5" fill="#fff" opacity="0.12" />
           </g>
         ))}
       </svg>
@@ -133,43 +137,43 @@ function HeroSpark({ points = [] }) {
   );
 }
 
+/* ================= MAIN ================= */
 export default function FinanceChartsRow() {
-  // оставляем один блок «Финансы — обзор» и один блок «Овервью здоровья»
   const overview = useFinanceOverview();
 
   return (
-    <>
-      {/* Верхний ряд: только Овервью здоровья (правый блок). Левый «финансы» убрали */}
-      <div className={styles.heroRow}>
-        <div className={styles.heroCard} style={{ visibility: 'hidden', pointerEvents: 'none' }} />
-        <div className={styles.heroCard}>
-          <div className={styles.heroHead}>
-            <div className={styles.heroTitle}>Овервью здоровья</div>
-            <div className={styles.heroBadge}>7 дней</div>
-          </div>
-          <div className={styles.healthList}>
-            <div className={styles.hint}>Подтягиваем из /analytics/score</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Оставляем только нижний «Финансы — обзор» c красивым мини-графиком */}
-      <div className={styles.heroCard} style={{ marginTop: -8 }}>
+    <div className={styles.heroRow}>
+      {/* ЛЕВАЯ карточка — НОВЫЙ красивый «Финансы — обзор» */}
+      <div className={styles.heroCard}>
         <div className={styles.heroHead}>
           <div className={styles.heroTitle}>Финансы — обзор</div>
           <div className={styles.heroBadge}>Текущий месяц</div>
         </div>
+
         <div className={styles.heroStats}>
           <MiniStat label="Расходы" value={formatMoney(overview.expenses)} />
-          <MiniStat label="Доходы"  value={formatMoney(overview.incomes)} />
+          <MiniStat label="Доходы" value={formatMoney(overview.incomes)} />
           <MiniStat label="Прогноз" value={formatMoney(overview.forecast)} />
           <MiniStat
             label="Бюджеты"
             value={overview.budgetUsePct == null ? '—' : `${Math.round(overview.budgetUsePct)}%`}
           />
         </div>
+
         <HeroSpark points={overview.spark} />
       </div>
-    </>
+
+      {/* ПРАВАЯ карточка — единственный «Овервью здоровья» */}
+      <div className={styles.heroCard}>
+        <div className={styles.heroHead}>
+          <div className={styles.heroTitle}>Овервью здоровья</div>
+          <div className={styles.heroBadge}>7 дней</div>
+        </div>
+        <div className={styles.healthList}>
+          {/* тут остаётся твоя логика из DashboardHero / analytics/score */}
+          <div className={styles.hint}>Подтягиваем из /analytics/score</div>
+        </div>
+      </div>
+    </div>
   );
 }
