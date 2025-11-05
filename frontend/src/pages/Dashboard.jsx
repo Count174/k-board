@@ -2,30 +2,29 @@ import { useState, useEffect } from 'react';
 import { get, post } from '../api/api';
 import styles from '../styles/Dashboard.module.css';
 
-import ToDoWidget from '../components/ToDoWidget/ToDoWidget';
-import HealthWidget from '../components/HealthWidget/HealthWidget';
-import FinanceWidget from '../components/FinanceWidget/FinanceWidget';
-import GoalsWidget from '../components/GoalsWidget/GoalsWidget';
-import MedicationsWidget from '../components/MedicationsWidget/MedicationsWidget';
-import BudgetWidget from '../components/BudgetWidget/BudgetWidget';
 import GreetingHeader from '../components/Dashboard/GreetingsHeader';
 import TelegramModal from '../components/TelegramModal';
+
+import ToDoWidget from '../components/ToDoWidget/ToDoWidget';
+import HealthWidget from '../components/HealthWidget/HealthWidget';
+import MedicationsWidget from '../components/MedicationsWidget/MedicationsWidget';
+import GoalsWidget from '../components/GoalsWidget/GoalsWidget';
+import FinanceWidget from '../components/FinanceWidget/FinanceWidget';
+import BudgetWidget from '../components/BudgetWidget/BudgetWidget';
 import SavingsWidget from '../components/SavingsWidget/SavingsWidget';
-import OnboardingProvider from '../components/OnboardingProvider/OnboardingProvider';
 import LoansWidget from '../components/LoansWidget/LoansWidget';
 
-// NEW: компактное «овер-вью» и ряд графиков финансов
+import OnboardingProvider from '../components/OnboardingProvider/OnboardingProvider';
+
+// ВАЖНО: больше НЕ импортируем FinanceChartsRow, чтобы не было дублей
 import DashboardHero from '../components/Dashboard/DashboardHero';
-import FinanceChartsRow from '../components/Dashboard/FinanceChartsRow';
 
 export default function Dashboard() {
   const [user, setUser] = useState(null);
   const [showTelegramModal, setShowTelegramModal] = useState(false);
 
   useEffect(() => {
-    get('auth/me')
-      .then(setUser)
-      .catch(() => {});
+    get('auth/me').then(setUser).catch(() => {});
   }, []);
 
   const handleLogout = async () => {
@@ -42,11 +41,8 @@ export default function Dashboard() {
           onLogout={handleLogout}
         />
 
-        {/* --- новый первый экран: обзор + фин.графики --- */}
         <DashboardHero />
-        <FinanceChartsRow />
 
-        {/* остальная сетка виджетов как была */}
         <div className={styles.widgetsRow}>
           <ToDoWidget />
           <HealthWidget />
