@@ -3,24 +3,52 @@ import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { get } from '../../api/api';
 import styles from './DashboardHero.module.css';
-import { Wallet, Activity, LineChart, Dumbbell } from 'lucide-react';
+import { Wallet, Activity, LineChart as LineIcon, Dumbbell } from 'lucide-react';
 
-// минимальный спарклайн (inline SVG)
-function Sparkline({ points = [], height = 36 }) {
+// Мини-спарклайн (адаптивный, без искажения окружностей, с лёгким сглаживанием)
+function Sparkline({ points = [], height = 64 }) {
   if (!points.length) return null;
-  const w = Math.max(80, points.length * 12);
-  const min = Math.min(...points);
-  const max = Math.max(...points);
-  const range = Math.max(1, max - min);
-  const fy = (v) => height - 6 - ((v - min) / range) * (height - 12);
-  const fx = (i) => 6 + (i * (w - 12)) / Math.max(1, points.length - 1);
-  const d = points.map((v, i) => `${i ? 'L' : 'M'}${fx(i)} ${fy(v)}`).join(' ');
+
+  // ViewBox фиксированный, SVG сам тянется по ширине контейнера без искажений
+  const W = Math.max(160, points.length * 28);
+  const H = Math.max(48, height);
+
+  // защита от плоской линии — добавим "паддинг" по Y
+  const minVal = Math.min(...points);
+  const maxVal = Math.max(...points);
+  const range = Math.max(1, maxVal - minVal);
+  const pad = range * 0.12; // 12% паддинг по Y
+  const yMin = minVal - pad;
+  const yMax = maxVal + pad;
+
+  const fx = (i) => 12 + (i * (W - 24)) / Math.max(1, points.length - 1);
+  const fy = (v) => H - 10 - ((v - yMin) / Math.max(1, yMax - yMin)) * (H - 20);
+
+  // лёгкое сглаживание (квадратичные Безье между соседями)
+  const d = points.map((v, i) => {
+    const x = fx(i), y = fy(v);
+    if (i === 0) return `M ${x} ${y}`;
+    const px = fx(i - 1), py = fy(points[i - 1]);
+    const cx = (px + x) / 2; // mid-control для плавности
+    return `Q ${cx} ${py}, ${x} ${y}`;
+  }).join(' ');
 
   return (
-    <svg className={styles.spark} viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none">
-      <path d={d} fill="none" stroke="currentColor" strokeOpacity="0.9" strokeWidth="2" />
+    <svg className={styles.spark} viewBox={`0 0 ${W} ${H}`}>
+      {/* мягкое свечение под линией */}
+      <defs>
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+          <feMerge>
+            <feMergeNode in="coloredBlur"/>
+            <feMergeNode in="SourceGraphic"/>
+          </feMerge>
+        </filter>
+      </defs>
+
+      <path d={d} fill="none" stroke="rgba(168, 176, 255, .9)" strokeWidth="2.5" filter="url(#glow)"/>
       {points.map((v, i) => (
-        <circle key={i} cx={fx(i)} cy={fy(v)} r="2" />
+        <circle key={i} cx={fx(i)} cy={fy(v)} r="2.6" fill="#fff" fillOpacity="0.92"/>
       ))}
     </svg>
   );
@@ -45,13 +73,12 @@ export default function DashboardHero() {
 
   useEffect(() => {
     async function load() {
-      // финансы текущего месяца
       const monthEnd = dayjs().format('YYYY-MM-DD');
       const monthStart = dayjs().startOf('month').format('YYYY-MM-DD');
 
-      // соберём расходы/доходы по дням (используем уже существующий /finances)
-      const rows = await get('finances'); // предполагается что он отдаёт список; если у тебя другой эндпоинт — замени
-      const curMonth = rows.filter(r => String(r.date).slice(0,7) === dayjs().format('YYYY-MM'));
+      // берём все финансы и фильтруем по текущему месяцу
+      const rows = await get('finances');
+      const curMonth = (rows || []).filter(r => String(r.date).slice(0,7) === dayjs().format('YYYY-MM'));
 
       const byDay = {};
       for (const r of curMonth) {
@@ -60,6 +87,7 @@ export default function DashboardHero() {
         if (r.type === 'income') byDay[d].income += Number(r.amount)||0;
         if (r.type === 'expense') byDay[d].expense += Math.abs(Number(r.amount)||0);
       }
+
       const days = [];
       let sumExp = 0, sumInc = 0;
       for (let d = dayjs(monthStart); d.isSame(dayjs(monthEnd)) || d.isBefore(dayjs(monthEnd)); d = d.add(1,'day')) {
@@ -69,15 +97,14 @@ export default function DashboardHero() {
         sumExp += val.expense; sumInc += val.income;
       }
 
-      // бюджеты (через budgets-summary в БД у тебя нет — оценим % исполнения по сумме всех бюджетов)
+      // бюджеты на месяц (если эндпоинта нет — просто покажем "—")
       let budgetTotal = 0;
       try {
         const month = dayjs().format('YYYY-MM');
-        const budgets = await get(`budgets?month=${month}`); // если такого нет — оставим 0
+        const budgets = await get(`budgets?month=${month}`);
         if (Array.isArray(budgets)) budgetTotal = budgets.reduce((s,b)=>s+Number(b.amount||0),0);
-      } catch { /* noop */ }
+      } catch {}
 
-      const dayIdx = dayjs().date();
       const dim = dayjs().daysInMonth();
       const avgDaily = days.length ? sumExp / days.length : 0;
       const forecast = avgDaily * dim;
@@ -92,7 +119,7 @@ export default function DashboardHero() {
         spark: days.map(x => x.expense)
       });
 
-      // скоринг за 7 дней (для мини-метрик справа)
+      // скоринг за 7 дней
       const end = dayjs().format('YYYY-MM-DD');
       const start7 = dayjs().subtract(6,'day').format('YYYY-MM-DD');
       const d7 = await get(`analytics/score?start=${start7}&end=${end}`);
@@ -165,7 +192,7 @@ export default function DashboardHero() {
         </div>
 
         <div className={styles.statsCol}>
-          <Stat icon={LineChart} label="Сон" value={`${sleepAvg} ч/д`} sub="цель 7–8 ч"/>
+          <Stat icon={LineIcon} label="Сон" value={`${sleepAvg} ч/д`} sub="цель 7–8 ч"/>
           <Stat icon={Dumbbell} label="Тренировки" value={workoutsLine} sub="из плановых"/>
           <Stat icon={Activity} label="Consistency" value={consistency} />
         </div>
