@@ -24,9 +24,9 @@ function useFinanceSeries(rangeDays) {
         const start = dayjs().subtract(rangeDays - 1, 'day').format('YYYY-MM-DD');
         const month = dayjs().format('YYYY-MM');
 
-        // 1) транзакции (сырьё)
+        // 1) транзакции
         const raw = await get(`finances/range?start=${start}&end=${end}`);
-        const byDay = new Map();          // d -> { expense, income }
+        const byDay = new Map();
         for (let i = 0; i < rangeDays; i++) {
           const d = dayjs(start).add(i, 'day').format('YYYY-MM-DD');
           byDay.set(d, { expense: 0, income: 0 });
@@ -47,7 +47,7 @@ function useFinanceSeries(rangeDays) {
         const start7 = dayjs().subtract(6, 'day').format('YYYY-MM-DD');
         const score = await get(`analytics/score?start=${start7}&end=${end}`);
         const s = score?.breakdown?.health?.sleep?.avg_hours_per_day ?? null;
-        const w = score?.breakdown?.health?.workouts ?? null; // { done_days,target_days } или {done,planned}
+        const w = score?.breakdown?.health?.workouts ?? null;
         const cScore = score?.breakdown?.consistency?.score ?? null;
         const cStreak = score?.breakdown?.consistency?.streak ?? null;
 
@@ -111,7 +111,7 @@ function Spark({ points }) {
   );
 }
 
-/* ===== полноразмерный график с тултипами ===== */
+/* ===== полноразмерный график с «правильным» тултипом ===== */
 function LineChart({ title, series }) {
   const svgRef = useRef(null);
   const [hover, setHover] = useState(null); // {i, x, y, date, value}
@@ -123,7 +123,8 @@ function LineChart({ title, series }) {
   const miny = Math.min(...ys, 0);
   const maxy = Math.max(...ys, 1);
 
-  const fx = (i) => p + (i) * (w - 2 * p) / Math.max(1, maxx);
+  const stepX = (w - 2 * p) / Math.max(1, maxx);
+  const fx = (i) => p + i * stepX;
   const fy = (v) => h - p - (maxy === miny ? 0 : (v - miny) * (h - 2 * p) / (maxy - miny));
   const d = ys.length ? ys.map((y, i) => `${i ? 'L' : 'M'} ${fx(i)} ${fy(y)}`).join(' ') : '';
 
@@ -131,13 +132,11 @@ function LineChart({ title, series }) {
     if (!svgRef.current || !data.length) return;
     const rect = svgRef.current.getBoundingClientRect();
     const relX = e.clientX - rect.left;
-    let bestI = 0, bestDist = Infinity;
-    for (let i = 0; i < data.length; i++) {
-      const dx = Math.abs(fx(i) - relX);
-      if (dx < bestDist) { bestDist = dx; bestI = i; }
-    }
-    const pt = data[bestI]; if (!pt) return;
-    setHover({ i:bestI, x:fx(bestI), y:fy(pt.value||0), date:pt.date, value:pt.value||0 });
+    // прямой перевод координаты в индекс (избегает рассинхронизации при растяжении)
+    let i = Math.round((relX - p) / stepX);
+    i = Math.max(0, Math.min(data.length - 1, i));
+    const pt = data[i];
+    setHover({ i, x: fx(i), y: fy(pt.value || 0), date: pt.date, value: pt.value || 0 });
   }
 
   return (
@@ -178,8 +177,8 @@ function LineChart({ title, series }) {
 }
 
 export default function FinanceChartsRow() {
-  const [range, setRange] = useState(30); // 7/30/90
-  const { loading, expenses, incomes, overview, health } = useFinanceSeries(range);
+  const [range, setRange] = useState(30);
+  const { expenses, incomes, overview, health } = useFinanceSeries(range);
 
   const sumExp = useMemo(() => expenses.reduce((s, p) => s + (p.value || 0), 0), [expenses]);
   const sumInc = useMemo(() => incomes.reduce((s, p) => s + (p.value || 0), 0), [incomes]);
