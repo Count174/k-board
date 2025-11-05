@@ -3,54 +3,123 @@ import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { get } from '../../api/api';
 import styles from './DashboardHero.module.css';
-import { Wallet, Activity, LineChart as LineIcon, Dumbbell } from 'lucide-react';
+import { Wallet, Activity, LineChart, Dumbbell } from 'lucide-react';
 
-// Мини-спарклайн (адаптивный, без искажения окружностей, с лёгким сглаживанием)
+/* ========= УМНЫЙ СПАРКЛАЙН =========
+ * — заполняет всю ширину контейнера
+ * — сглаживание Catmull-Rom → Bezier
+ * — при малом числе точек (<8) «апсемплит» до 8
+ * — корректно рисует 1–2 точки (только точки, без лишней линии)
+ */
 function Sparkline({ points = [], height = 64 }) {
   if (!points.length) return null;
 
-  // ViewBox фиксированный, SVG сам тянется по ширине контейнера без искажений
-  const W = Math.max(160, points.length * 28);
-  const H = Math.max(48, height);
+  // 1) если точек мало — апсемплинг до targetN (визуально приятнее)
+  const targetN = Math.max(8, points.length);
+  const upsampled = [];
+  if (points.length < targetN && points.length > 1) {
+    const steps = targetN - 1;
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps; // 0..1
+      const pos = t * (points.length - 1);
+      const i0 = Math.floor(pos);
+      const i1 = Math.min(points.length - 1, i0 + 1);
+      const frac = pos - i0;
+      const v = points[i0] + (points[i1] - points[i0]) * frac;
+      upsampled.push(v);
+    }
+  } else {
+    upsampled.push(...points);
+  }
 
-  // защита от плоской линии — добавим "паддинг" по Y
-  const minVal = Math.min(...points);
-  const maxVal = Math.max(...points);
-  const range = Math.max(1, maxVal - minVal);
-  const pad = range * 0.12; // 12% паддинг по Y
-  const yMin = minVal - pad;
-  const yMax = maxVal + pad;
+  const w = Math.max(200, upsampled.length * 16); // ширина viewBox растёт с числом точек
+  const min = Math.min(...upsampled);
+  const max = Math.max(...upsampled);
+  const range = Math.max(1, max - min);
 
-  const fx = (i) => 12 + (i * (W - 24)) / Math.max(1, points.length - 1);
-  const fy = (v) => H - 10 - ((v - yMin) / Math.max(1, yMax - yMin)) * (H - 20);
+  const padX = 12;
+  const padY = 10;
+  const h = height;
 
-  // лёгкое сглаживание (квадратичные Безье между соседями)
-  const d = points.map((v, i) => {
-    const x = fx(i), y = fy(v);
-    if (i === 0) return `M ${x} ${y}`;
-    const px = fx(i - 1), py = fy(points[i - 1]);
-    const cx = (px + x) / 2; // mid-control для плавности
-    return `Q ${cx} ${py}, ${x} ${y}`;
-  }).join(' ');
+  const fx = (i) => {
+    const n = upsampled.length - 1 || 1;
+    return padX + (i * (w - 2 * padX)) / n;
+  };
+  const fy = (v) =>
+    h - padY - ((v - min) / range) * (h - 2 * padY);
+
+  // 2) Catmull-Rom → Bezier
+  function toBezierPath(vals) {
+    if (vals.length === 1) return '';
+    if (vals.length === 2) {
+      return `M ${fx(0)} ${fy(vals[0])} L ${fx(1)} ${fy(vals[1])}`;
+    }
+    const pts = vals.map((v, i) => ({ x: fx(i), y: fy(v) }));
+    let d = `M ${pts[0].x} ${pts[0].y}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] || pts[i];
+      const p1 = pts[i];
+      const p2 = pts[i + 1];
+      const p3 = pts[i + 2] || p2;
+
+      const cp1x = p1.x + (p2.x - p0.x) / 6;
+      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6;
+      const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+      d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
+    }
+    return d;
+  }
+
+  const d = toBezierPath(upsampled);
+
+  // 3) одиночная/двойная точка — не рисуем «лишнюю» линию
+  const drawDotsOnly = points.length <= 2;
 
   return (
-    <svg className={styles.spark} viewBox={`0 0 ${W} ${H}`}>
-      {/* мягкое свечение под линией */}
-      <defs>
-        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-          <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
-          <feMerge>
-            <feMergeNode in="coloredBlur"/>
-            <feMergeNode in="SourceGraphic"/>
-          </feMerge>
-        </filter>
-      </defs>
-
-      <path d={d} fill="none" stroke="rgba(168, 176, 255, .9)" strokeWidth="2.5" filter="url(#glow)"/>
-      {points.map((v, i) => (
-        <circle key={i} cx={fx(i)} cy={fy(v)} r="2.6" fill="#fff" fillOpacity="0.92"/>
-      ))}
-    </svg>
+    <div className={styles.sparkWrap}>
+      <svg
+        className={styles.spark}
+        viewBox={`0 0 ${w} ${h}`}
+        preserveAspectRatio="none"
+      >
+        {/* мягкое свечение под линией */}
+        {!drawDotsOnly && (
+          <path
+            d={d}
+            fill="none"
+            stroke="rgba(123,132,255,0.35)"
+            strokeWidth="6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ filter: 'blur(1.2px)' }}
+          />
+        )}
+        {/* основная линия */}
+        {!drawDotsOnly && (
+          <path
+            d={d}
+            fill="none"
+            stroke="currentColor"
+            strokeOpacity="0.9"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        )}
+        {/* точки */}
+        {upsampled.map((v, i) => (
+          <circle
+            key={i}
+            cx={fx(i)}
+            cy={fy(v)}
+            r={drawDotsOnly ? 3.2 : 2.8}
+            fill="#fff"
+          />
+        ))}
+      </svg>
+    </div>
   );
 }
 
@@ -73,21 +142,21 @@ export default function DashboardHero() {
 
   useEffect(() => {
     async function load() {
+      // финансы текущего месяца
       const monthEnd = dayjs().format('YYYY-MM-DD');
       const monthStart = dayjs().startOf('month').format('YYYY-MM-DD');
 
-      // берём все финансы и фильтруем по текущему месяцу
+      // берём все финансы и фильтруем текущий месяц
       const rows = await get('finances');
-      const curMonth = (rows || []).filter(r => String(r.date).slice(0,7) === dayjs().format('YYYY-MM'));
+      const curMonth = rows.filter(r => String(r.date).slice(0,7) === dayjs().format('YYYY-MM'));
 
       const byDay = {};
       for (const r of curMonth) {
         const d = String(r.date).slice(0,10);
         if (!byDay[d]) byDay[d] = { income: 0, expense: 0 };
-        if (r.type === 'income') byDay[d].income += Number(r.amount)||0;
+        if (r.type === 'income')  byDay[d].income  += Number(r.amount)||0;
         if (r.type === 'expense') byDay[d].expense += Math.abs(Number(r.amount)||0);
       }
-
       const days = [];
       let sumExp = 0, sumInc = 0;
       for (let d = dayjs(monthStart); d.isSame(dayjs(monthEnd)) || d.isBefore(dayjs(monthEnd)); d = d.add(1,'day')) {
@@ -97,13 +166,13 @@ export default function DashboardHero() {
         sumExp += val.expense; sumInc += val.income;
       }
 
-      // бюджеты на месяц (если эндпоинта нет — просто покажем "—")
+      // бюджеты
       let budgetTotal = 0;
       try {
         const month = dayjs().format('YYYY-MM');
         const budgets = await get(`budgets?month=${month}`);
         if (Array.isArray(budgets)) budgetTotal = budgets.reduce((s,b)=>s+Number(b.amount||0),0);
-      } catch {}
+      } catch { /* noop */ }
 
       const dim = dayjs().daysInMonth();
       const avgDaily = days.length ? sumExp / days.length : 0;
@@ -116,10 +185,11 @@ export default function DashboardHero() {
         forecast: Math.round(forecast),
         budgetTotal,
         budgetPct,
-        spark: days.map(x => x.expense)
+        // для спарклайна берём последние 5 значений расходов (или меньше)
+        spark: days.slice(-5).map(x => x.expense)
       });
 
-      // скоринг за 7 дней
+      // скоринг (7 дней)
       const end = dayjs().format('YYYY-MM-DD');
       const start7 = dayjs().subtract(6,'day').format('YYYY-MM-DD');
       const d7 = await get(`analytics/score?start=${start7}&end=${end}`);
@@ -180,9 +250,8 @@ export default function DashboardHero() {
           </div>
         </div>
 
-        <div className={styles.sparkWrap}>
-          <Sparkline points={finance.spark}/>
-        </div>
+        {/* новый адаптивный мини-график */}
+        <Sparkline points={finance.spark} />
       </div>
 
       <div className={styles.rightCard}>
@@ -192,7 +261,7 @@ export default function DashboardHero() {
         </div>
 
         <div className={styles.statsCol}>
-          <Stat icon={LineIcon} label="Сон" value={`${sleepAvg} ч/д`} sub="цель 7–8 ч"/>
+          <Stat icon={LineChart} label="Сон" value={`${sleepAvg} ч/д`} sub="цель 7–8 ч"/>
           <Stat icon={Dumbbell} label="Тренировки" value={workoutsLine} sub="из плановых"/>
           <Stat icon={Activity} label="Consistency" value={consistency} />
         </div>
