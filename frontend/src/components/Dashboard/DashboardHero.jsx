@@ -1,59 +1,54 @@
-// src/components/dashboard/DashboardHero.jsx
 import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import { get } from '../../api/api';
 import styles from './DashboardHero.module.css';
 import { Wallet, Activity, LineChart, Dumbbell } from 'lucide-react';
 
-/* ========= УМНЫЙ СПАРКЛАЙН =========
- * — заполняет всю ширину контейнера
- * — сглаживание Catmull-Rom → Bezier
- * — при малом числе точек (<8) «апсемплит» до 8
- * — корректно рисует 1–2 точки (только точки, без лишней линии)
+/** ====== Гладкий спарклайн в стиле референса ======
+ * — заполняет ширину контейнера (preserveAspectRatio="none")
+ * — Catmull–Rom → Bezier для плавности
+ * — лёгкое свечение + полупрозрачный градиент под линией
+ * — апсемплинг до min 24 точек для «густоты» при малом числе входных
+ * — при 1–2 точках линия не рисуется, только точки
  */
-function Sparkline({ points = [], height = 64 }) {
+function Sparkline({ points = [], height = 72 }) {
   if (!points.length) return null;
 
-  // 1) если точек мало — апсемплинг до targetN (визуально приятнее)
-  const targetN = Math.max(8, points.length);
-  const upsampled = [];
-  if (points.length < targetN && points.length > 1) {
+  // апсемплинг (визуально приятнее, когда точек 5–12)
+  const targetN = Math.max(24, points.length);
+  const up = [];
+  if (points.length > 1 && points.length < targetN) {
     const steps = targetN - 1;
     for (let i = 0; i <= steps; i++) {
-      const t = i / steps; // 0..1
+      const t = i / steps;
       const pos = t * (points.length - 1);
       const i0 = Math.floor(pos);
       const i1 = Math.min(points.length - 1, i0 + 1);
-      const frac = pos - i0;
-      const v = points[i0] + (points[i1] - points[i0]) * frac;
-      upsampled.push(v);
+      const f = pos - i0;
+      up.push(points[i0] + (points[i1] - points[i0]) * f);
     }
   } else {
-    upsampled.push(...points);
+    up.push(...points);
   }
 
-  const w = Math.max(200, upsampled.length * 16); // ширина viewBox растёт с числом точек
-  const min = Math.min(...upsampled);
-  const max = Math.max(...upsampled);
-  const range = Math.max(1, max - min);
-
-  const padX = 12;
-  const padY = 10;
+  const w = Math.max(320, up.length * 18); // плотность точки по ширине
   const h = height;
+  const px = 14, py = 12;
+
+  const min = Math.min(...up);
+  const max = Math.max(...up);
+  const rng = Math.max(1, max - min);
 
   const fx = (i) => {
-    const n = upsampled.length - 1 || 1;
-    return padX + (i * (w - 2 * padX)) / n;
+    const n = Math.max(1, up.length - 1);
+    return px + (i * (w - 2 * px)) / n;
   };
-  const fy = (v) =>
-    h - padY - ((v - min) / range) * (h - 2 * padY);
+  const fy = (v) => h - py - ((v - min) / rng) * (h - 2 * py);
 
-  // 2) Catmull-Rom → Bezier
-  function toBezierPath(vals) {
+  // Catmull–Rom → Bezier
+  const toBezier = (vals) => {
     if (vals.length === 1) return '';
-    if (vals.length === 2) {
-      return `M ${fx(0)} ${fy(vals[0])} L ${fx(1)} ${fy(vals[1])}`;
-    }
+    if (vals.length === 2) return `M ${fx(0)} ${fy(vals[0])} L ${fx(1)} ${fy(vals[1])}`;
     const pts = vals.map((v, i) => ({ x: fx(i), y: fy(v) }));
     let d = `M ${pts[0].x} ${pts[0].y}`;
     for (let i = 0; i < pts.length - 1; i++) {
@@ -70,12 +65,10 @@ function Sparkline({ points = [], height = 64 }) {
       d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
     }
     return d;
-  }
+  };
 
-  const d = toBezierPath(upsampled);
-
-  // 3) одиночная/двойная точка — не рисуем «лишнюю» линию
-  const drawDotsOnly = points.length <= 2;
+  const pathD = toBezier(up);
+  const dotsOnly = points.length <= 2;
 
   return (
     <div className={styles.sparkWrap}>
@@ -84,37 +77,64 @@ function Sparkline({ points = [], height = 64 }) {
         viewBox={`0 0 ${w} ${h}`}
         preserveAspectRatio="none"
       >
-        {/* мягкое свечение под линией */}
-        {!drawDotsOnly && (
+        <defs>
+          {/* мягкий градиент под линией */}
+          <linearGradient id="heroLineGrad" x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="rgba(132,139,255,0.25)" />
+            <stop offset="100%" stopColor="rgba(132,139,255,0.00)" />
+          </linearGradient>
+          {/* размытие для свечения */}
+          <filter id="heroGlow" x="-30%" y="-30%" width="160%" height="160%">
+            <feGaussianBlur stdDeviation="2.2" result="coloredBlur" />
+            <feMerge>
+              <feMergeNode in="coloredBlur" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        {/* заполнение под линией */}
+        {!dotsOnly && (
           <path
-            d={d}
+            d={`${pathD} L ${fx(up.length - 1)} ${h - py} L ${fx(0)} ${h - py} Z`}
+            fill="url(#heroLineGrad)"
+            stroke="none"
+          />
+        )}
+
+        {/* свечение (толстая линия, полупрозрачная) */}
+        {!dotsOnly && (
+          <path
+            d={pathD}
             fill="none"
-            stroke="rgba(123,132,255,0.35)"
+            stroke="rgba(144,152,255,0.35)"
             strokeWidth="6"
             strokeLinecap="round"
             strokeLinejoin="round"
-            style={{ filter: 'blur(1.2px)' }}
+            filter="url(#heroGlow)"
           />
         )}
+
         {/* основная линия */}
-        {!drawDotsOnly && (
+        {!dotsOnly && (
           <path
-            d={d}
+            d={pathD}
             fill="none"
-            stroke="currentColor"
+            stroke="#C9CBFF"
             strokeOpacity="0.9"
-            strokeWidth="2.5"
+            strokeWidth="2.4"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
         )}
+
         {/* точки */}
-        {upsampled.map((v, i) => (
+        {up.map((v, i) => (
           <circle
             key={i}
             cx={fx(i)}
             cy={fy(v)}
-            r={drawDotsOnly ? 3.2 : 2.8}
+            r={dotsOnly ? 3.1 : 2.6}
             fill="#fff"
           />
         ))}
@@ -185,8 +205,8 @@ export default function DashboardHero() {
         forecast: Math.round(forecast),
         budgetTotal,
         budgetPct,
-        // для спарклайна берём последние 5 значений расходов (или меньше)
-        spark: days.slice(-5).map(x => x.expense)
+        // берём 5–10 последних значений расходов для мини-графика
+        spark: days.slice(-10).map(x => x.expense)
       });
 
       // скоринг (7 дней)
@@ -250,7 +270,7 @@ export default function DashboardHero() {
           </div>
         </div>
 
-        {/* новый адаптивный мини-график */}
+        {/* красивый график */}
         <Sparkline points={finance.spark} />
       </div>
 

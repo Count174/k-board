@@ -55,3 +55,15 @@
   .statLabel{ color:#9aa0b4; font-size:12px; }
   .statValue{ color:#fff; font-weight:700; }
   .statSub{ color:#a8acc2; font-size:12px; }
+.sparkWrap {
+  width: 100%;
+  height: 80px;
+  margin-top: 12px;
+  overflow: hidden;
+}
+.spark {
+  width: 100%;
+  height: 100%;
+  display: block;
+  color: #c9cbff; /* цвет основной линии */
+}
