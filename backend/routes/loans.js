@@ -3,13 +3,11 @@ const router = express.Router();
 const auth = require('../middleware/authMiddleware');
 const ctrl = require('../controllers/loansController');
 
-router.use(auth);
-
-router.get('/', ctrl.list);                // активные кредиты с вычисленными полями
-router.get('/summary', ctrl.summary);      // агрегаты: DTI, ежемесячно, остаток, ближайшие платежи
-router.post('/', ctrl.upsert);             // создать
-router.patch('/:id', ctrl.upsert);         // обновить
-router.delete('/:id', ctrl.remove);        // закрыть (is_closed=1)
-router.post('/:id/payments', ctrl.addPayment); // зафиксировать платёж
+router.get('/', auth, ctrl.list);
+router.post('/', auth, ctrl.create);
+router.patch('/:id', auth, ctrl.update);
+router.post('/:id/pay', auth, ctrl.payOneMonth);       // «заплатить месяц» (amount опционально)
+router.post('/:id/prepay-full', auth, ctrl.prepayFull); // досрочно закрыть полностью
+router.delete('/:id', auth, ctrl.remove);
 
 module.exports = router;
