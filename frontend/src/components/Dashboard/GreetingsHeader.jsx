@@ -1,7 +1,7 @@
 // src/components/GreetingsHeader/GreetingsHeader.jsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import styles from './GreetingsHeader.module.css';
-import { User } from 'lucide-react';
+import { User, Link2, LogOut, History, Sparkles } from 'lucide-react';
 import dayjs from 'dayjs';
 import { get } from '../../api/api';
 
@@ -55,7 +55,7 @@ function useScoreData() {
           // финансы
           const fScore = Math.round(br.finance?.score ?? 0);
 
-          // consistency вместо engagement
+          // consistency
           const cScore = Math.round(br.consistency?.score ?? 0);
           const cStreak = br.consistency?.streak ?? 0;
 
@@ -194,8 +194,8 @@ function ScorePill() {
             <div className={styles.splitCard}>
               <div className={styles.splitTitle}>Здоровье</div>
               <ul className={styles.bullets}>
-              <li>Сон: {detail?.sleepAvg ?? 0} ч/д (по {detail?.sleepDays ?? 0} дн.)</li>
-              <li>Тренировки: {detail?.workoutsDone ?? 0} из {detail?.workoutsTarget ?? 0}</li>
+                <li>Сон: {detail?.sleepAvg ?? 0} ч/д (по {detail?.sleepDays ?? 0} дн.)</li>
+                <li>Тренировки: {detail?.workoutsDone ?? 0} из {detail?.workoutsTarget ?? 0}</li>
                 {detail && detail.sleepAvg < 7 && (
                   <li className={styles.noteWarn}>Спишь меньше 7 ч/д — попробуй лечь на 30–45 мин раньше.</li>
                 )}
@@ -232,16 +232,31 @@ function ScorePill() {
 
 /* ================= Header ================= */
 
+function LogoMark() {
+  // маленький “цветок” как в бренде, без изображений
+  return (
+    <div className={styles.logoMark} aria-hidden="true">
+      <span className={styles.petalA} />
+      <span className={styles.petalB} />
+      <span className={styles.petalC} />
+      <span className={styles.petalD} />
+      <span className={styles.center} />
+    </div>
+  );
+}
+
 function GreetingsHeader({ user, onConnectClick, onLogout }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef();
 
-  const today = new Date();
-  const formattedDate = today.toLocaleDateString('ru-RU', {
-    weekday: 'long',
-    day: 'numeric',
-    month: 'long',
-  });
+  const formattedDate = useMemo(() => {
+    const today = new Date();
+    return today.toLocaleDateString('ru-RU', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -256,24 +271,60 @@ function GreetingsHeader({ user, onConnectClick, onLogout }) {
   return (
     <div className={styles.container}>
       <div className={styles.left}>
-        <div className={styles.greeting}>Добрый день, {user?.name || 'друг'} 👋</div>
-        <div className={styles.date}>{formattedDate}</div>
+        <div className={styles.brandRow}>
+          <LogoMark />
+          <div className={styles.brandText}>
+            <div className={styles.brandTitle}>
+              Oubaitori <span className={styles.brandDot}>·</span> Bloom in your own time
+            </div>
+            <div className={styles.brandSub}>Personal dashboard for mindful growth</div>
+          </div>
+        </div>
+
+        <div className={styles.greetingRow}>
+          <div className={styles.greeting}>Добрый день, {user?.name || 'друг'} 👋</div>
+          <div className={styles.date}>{formattedDate}</div>
+        </div>
       </div>
 
       <div className={styles.right}>
         <ScorePill />
+
         <div className={styles.profileWrapper} ref={dropdownRef}>
-          <button className={styles.profileButton} onClick={() => setDropdownOpen(!dropdownOpen)}>
-            <User size={24} color="white" />
+          <button
+            className={styles.profileButton}
+            onClick={() => setDropdownOpen(!dropdownOpen)}
+            aria-label="Открыть меню профиля"
+          >
+            <User size={18} />
           </button>
+
           {dropdownOpen && (
             <div className={styles.dropdown}>
-              <button onClick={() => { setDropdownOpen(false); onConnectClick(); }}>
+              <button
+                onClick={() => { setDropdownOpen(false); onConnectClick(); }}
+                className={styles.dropItem}
+              >
+                <Link2 size={16} />
                 Подключить Telegram-бота
               </button>
-              <button onClick={onLogout}>Выйти</button>
-              <button onClick={() => { setDropdownOpen(false); window.location.href = '/k-board/history'; }}>
+
+              <button
+                onClick={() => { setDropdownOpen(false); window.location.href = '/k-board/history'; }}
+                className={styles.dropItem}
+              >
+                <History size={16} />
                 История пользователя
+              </button>
+
+              <div className={styles.dropDivider} />
+
+              <button
+                onClick={() => { setDropdownOpen(false); onLogout(); }}
+                className={`${styles.dropItem} ${styles.dropDanger}`}
+              >
+                <LogOut size={16} />
+                Выйти
               </button>
             </div>
           )}
