@@ -19,9 +19,7 @@ const PRESETS = [
 ];
 
 function presetSrc(key) {
-  // положи 10 картинок сюда:
-  // public/assets/goals/goal-01.jpg ... goal-10.jpg
-  return `/assets/goals/${key}.jpg`;
+  return `${import.meta.env.BASE_URL}assets/goals/${key}.jpg`;
 }
 
 function formatMoney(v) {
