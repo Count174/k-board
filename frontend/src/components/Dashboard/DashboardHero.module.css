@@ -45,9 +45,52 @@
   .label{ color:#9aa0b4; font-size:12px; }
   .value{ display:block; color:#fff; font-size:18px; font-weight:700; margin-top:2px; }
   
-  .sparkWrap{ margin-top:8px; }
-  .spark{ width:100%; height:36px; color:#aeb2ff; }
-  .spark circle{ fill:#fff; opacity:.9 }
+.sparkWrap{
+  width: 100%;
+  height: 120px;
+  margin-top: 12px;
+  overflow: visible; /* важно, иначе тултип режется */
+}
+
+.sparkBody{
+  position: relative;
+  height: 100%;
+}
+
+.spark{
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.sparkTooltip{
+  position: absolute;
+  z-index: 10;
+  transform: translate(-12%, -120%);
+  pointer-events: none;
+  background: rgba(17,17,24,.96);
+  border: 1px solid rgba(255,255,255,.08);
+  box-shadow: 0 10px 24px rgba(0,0,0,.35);
+  padding: 8px 10px;
+  border-radius: 12px;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.tipDate{
+  font-size: 12px;
+  color: #aeb2ff;
+  margin-bottom: 2px;
+}
+.tipVal{
+  font-weight: 700;
+}
+
+.sparkEmpty{
+  color: #9aa0b4;
+  font-size: 12px;
+  margin-top: 12px;
+}
   
   .statsCol{ display:grid; gap:8px; }
   .stat{ display:flex; gap:10px; align-items:flex-start; padding:10px 12px; border-radius:14px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.06); }
@@ -55,15 +98,11 @@
   .statLabel{ color:#9aa0b4; font-size:12px; }
   .statValue{ color:#fff; font-weight:700; }
   .statSub{ color:#a8acc2; font-size:12px; }
-.sparkWrap {
-  width: 100%;
-  height: 80px;
-  margin-top: 12px;
-  overflow: hidden;
-}
-.spark {
-  width: 100%;
-  height: 100%;
-  display: block;
-  color: #c9cbff; /* цвет основной линии */
-}
+
+  .sub{
+    display: block;
+    margin-top: 6px;
+    font-size: 12px;
+    color: #aeb2ff;
+    opacity: .9;
+  }
