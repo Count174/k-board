@@ -43,8 +43,8 @@ exports.getByPeriod = (req, res) => {
     `SELECT id, type, category, amount, date(date) AS date
        FROM finances
       WHERE user_id = ?
-        AND date(date) >= ?
-        AND date(date) <= ?
+        AND date(date) >= date(?)
+        AND date(date) <= date(?)
       ORDER BY date(date) DESC, id DESC
       LIMIT ? OFFSET ?`,
     [req.userId, start, end, limit, offset],
@@ -123,8 +123,8 @@ exports.getRange = async (req, res) => {
       `SELECT date(date) AS date, type, amount, category, id
          FROM finances
         WHERE user_id = ?
-          AND date(date) >= ?
-          AND date(date) <= ?
+          AND date(date) >= date(?)
+          AND date(date) <= date(?)
         ORDER BY date(date), id`,
       [req.userId, start, end]
     );
