@@ -5,7 +5,10 @@ const authMiddleware = require('../middleware/authMiddleware');
 
 router.get('/', authMiddleware, controller.getAll);
 router.post('/', authMiddleware, controller.create);
-router.post('/:id', authMiddleware, controller.update);
 router.delete('/:id', authMiddleware, controller.remove);
+
+router.get('/due-checkins', authMiddleware, controller.getDueCheckins);
+router.get('/:id/checkins', authMiddleware, controller.getCheckins);
+router.post('/:id/checkins', authMiddleware, controller.createCheckin);
 
 module.exports = router;
