@@ -24,10 +24,24 @@ const loansRoutes = require('./routes/loans')
 const historyRoutes = require('./routes/history');
 
 app.set('trust proxy', 1); // доверие первому прокси (nginx)
+const allowedOrigins = new Set([
+  'https://oubaitori.ru',
+  'https://www.oubaitori.ru',
+  'https://k-board.whoiskirya.ru', // временно, пока редиректы/миграция
+]);
+
 app.use(cors({
-  origin: 'https://k-board.whoiskirya.ru',
-  credentials: true
+  origin(origin, cb) {
+    if (!origin) return cb(null, true);
+    if (allowedOrigins.has(origin)) return cb(null, true);
+    return cb(new Error(`CORS blocked: ${origin}`));
+  },
+  credentials: true,
 }));
+app.use((req, res, next) => {
+  res.header('Vary', 'Origin');
+  next();
+});
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -52,12 +66,6 @@ app.use('/api/history', historyRoutes);
 // Статика фронта
 app.use('/k-board/images', express.static(path.join(publicPath, 'images')));
 
-app.use('/k-board', express.static(frontendPath));
-
-// ⚠️ SPA-роутинг должен быть ПОСЛЕ API и статики
-app.get('/k-board/*', (req, res) => {
-  res.sendFile(path.join(frontendPath, 'index.html'));
-});
 
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
