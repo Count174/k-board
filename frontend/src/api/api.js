@@ -1,39 +1,61 @@
-const BASE_URL = '/k-board/api'; 
+const BASE_URL = '/api';
 
-export const get = async (endpoint) => {
-  const res = await fetch(`${BASE_URL}/${endpoint}`, {
-    credentials: 'include',
-  });
-  if (!res.ok) throw new Error(`Ошибка: ${res.status}`);
-  return res.json();
-};
+function joinUrl(base, endpoint) {
+  const ep = String(endpoint || '').trim();
+  if (!ep) return base;
+  return ep.startsWith('/') ? `${base}${ep}` : `${base}/${ep}`;
+}
 
-export async function post(endpoint, body) {
-  const res = await fetch(`/k-board/api/${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify(body)
-  });
-
+async function parseJsonOrEmpty(res) {
   const text = await res.text();
-
-  if (!res.ok) {
-    throw new Error(text || 'Ошибка запроса');
-  }
-
-  // Если тело пустое — вернём {}
+  if (!text) return {};
   try {
-    return text ? JSON.parse(text) : {};
+    return JSON.parse(text);
   } catch {
     return {};
   }
 }
 
+export const get = async (endpoint) => {
+  const res = await fetch(joinUrl(BASE_URL, endpoint), {
+    credentials: 'include',
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || `Ошибка: ${res.status}`);
+  }
+
+  return res.json();
+};
+
+export async function post(endpoint, body) {
+  const res = await fetch(joinUrl(BASE_URL, endpoint), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body ?? {}),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || 'Ошибка запроса');
+  }
+
+  return parseJsonOrEmpty(res);
+}
+
 export const remove = async (endpoint) => {
-  const res = await fetch(`${BASE_URL}/${endpoint}`, {
+  const res = await fetch(joinUrl(BASE_URL, endpoint), {
     method: 'DELETE',
     credentials: 'include',
   });
-  if (!res.ok) throw new Error(`Ошибка удаления: ${res.status}`);
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || `Ошибка удаления: ${res.status}`);
+  }
+
+  // DELETE часто возвращает 204 No Content
+  return;
 };
