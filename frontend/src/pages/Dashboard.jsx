@@ -29,7 +29,7 @@ export default function Dashboard() {
 
   const handleLogout = async () => {
     await post('auth/logout');
-    window.location.href = '/k-board/login';
+    window.location.href = '/login';
   };
 
   return (

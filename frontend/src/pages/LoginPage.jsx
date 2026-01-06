@@ -16,7 +16,7 @@ export default function LoginPage() {
     try {
       const res = await post('auth/login', { email, password });
       if (res.success) {
-        navigate('/');
+        navigate('/dashboard', { replace: true });
       } else {
         setError(res.error || 'Ошибка авторизации');
       }
@@ -27,10 +27,11 @@ export default function LoginPage() {
 
   return (
     <div className={styles.authContainer}>
-      <h2 className={styles.title}>Войти в k-board</h2>
+      <h2 className={styles.title}>Войти в oubaitori</h2>
       <p className={styles.subtext}>
-        или <a href="/k-board/register">зарегистрироваться</a>
+        или <a href="/register">зарегистрироваться</a>
       </p>
+
       <form onSubmit={handleLogin} className={styles.form}>
         <input
           type="email"
@@ -49,6 +50,7 @@ export default function LoginPage() {
         {error && <div className={styles.error}>{error}</div>}
         <button type="submit" className={styles.primaryButton}>Sign in</button>
       </form>
+
       <p className={styles.forgot}>
         <a href="#">Forgotten your password?</a>
       </p>
