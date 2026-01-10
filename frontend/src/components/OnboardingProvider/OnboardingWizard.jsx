@@ -161,31 +161,53 @@ function MedsStep({ payload, onNext, onBack }) {
   const makeFrequency = (daysArr) =>
     Array.isArray(daysArr) && daysArr.length ? `dow:${daysArr.slice().sort((a,b)=>a-b).join(',')}` : 'daily';
 
-  const addMedication = () => {
-    // валидации: имя и хотя бы одно время
-    if (!name.trim()) return;
-    const finalTimes = times.length ? times : (timeInput && /^\d{2}:\d{2}$/.test(timeInput) ? [timeInput] : []);
-    if (!finalTimes.length) return;
+  const normalizeTime = (t) => {
+    const s = String(t || "").trim();
+    if (!s) return "";
+    // допускаем "9:00" -> "09:00"
+    const m = s.match(/^(\d{1,2}):(\d{2})$/);
+    if (!m) return "";
+    const hh = String(Math.min(23, Math.max(0, Number(m[1])))).padStart(2, "0");
+    const mm = String(Math.min(59, Math.max(0, Number(m[2])))).padStart(2, "0");
+    return `${hh}:${mm}`;
+  };
+  
+  const canAutoAdd = () => {
+    const n = name.trim();
+    const hasTime = times.length > 0 || !!normalizeTime(timeInput);
+    return !!n && hasTime;
+  };
 
+  const addMedication = () => {
+    const n = name.trim();
+    if (!n) return null;
+  
+    const pending = normalizeTime(timeInput);
+    const finalTimes = times.length ? times : (pending ? [pending] : []);
+    if (!finalTimes.length) return null;
+  
     const item = {
-      name: name.trim(),
+      name: n,
       dosage: dosage.trim(),
       frequency: makeFrequency(days),
       times: finalTimes,
       start_date: startDate,
       end_date: endDate || null,
-      active: 1
+      active: 1,
     };
-    setItems(prev => [...prev, item]);
-
+  
+    setItems((prev) => [...prev, item]);
+  
     // сброс локальной формы
-    setName('');
-    setDosage('');
+    setName("");
+    setDosage("");
     setDays([]);
     setTimes([]);
-    setTimeInput('');
-    setStartDate(new Date().toISOString().slice(0,10));
-    setEndDate('');
+    setTimeInput("");
+    setStartDate(new Date().toISOString().slice(0, 10));
+    setEndDate("");
+  
+    return item;
   };
 
   const removeItem = (idx) => {
@@ -193,7 +215,17 @@ function MedsStep({ payload, onNext, onBack }) {
   };
 
   const proceed = () => {
-    // просто прокинем, бэк создаст записи
+    // Если в форме что-то введено — попробуем автодобавить
+    if (canAutoAdd()) {
+      const added = addMedication();
+      // если почему-то не добавилось — всё равно не блокируем переход
+      // (но можно подсветить ошибку, если захочешь)
+      const nextItems = added ? [...items, added] : items;
+      onNext({ meds: nextItems });
+      return;
+    }
+  
+    // Если форма пустая — просто идём дальше с тем, что уже есть
     onNext({ meds: items });
   };
 
@@ -328,7 +360,7 @@ function MedsStep({ payload, onNext, onBack }) {
 
       <div className={styles.actions}>
         <button className={styles.secondary} onClick={onBack}>Назад</button>
-        <button className={styles.primary} onClick={proceed} disabled={items.length===0}>
+        <button className={styles.primary} onClick={proceed}>
           Далее
         </button>
       </div>
