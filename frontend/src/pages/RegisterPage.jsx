@@ -1,18 +1,20 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import styles from '../styles/Auth.module.css';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+    setLoading(true);
 
     try {
-      const res = await fetch('/k-board/api/auth/register', {
+      const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -23,23 +25,32 @@ export default function RegisterPage() {
         }),
       });
 
+      const text = await res.text();
+      let json = {};
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        json = {};
+      }
+
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        setError(err.error || 'Ошибка регистрации');
+        setError(json.error || 'Ошибка регистрации');
         return;
       }
 
       // успешная регистрация => cookie уже выставлена на бэке
-      // ведём сразу в дэшборд (замените на ваш маршрут, если отличается)
-      navigate('/'); // или navigate('/') — как у вас устроено
+      navigate('/dashboard', { replace: true });
     } catch (err) {
       setError('Ошибка сети');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className={styles.authContainer}>
       <h2>Регистрация</h2>
+
       <form onSubmit={handleSubmit} className={styles.form}>
         <input
           type="text"
@@ -62,11 +73,16 @@ export default function RegisterPage() {
           onChange={(e) => setForm({ ...form, password: e.target.value })}
           required
         />
+
         {error && <p className={styles.error}>{error}</p>}
-        <button type="submit">Зарегистрироваться</button>
+
+        <button type="submit" disabled={loading}>
+          {loading ? 'Создаём аккаунт...' : 'Зарегистрироваться'}
+        </button>
       </form>
+
       <p>
-        Уже есть аккаунт? <a href="/k-board/login">Войти</a>
+        Уже есть аккаунт? <Link to="/login">Войти</Link>
       </p>
     </div>
   );
