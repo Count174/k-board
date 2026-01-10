@@ -1,7 +1,7 @@
 // src/components/GreetingsHeader/GreetingsHeader.jsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import styles from './GreetingsHeader.module.css';
-import { User, Link2, LogOut, History, Sparkles } from 'lucide-react';
+import { User, Link2, LogOut, History, Heart } from 'lucide-react';
 import dayjs from 'dayjs';
 import { get } from '../../api/api';
 
@@ -11,16 +11,15 @@ function useScoreData() {
   const [loading, setLoading] = useState(true);
   const [avg, setAvg] = useState(null);
   const [trend, setTrend] = useState(null);
-  const [detail, setDetail] = useState(null); // из breakdown за последние 7 дней
+  const [detail, setDetail] = useState(null);
 
   useEffect(() => {
     const end = dayjs().format('YYYY-MM-DD');
-    const start14 = dayjs().subtract(13, 'day').format('YYYY-MM-DD'); // 14 дней для тренда
-    const start7 = dayjs().subtract(6, 'day').format('YYYY-MM-DD');   // 7 дней для деталей
+    const start14 = dayjs().subtract(13, 'day').format('YYYY-MM-DD');
+    const start7 = dayjs().subtract(6, 'day').format('YYYY-MM-DD');
 
     async function load() {
       try {
-        // 1) 14 дней — средний скоринг и тренд
         const d14 = await get(`analytics/score?start=${start14}&end=${end}`);
         if (d14) {
           setAvg(d14.avg ?? null);
@@ -36,42 +35,22 @@ function useScoreData() {
           }
         }
 
-        // 2) 7 дней — детальная раскладка из breakdown
         const d7 = await get(`analytics/score?start=${start7}&end=${end}`);
         if (d7?.breakdown) {
           const br = d7.breakdown;
-
-          // Health subparts
-          const hScore = Math.round(br.health?.score ?? 0);
-
-          // сон: уже есть среднее и кол-во дней
-          const sleepAvg = Number((br.health?.sleep?.avg_hours_per_day ?? 0).toFixed(1));
-          const sleepDays = br.health?.sleep?.days_count ?? 0;
-
-          // тренировки: done_days / target_days
-          const workoutsDone = br.health?.workouts?.done_days ?? 0;
-          const workoutsTarget = br.health?.workouts?.target_days ?? 0;
-
-          // финансы
-          const fScore = Math.round(br.finance?.score ?? 0);
-
-          // consistency
-          const cScore = Math.round(br.consistency?.score ?? 0);
-          const cStreak = br.consistency?.streak ?? 0;
-
           setDetail({
-            health: hScore,
-            finance: fScore,
-            consistency: cScore,
-            consistencyStreak: cStreak,
-            sleepAvg,
-            sleepDays,
-            workoutsDone,
-            workoutsTarget,
+            health: Math.round(br.health?.score ?? 0),
+            finance: Math.round(br.finance?.score ?? 0),
+            consistency: Math.round(br.consistency?.score ?? 0),
+            consistencyStreak: br.consistency?.streak ?? 0,
+            sleepAvg: Number((br.health?.sleep?.avg_hours_per_day ?? 0).toFixed(1)),
+            sleepDays: br.health?.sleep?.days_count ?? 0,
+            workoutsDone: br.health?.workouts?.done_days ?? 0,
+            workoutsTarget: br.health?.workouts?.target_days ?? 0,
           });
         }
       } catch {
-        // no-op
+        // ignore
       } finally {
         setLoading(false);
       }
@@ -104,10 +83,12 @@ function ScorePill() {
 
   useEffect(() => {
     function onDocClick(e) {
-      if (!open) return;
       if (
-        popRef.current && !popRef.current.contains(e.target) &&
-        btnRef.current && !btnRef.current.contains(e.target)
+        open &&
+        popRef.current &&
+        !popRef.current.contains(e.target) &&
+        btnRef.current &&
+        !btnRef.current.contains(e.target)
       ) {
         setOpen(false);
       }
@@ -129,7 +110,6 @@ function ScorePill() {
   const stroke =
     pct >= 80 ? '#4ade80' : pct >= 60 ? '#facc15' : '#f87171';
 
-  // Сильная/слабая сфера по 7-дневной детализации
   let top = null, low = null;
   if (detail) {
     const arr = [
@@ -147,16 +127,20 @@ function ScorePill() {
       <button
         ref={btnRef}
         className={`${styles.scoreCard} ${levelClass}`}
-        title={`Средний скоринг: ${pct}%`}
         onClick={() => setOpen(v => !v)}
       >
         <div className={styles.scoreRing}>
-          <svg width="38" height="38" aria-hidden>
+          <svg width="38" height="38">
             <circle cx="19" cy="19" r={radius} stroke="rgba(255,255,255,.25)" strokeWidth="4" fill="none" />
             <circle
-              cx="19" cy="19" r={radius}
-              stroke={stroke} strokeWidth="4" fill="none"
-              strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round"
+              cx="19"
+              cy="19"
+              r={radius}
+              stroke={stroke}
+              strokeWidth="4"
+              fill="none"
+              strokeDasharray={`${dash} ${circ - dash}`}
+              strokeLinecap="round"
               style={{ transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }}
             />
           </svg>
@@ -189,41 +173,6 @@ function ScorePill() {
             <MiniBar label="Finance" value={detail?.finance ?? 0} />
             <MiniBar label="Consistency" value={detail?.consistency ?? 0} />
           </div>
-
-          <div className={styles.split}>
-            <div className={styles.splitCard}>
-              <div className={styles.splitTitle}>Здоровье</div>
-              <ul className={styles.bullets}>
-                <li>Сон: {detail?.sleepAvg ?? 0} ч/д (по {detail?.sleepDays ?? 0} дн.)</li>
-                <li>Тренировки: {detail?.workoutsDone ?? 0} из {detail?.workoutsTarget ?? 0}</li>
-                {detail && detail.sleepAvg < 7 && (
-                  <li className={styles.noteWarn}>Спишь меньше 7 ч/д — попробуй лечь на 30–45 мин раньше.</li>
-                )}
-              </ul>
-            </div>
-            <div className={styles.splitCard}>
-              <div className={styles.splitTitle}>Финансы</div>
-              <ul className={styles.bullets}>
-                <li>Оценка бюджета: {detail?.finance ?? 0}%</li>
-                {detail && detail.finance < 85 && (
-                  <li className={styles.noteWarn}>Есть риск перерасходов — проверь лимиты в «Бюджетах».</li>
-                )}
-              </ul>
-            </div>
-            <div className={styles.splitCard}>
-              <div className={styles.splitTitle}>Consistency</div>
-              <ul className={styles.bullets}>
-                <li>Серия «хороших» дней: {detail?.consistencyStreak ?? 0}</li>
-                {detail && detail.consistencyStreak < 3 && (
-                  <li className={styles.noteWarn}>Попробуй не прерывать цепочку 3+ дней подряд.</li>
-                )}
-              </ul>
-            </div>
-          </div>
-
-          <div className={styles.popFooter}>
-            <span className={styles.hint}>Нажми вне карточки, чтобы закрыть</span>
-          </div>
         </div>
       )}
     </div>
@@ -233,9 +182,8 @@ function ScorePill() {
 /* ================= Header ================= */
 
 function LogoMark() {
-  // маленький “цветок” как в бренде, без изображений
   return (
-    <div className={styles.logoMark} aria-hidden="true">
+    <div className={styles.logoMark}>
       <span className={styles.petalA} />
       <span className={styles.petalB} />
       <span className={styles.petalC} />
@@ -247,11 +195,10 @@ function LogoMark() {
 
 function GreetingsHeader({ user, onConnectClick, onLogout }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const dropdownRef = useRef();
+  const dropdownRef = useRef(null);
 
   const formattedDate = useMemo(() => {
-    const today = new Date();
-    return today.toLocaleDateString('ru-RU', {
+    return new Date().toLocaleDateString('ru-RU', {
       weekday: 'long',
       day: 'numeric',
       month: 'long',
@@ -282,7 +229,9 @@ function GreetingsHeader({ user, onConnectClick, onLogout }) {
         </div>
 
         <div className={styles.greetingRow}>
-          <div className={styles.greeting}>Добрый день, {user?.name || 'друг'} 👋</div>
+          <div className={styles.greeting}>
+            Добрый день, {user?.name || 'друг'} 👋
+          </div>
           <div className={styles.date}>{formattedDate}</div>
         </div>
       </div>
@@ -290,11 +239,21 @@ function GreetingsHeader({ user, onConnectClick, onLogout }) {
       <div className={styles.right}>
         <ScorePill />
 
+        <a
+          href="https://dalink.to/whoiskirya"
+          target="_blank"
+          rel="noopener noreferrer"
+          className={styles.supportBtn}
+          title="Поддержать проект"
+        >
+          <Heart size={16} />
+          Поддержать
+        </a>
+
         <div className={styles.profileWrapper} ref={dropdownRef}>
           <button
             className={styles.profileButton}
-            onClick={() => setDropdownOpen(!dropdownOpen)}
-            aria-label="Открыть меню профиля"
+            onClick={() => setDropdownOpen(v => !v)}
           >
             <User size={18} />
           </button>
@@ -310,7 +269,7 @@ function GreetingsHeader({ user, onConnectClick, onLogout }) {
               </button>
 
               <button
-                onClick={() => { setDropdownOpen(false); window.location.href = '/k-board/history'; }}
+                onClick={() => { setDropdownOpen(false); window.location.href = '/history'; }}
                 className={styles.dropItem}
               >
                 <History size={16} />
