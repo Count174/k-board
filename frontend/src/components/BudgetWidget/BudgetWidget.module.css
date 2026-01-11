@@ -38,3 +38,56 @@
     background:#4f46e5; border:none; color:#fff; padding:10px 16px; border-radius:10px; cursor:pointer;
   }
   .form button:hover { background:#4338ca; }
+
+  .card {
+    background:#2c2d35;
+    border-radius:12px;
+    padding:12px 14px;
+    position: relative;
+  }
+  
+  .headerRight {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  /* Кнопка выглядит органично: появляется только при hover/focus внутри карточки */
+  .deleteBtn {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    border-radius: 999px;
+    background: transparent;
+    color: #9aa0a6;
+    cursor: pointer;
+  
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-1px);
+    transition: opacity .15s ease, background .15s ease, color .15s ease;
+  }
+  
+  /* показываем на hover карточки (и когда кнопка в фокусе) */
+  .card:hover .deleteBtn,
+  .deleteBtn:focus-visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  
+  .deleteBtn:hover {
+    background: rgba(255, 255, 255, 0.06);
+    color: #e5e7eb;
+  }
+  
+  .deleteBtn:active {
+    background: rgba(255, 255, 255, 0.10);
+  }
+  
+  .deleteBtn:focus-visible {
+    outline: 2px solid rgba(79, 70, 229, 0.8);
+    outline-offset: 2px;
+  }

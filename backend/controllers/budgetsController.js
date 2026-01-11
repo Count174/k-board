@@ -55,7 +55,8 @@ exports.getStats = (req, res) => {
 
   db.all(
     `
-    SELECT b.category,
+    SELECT b.id,
+           b.category,
            b.amount AS budget,
            IFNULL(SUM(f.amount), 0) AS spent
     FROM budgets b
@@ -65,22 +66,22 @@ exports.getStats = (req, res) => {
      AND LOWER(TRIM(f.category)) = LOWER(TRIM(b.category))
      AND strftime('%Y-%m', f.date) = b.month
     WHERE b.user_id = ? AND b.month = ?
-    GROUP BY b.category, b.amount
+    GROUP BY b.id, b.category, b.amount
     `,
     [req.userId, month],
     (err, rows) => {
       if (err) return res.status(500).send(err);
 
-      // Простой прогноз: темп трат * кол-во дней в месяце
       const now = new Date();
       const [yy, mm] = month.split('-').map(Number);
-      const daysInMonth = new Date(yy, mm, 0).getDate(); // mm уже как 1–12
-      const currentDay = (yy === now.getFullYear() && mm === (now.getMonth()+1)) ? now.getDate() : daysInMonth;
+      const daysInMonth = new Date(yy, mm, 0).getDate();
+      const currentDay = (yy === now.getFullYear() && mm === (now.getMonth() + 1)) ? now.getDate() : daysInMonth;
 
       const stats = rows.map(r => {
         const dailyRate = currentDay ? (r.spent / currentDay) : 0;
         const forecast = +(dailyRate * daysInMonth).toFixed(2);
         return {
+          id: r.id,
           category: r.category,
           budget: r.budget,
           spent: r.spent,

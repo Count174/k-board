@@ -5,11 +5,12 @@ import { get, post, remove } from '../../api/api';
 export default function BudgetWidget() {
   const [month, setMonth] = useState(() => {
     const d = new Date();
-    const m = String(d.getMonth()+1).padStart(2, '0');
+    const m = String(d.getMonth() + 1).padStart(2, '0');
     return `${d.getFullYear()}-${m}`;
   });
   const [stats, setStats] = useState([]);
   const [form, setForm] = useState({ category: '', amount: '' });
+
   const reload = async () => {
     const s = await get(`budgets/stats?month=${month}`);
     setStats(s);
@@ -30,6 +31,26 @@ export default function BudgetWidget() {
     await post('budgets', { ...form, month });
     setForm({ category: '', amount: '' });
     await reload();
+  };
+
+  const onDelete = async (id, category) => {
+    if (!id) return;
+
+    const ok = window.confirm(`Удалить бюджет «${category}» за ${month}?`);
+    if (!ok) return;
+
+    // оптимистично убираем карточку
+    const prev = stats;
+    setStats(prev.filter(x => x.id !== id));
+
+    try {
+      await remove(`budgets/${id}`);
+      await reload(); // на всякий случай пересчёт
+    } catch (e) {
+      // откат
+      setStats(prev);
+      alert('Не удалось удалить бюджет. Попробуй ещё раз.');
+    }
   };
 
   return (
@@ -59,11 +80,34 @@ export default function BudgetWidget() {
             usedPct < 90 ? styles.warn : styles.danger;
 
           return (
-            <div key={s.category} className={styles.card}>
+            <div key={s.id ?? s.category} className={styles.card}>
               <div className={styles.cardHeader}>
                 <div className={styles.category}>{s.category}</div>
-                <div className={`${styles.badge} ${cls}`}>{usedPct}%</div>
+
+                <div className={styles.headerRight}>
+                  <div className={`${styles.badge} ${cls}`}>{usedPct}%</div>
+
+                  <button
+                    type="button"
+                    className={styles.deleteBtn}
+                    title="Удалить бюджет"
+                    aria-label={`Удалить бюджет ${s.category}`}
+                    onClick={() => onDelete(s.id, s.category)}
+                  >
+                    {/* минималистичная иконка-крестик */}
+                    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                      <path
+                        d="M18 6L6 18M6 6l12 12"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
               </div>
+
               <div className={styles.row}><span>Лимит</span><b>{s.budget}</b></div>
               <div className={styles.row}><span>Потрачено</span><b>{s.spent}</b></div>
               <div className={styles.row}><span>Остаток</span><b>{s.remaining}</b></div>
