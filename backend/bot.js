@@ -3,9 +3,9 @@ const TelegramBot = require('node-telegram-bot-api');
 const db = require('./db/db');
 const dayjs = require('dayjs');
 const isSameOrAfter = require('dayjs/plugin/isSameOrAfter');
-dayjs.extend(isSameOrAfter);
 const isSameOrBefore = require('dayjs/plugin/isSameOrBefore');
 const isBetween = require('dayjs/plugin/isBetween');
+dayjs.extend(isSameOrAfter);
 dayjs.extend(isSameOrBefore);
 dayjs.extend(isBetween);
 const cron = require('node-cron');
@@ -15,7 +15,7 @@ const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 console.log('🤖 Telegram Bot запущен');
 
-const userStates = {}; // твой стейт для пошаговых сценариев
+const userStates = {}; // состояния пошаговых сценариев
 
 const helpMessage = `🛠 Возможности:
 +10000 зарплата — добавить доход
@@ -24,10 +24,12 @@ const helpMessage = `🛠 Возможности:
 /tasks — незавершённые задачи
 /goals — показать цели
 /train — добавить тренировку (через кнопки)
- /budget [YYYY-MM] — бюджеты месяца
+/budget [YYYY-MM] — бюджеты месяца
 /checkon [morning|evening|all] — включить напоминания
-/checkoff [morning|evening|all] — выключить напоминания`;
+/checkoff [morning|evening|all] — выключить напоминания
+/goalcheck — weekly чек-ин по целям`;
 
+// ===================== DATE PARSER (для /train) =====================
 function parseDate(text) {
   const months = {
     'января': 1, 'февраля': 2, 'марта': 3, 'апреля': 4,
@@ -60,12 +62,12 @@ function parseDate(text) {
   return null;
 }
 
-// ========= Подключение Telegram к аккаунту ========= //
+// ===================== TELEGRAM CONNECT =====================
 bot.onText(/\/connect (.+)/, (msg, match) => {
   const chatId = msg.chat.id;
-  const token = match[1].trim();
+  const t = match[1].trim();
 
-  db.get(`SELECT user_id FROM telegram_tokens WHERE token = ? AND used = 0`, [token], (err, row) => {
+  db.get(`SELECT user_id FROM telegram_tokens WHERE token = ? AND used = 0`, [t], (err, row) => {
     if (err) {
       console.error(err);
       return bot.sendMessage(chatId, '❌ Произошла ошибка, попробуйте позже.');
@@ -83,13 +85,13 @@ bot.onText(/\/connect (.+)/, (msg, match) => {
         return bot.sendMessage(chatId, '❌ Не удалось связать Telegram с аккаунтом.');
       }
 
-      db.run('UPDATE telegram_tokens SET used = 1 WHERE token = ?', [token]);
+      db.run('UPDATE telegram_tokens SET used = 1 WHERE token = ?', [t]);
       bot.sendMessage(chatId, '✅ Telegram успешно привязан к вашему аккаунту! Теперь вы будете получать уведомления.');
     });
   });
 });
 
-// ========= УТИЛИТА ========= //
+// ===================== UTILS =====================
 function getUserId(chatId, callback) {
   db.get('SELECT user_id FROM telegram_users WHERE chat_id = ?', [chatId], (err, row) => {
     if (err || !row) return callback(null);
@@ -97,7 +99,6 @@ function getUserId(chatId, callback) {
   });
 }
 
-// user_id -> chat_id (для рассылок)
 function getChatIdByUserId(userId) {
   return new Promise((resolve) => {
     db.get('SELECT chat_id FROM telegram_users WHERE user_id = ?', [userId], (err, row) => {
@@ -116,12 +117,118 @@ function currentMonth() {
   return `${d.getFullYear()}-${m}`;
 }
 
-// ===== helpers for weekly scoring (скоринг) =====
+// ===================== DB PROMISE HELPERS (goalcheck) =====================
+function dbAll(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => (err ? reject(err) : resolve(rows || [])));
+  });
+}
+function dbGet(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.get(sql, params, (err, row) => (err ? reject(err) : resolve(row || null)));
+  });
+}
+function dbRun(sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function (err) {
+      if (err) return reject(err);
+      resolve(this);
+    });
+  });
+}
+
+// ===================== GOALCHECK HELPERS =====================
+function weekBorderISO() {
+  // "нет чек-ина 7+ дней" = last_date < today-6
+  return dayjs().subtract(6, 'day').format('YYYY-MM-DD');
+}
+
+async function getDueGoals(userId) {
+  const rows = await dbAll(
+    `
+    SELECT
+      g.id, g.title, g.target, g.unit, g.direction, g.image,
+      (SELECT gc.value
+         FROM goal_checkins gc
+        WHERE gc.user_id=g.user_id AND gc.goal_id=g.id
+        ORDER BY date(gc.date) DESC, gc.id DESC
+        LIMIT 1) AS last_value,
+      (SELECT gc.date
+         FROM goal_checkins gc
+        WHERE gc.user_id=g.user_id AND gc.goal_id=g.id
+        ORDER BY date(gc.date) DESC, gc.id DESC
+        LIMIT 1) AS last_date
+    FROM goals g
+    WHERE g.user_id=?
+      AND (g.archived_at IS NULL OR g.archived_at = '')
+      AND IFNULL(g.is_completed,0)=0
+    ORDER BY g.created_at DESC
+    `,
+    [userId]
+  );
+
+  const border = weekBorderISO();
+  return rows.filter(r => !r.last_date || String(r.last_date).slice(0, 10) < border);
+}
+
+function goalLine(g) {
+  const last = g.last_value == null ? '—' : `${g.last_value}${g.unit ? ` ${g.unit}` : ''}`;
+  const tgt = g.target == null ? '—' : `${g.target}${g.unit ? ` ${g.unit}` : ''}`;
+  const ld = g.last_date ? dayjs(g.last_date).format('DD.MM') : '—';
+  return `• ${g.title}: ${last} → ${tgt} (посл.: ${ld})`;
+}
+
+async function sendWeeklyGoalsPrompt(chatId, userId) {
+  const due = await getDueGoals(userId);
+
+  if (!due.length) {
+    return bot.sendMessage(chatId, '✅ На этой неделе все цели обновлены — красавчик.');
+  }
+
+  const kb = [];
+  for (let i = 0; i < due.length; i += 2) {
+    const row = [];
+    row.push({ text: `🎯 ${due[i].title}`, callback_data: `goalck_pick:${due[i].id}` });
+    if (due[i + 1]) row.push({ text: `🎯 ${due[i + 1].title}`, callback_data: `goalck_pick:${due[i + 1].id}` });
+    kb.push(row);
+  }
+  kb.push([{ text: 'Позже', callback_data: 'goalck_later' }]);
+
+  const text =
+    `🗓 *Еженедельный чек-ин по целям*\n` +
+    `Есть цели без обновления за неделю: *${due.length}*\n\n` +
+    due.map(goalLine).join('\n') +
+    `\n\nВыбери цель, чтобы обновить значение:`;
+
+  return bot.sendMessage(chatId, text, {
+    parse_mode: 'Markdown',
+    reply_markup: { inline_keyboard: kb }
+  });
+}
+
+// ===================== WEEKLY SCORING (как у тебя) =====================
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
-const toDateOnly = (s) => (s || '').slice(0, 10);
+const pct = (x) => Math.round(clamp01(x) * 100);
+const eachDate = (start, end) => {
+  const out = []; let d = dayjs(start), e = dayjs(end);
+  while (d.isBefore(e) || d.isSame(e, 'day')) { out.push(d.format('YYYY-MM-DD')); d = d.add(1, 'day'); }
+  return out;
+};
+const parseFrequency = (fq) => {
+  if (!fq || fq === 'daily') return { type: 'daily', days: [] };
+  if (fq.startsWith('dow:')) {
+    const days = fq.slice(4).split(',').map(n => parseInt(n, 10)).filter(n => n >= 1 && n <= 7);
+    return { type: 'dow', days };
+  }
+  return { type: 'daily', days: [] };
+};
+const dow1 = (dateISO) => ((dayjs(dateISO).day() + 6) % 7) + 1; // Пн=1..Вс=7
+
+const sqlAll = (sql, params = []) => new Promise((resolve, reject) => {
+  db.all(sql, params, (e, rows) => e ? reject(e) : resolve(rows || []));
+});
 
 function prevWeekRange() {
-  // прошлый понедельник — прошлое воскресенье
   const now = new Date();
   const dow = now.getDay() === 0 ? 7 : now.getDay(); // 1..7
   const lastMonday = new Date(now);
@@ -133,46 +240,13 @@ function prevWeekRange() {
   return { startIso: s, endIso: e, label: `${s} — ${e}` };
 }
 
-function daysInMonthStr(yyyyMM) {
-  const [y, m] = yyyyMM.split('-').map(Number);
-  return new Date(y, m, 0).getDate();
-}
-
-// Подсчёт скоринга за произвольный период (повторяет логику backend/analytics)
-// ===== helpers for weekly scoring (скоринг) v2 =====
-
-const pct = (x) => Math.round(clamp01(x) * 100);
-const eachDate = (start, end) => {
-  const out = []; let d = dayjs(start), e = dayjs(end);
-  while (d.isBefore(e) || d.isSame(e, 'day')) { out.push(d.format('YYYY-MM-DD')); d = d.add(1,'day'); }
-  return out;
-};
-const parseFrequency = (fq) => {
-  if (!fq || fq === 'daily') return { type:'daily', days:[] };
-  if (fq.startsWith('dow:')) {
-    const days = fq.slice(4).split(',').map(n=>parseInt(n,10)).filter(n=>n>=1 && n<=7);
-    return { type:'dow', days };
-  }
-  return { type:'daily', days:[] };
-};
-const dow1 = (dateISO) => ((dayjs(dateISO).day()+6)%7)+1; // Пн=1..Вс=7
-
-// обёртки над SQLite без конфликтов имён
-const sqlAll = (sql, params=[]) => new Promise((resolve,reject)=>{
-  db.all(sql, params, (e, rows)=> e ? reject(e) : resolve(rows||[]));
-});
-const sqlGet = (sql, params=[]) => new Promise((resolve,reject)=>{
-  db.get(sql, params, (e, row)=> e ? reject(e) : resolve(row||null));
-});
-
-// ---- подметрики Health ----
 async function calcWorkouts(userId, start, end) {
   const plannedRows = await sqlAll(
     `SELECT date FROM health
       WHERE user_id=? AND type='training' AND date>=? AND date<=?`,
     [userId, start, end]
   );
-  const plannedSet = new Set(plannedRows.map(r => String(r.date).slice(0,10)));
+  const plannedSet = new Set(plannedRows.map(r => String(r.date).slice(0, 10)));
   const totalPlannedDays = plannedSet.size;
 
   const doneHealth = await sqlAll(
@@ -186,8 +260,8 @@ async function calcWorkouts(userId, start, end) {
     [userId, start, end]
   );
   const doneSet = new Set([
-    ...doneHealth.map(r => String(r.date).slice(0,10)),
-    ...doneChecks.map(r => String(r.date).slice(0,10)),
+    ...doneHealth.map(r => String(r.date).slice(0, 10)),
+    ...doneChecks.map(r => String(r.date).slice(0, 10)),
   ]);
 
   const doneForScore = Math.min(doneSet.size, totalPlannedDays);
@@ -196,7 +270,7 @@ async function calcWorkouts(userId, start, end) {
     score,
     planned_days: totalPlannedDays,
     done_days: doneForScore,
-    extra_unplanned_days: Array.from(doneSet).filter(d=>!plannedSet.has(d)).length,
+    extra_unplanned_days: Array.from(doneSet).filter(d => !plannedSet.has(d)).length,
   };
 }
 
@@ -206,31 +280,29 @@ async function calcSleep(userId, start, end) {
     [userId, start, end]
   );
   const totalDays = eachDate(start, end).length;
-  const totalHours = rows.reduce((s,r)=> s + (Number(r.sleep_hours)||0), 0);
+  const totalHours = rows.reduce((s, r) => s + (Number(r.sleep_hours) || 0), 0);
   const norm = 7 * totalDays;
 
   const rel = norm ? Math.abs(totalHours - norm) / norm : 0;
   let score;
-  if (rel <= 0.10) score = 100 - (rel / 0.10)*10;                 // 90..100
-  else if (rel <= 0.25) score = 90 - ((rel-0.10)/0.15)*15;         // 75..90
-  else { const extra = Math.min(rel, 0.60); score = 75 - ((extra-0.25)/0.35)*25; } // 50..75
+  if (rel <= 0.10) score = 100 - (rel / 0.10) * 10;
+  else if (rel <= 0.25) score = 90 - ((rel - 0.10) / 0.15) * 15;
+  else { const extra = Math.min(rel, 0.60); score = 75 - ((extra - 0.25) / 0.35) * 25; }
 
   return {
     score: Math.round(score),
-    avg_hours_per_day: totalDays ? +(totalHours/totalDays).toFixed(1) : 0,
+    avg_hours_per_day: totalDays ? +(totalHours / totalDays).toFixed(1) : 0,
     total_hours: Math.round(totalHours)
   };
 }
 
-// Вернёт номер дня недели: 1=понедельник ... 7=воскресенье
 function dayToDow1(dateStr) {
   const d = dayjs(dateStr);
   let dow = d.day(); // 0=воскресенье ... 6=суббота
-  return dow === 0 ? 7 : dow; // преобразуем: воскресенье = 7
+  return dow === 0 ? 7 : dow;
 }
 
 async function calcMeds(userId, start, end) {
-  // 1) Активные курсы, пересекающиеся с периодом
   const meds = await new Promise((resolve, reject) => {
     db.all(
       `SELECT id, name, frequency, times, start_date, end_date
@@ -244,35 +316,29 @@ async function calcMeds(userId, start, end) {
     );
   });
 
-  // 2) Считаем плановые дозы за период
-  const dates = eachDate(start, end); // массив 'YYYY-MM-DD'
+  const dates = eachDate(start, end);
   let planned = 0;
 
   for (const m of meds) {
-    // times: JSON ["HH:MM", ...]
     let times = [];
     try { times = JSON.parse(m.times || '[]'); } catch { times = []; }
     if (!Array.isArray(times) || times.length === 0) continue;
 
-    // frequency: 'daily' или 'dow:1,3,5'
     const fq = parseFrequency(m.frequency);
 
     for (const d of dates) {
-      // дата d попадает в окно действия курса?
       const inWindow =
         dayjs(d).isSameOrAfter(dayjs(m.start_date), 'day') &&
         (!m.end_date || dayjs(d).isSameOrBefore(dayjs(m.end_date), 'day'));
       if (!inWindow) continue;
 
-      // проверка дня недели, если это DOW-частота
       const okDay = (fq.type === 'daily') || fq.days.includes(dayToDow1(d));
       if (!okDay) continue;
 
-      planned += times.length; // по количеству времён в день
+      planned += times.length;
     }
   }
 
-  // 3) Фактические «выпито»
   const takenRow = await new Promise((resolve, reject) => {
     db.get(
       `SELECT COUNT(*) AS cnt
@@ -287,17 +353,13 @@ async function calcMeds(userId, start, end) {
   });
 
   const taken = takenRow.cnt || 0;
-
-  // 4) Скор — доля принятых от плановых; если плановых нет — 100
   const score = planned === 0 ? 100 : Math.round(Math.max(0, Math.min(1, taken / planned)) * 100);
-
   return { score, planned, taken };
 }
 
-// ---- Finance / Engagement ----
 async function calcFinance(userId, start, end) {
-  const months = []; let d=dayjs(start).startOf('month'), last=dayjs(end).startOf('month');
-  while (d.isSameOrBefore(last)) { months.push(d.format('YYYY-MM')); d = d.add(1,'month'); }
+  const months = []; let d = dayjs(start).startOf('month'), last = dayjs(end).startOf('month');
+  while (d.isSameOrBefore(last)) { months.push(d.format('YYYY-MM')); d = d.add(1, 'month'); }
   const monthScores = [];
 
   for (const month of months) {
@@ -314,58 +376,51 @@ async function calcFinance(userId, start, end) {
         GROUP BY lower(category)`,
       [userId, month]
     );
-    const mapSpend = Object.fromEntries(spend.map(r => [r.category, Math.abs(r.total||0)]));
+    const mapSpend = Object.fromEntries(spend.map(r => [r.category, Math.abs(r.total || 0)]));
 
-    let sumWeighted=0, sumWeights=0;
+    let sumWeighted = 0, sumWeights = 0;
     for (const b of budgets) {
-      const plan = Number(b.amount||0); if (plan<=0) continue;
-      const s = Number(mapSpend[b.category]||0);
+      const plan = Number(b.amount || 0); if (plan <= 0) continue;
+      const s = Number(mapSpend[b.category] || 0);
       let catScore;
       if (s <= plan) {
-        catScore = Math.min(100, 100 - ((plan - s)/plan)*10); // небольшой «бонус»
+        catScore = Math.min(100, 100 - ((plan - s) / plan) * 10);
       } else {
-        const over = (s - plan)/plan;
+        const over = (s - plan) / plan;
         if (over <= .10) catScore = 85;
         else if (over <= .25) catScore = 70;
         else if (over <= .50) catScore = 60;
         else catScore = 50;
       }
       sumWeighted += catScore * plan;
-      sumWeights  += plan;
+      sumWeights += plan;
     }
-    monthScores.push(sumWeights ? Math.round(sumWeighted/sumWeights) : 100);
+    monthScores.push(sumWeights ? Math.round(sumWeighted / sumWeights) : 100);
   }
-  const score = Math.round(monthScores.reduce((a,b)=>a+b,0) / monthScores.length);
-  return { score, months: monthScores.map((s,i)=>({ month: months[i], score:s })) };
+  const score = Math.round(monthScores.reduce((a, b) => a + b, 0) / monthScores.length);
+  return { score, months: monthScores.map((s, i) => ({ month: months[i], score: s })) };
 }
 
-// ---- Consistency (вместо Engagement) ----
-// «Хороший день» = (сон >= 7ч) И (медикаменты по плану выполнены) ИЛИ (сон >= 7ч и была тренировка).
-// Скор = мягкая функция по доле «хороших дней» + бонус за текущую серию.
-// Возвращаем также goodDays/totalDays и streak.
 async function calcConsistency(userId, start, end) {
   const dates = eachDate(start, end);
   const totalDays = dates.length;
 
-  // сон + workout_done из daily_checks
   const checks = await sqlAll(
     `SELECT date, sleep_hours, workout_done
        FROM daily_checks
       WHERE user_id=? AND date>=? AND date<=?`,
     [userId, start, end]
   );
-  const checkByDate = new Map(checks.map(r => [String(r.date).slice(0,10), r]));
+  const checkByDate = new Map(checks.map(r => [String(r.date).slice(0, 10), r]));
 
-  // выполненные тренировки из health
   const workoutsDone = new Set(
     (await sqlAll(
       `SELECT date FROM health
         WHERE user_id=? AND type='training' AND completed=1 AND date>=? AND date<=?`,
       [userId, start, end]
-    )).map(r => String(r.date).slice(0,10))
+    )).map(r => String(r.date).slice(0, 10))
   );
 
-  // план по медикаментам на каждый день (как в calcMeds, но с разложением по датам)
   const meds = await sqlAll(
     `SELECT id, frequency, times, start_date, end_date
        FROM medications
@@ -392,7 +447,6 @@ async function calcConsistency(userId, start, end) {
     }
   }
 
-  // фактические приёмы по дням
   const intakeRows = await sqlAll(
     `SELECT intake_date d, COUNT(*) cnt
        FROM medication_intakes
@@ -400,9 +454,8 @@ async function calcConsistency(userId, start, end) {
       GROUP BY intake_date`,
     [userId, start, end]
   );
-  const takenPerDay = Object.fromEntries(intakeRows.map(r => [String(r.d).slice(0,10), Number(r.cnt)||0]));
+  const takenPerDay = Object.fromEntries(intakeRows.map(r => [String(r.d).slice(0, 10), Number(r.cnt) || 0]));
 
-  // считаем «хорошие дни»
   const goodFlags = [];
   for (const d of dates) {
     const ch = checkByDate.get(d) || {};
@@ -410,38 +463,34 @@ async function calcConsistency(userId, start, end) {
     const workoutOK = Number(ch.workout_done) === 1 || workoutsDone.has(d);
 
     const planned = plannedPerDay[d] || 0;
-    const taken   = takenPerDay[d]   || 0;
-    const medsOK  = planned === 0 ? true : (taken >= planned);
+    const taken = takenPerDay[d] || 0;
+    const medsOK = planned === 0 ? true : (taken >= planned);
 
-    // логика: хороший день = сон ок И (медикаменты ок ИЛИ была тренировка)
     const good = sleepOK && (medsOK || workoutOK);
     goodFlags.push(good ? 1 : 0);
   }
 
-  const goodDays = goodFlags.reduce((s,x)=>s+x,0);
+  const goodDays = goodFlags.reduce((s, x) => s + x, 0);
 
-  // streak (серия подряд с конца периода)
   let streak = 0;
   for (let i = goodFlags.length - 1; i >= 0; i--) {
     if (goodFlags[i] === 1) streak++; else break;
   }
 
-  // мягкий скор: база 30 + 70 * доля хороших дней + бонус за серию (до +10)
   const base = 30 + 70 * (goodDays / Math.max(1, totalDays));
-  const bonus = Math.min(streak, 5) * 2; // до +10
+  const bonus = Math.min(streak, 5) * 2;
   const score = Math.round(Math.max(0, Math.min(100, base + bonus)));
 
   return { score, goodDays, totalDays, streak };
 }
 
-// ---- главный агрегатор периода (теперь с Consistency) ----
 async function computeScoreForPeriod(userId, startIso, endIso) {
-  const workouts   = await calcWorkouts(userId, startIso, endIso);
-  const sleep      = await calcSleep(userId, startIso, endIso);
-  const meds       = await calcMeds(userId, startIso, endIso);
-  const healthNum  = Math.round((workouts.score + sleep.score + meds.score) / 3);
+  const workouts = await calcWorkouts(userId, startIso, endIso);
+  const sleep = await calcSleep(userId, startIso, endIso);
+  const meds = await calcMeds(userId, startIso, endIso);
+  const healthNum = Math.round((workouts.score + sleep.score + meds.score) / 3);
 
-  const finance     = await calcFinance(userId, startIso, endIso);
+  const finance = await calcFinance(userId, startIso, endIso);
   const consistency = await calcConsistency(userId, startIso, endIso);
 
   const W = { health: 0.4, finance: 0.4, consistency: 0.2 };
@@ -454,52 +503,19 @@ async function computeScoreForPeriod(userId, startIso, endIso) {
   return {
     avg: total,
     breakdown: {
-      health: healthNum,          // чтобы ничего не сломать в старом рендере
-      finance,                    // { score, months: [...] }
-      consistency,                // { score, goodDays, totalDays, streak }
+      health: healthNum,
+      finance,
+      consistency,
       details: { workouts, sleep, meds }
     }
   };
 }
 
-// персонализированный совет
-function buildAdvice(result) {
-  const det = result.breakdown.details;
-  const pairs = [
-    ['Health', result.breakdown.health],
-    ['Finance', result.breakdown.finance.score],
-    ['Consistency', result.breakdown.consistency.score],
-  ].sort((a,b)=>a[1]-b[1]);
-
-  const weakest = pairs[0][0];
-  let advice = '';
-
-  if (weakest === 'Health') {
-    if (det.sleep.avg_hours_per_day < 7) {
-      advice = 'Сон проседает: постарайся ложиться на 30–45 минут раньше, цель — 7–8 ч/д.';
-    } else if (det.workouts.done_days < Math.max(2, Math.round((det.workouts.planned_days||0)*0.6))) {
-      advice = 'Добавь 1–2 короткие тренировки (даже 20 минут прогулки).';
-    } else {
-      advice = 'Поддерживай рутину: лёгкая активность каждый день и вечерний чек-ин.';
-    }
-  } else if (weakest === 'Finance') {
-    advice = result.breakdown.finance.score < 85
-      ? 'Есть риск перерасходов. Подкрути лимиты в «Бюджетах» и следи за «еда вне дома».'
-      : 'Финансы стабильны — при необходимости уточни лимиты по категориям.';
-  } else {
-    advice = result.breakdown.consistency.score < 70
-      ? 'Заполняй daily-чек хотя бы в будни. Включи напоминание утром/вечером.'
-      : 'Отличная регулярность — продолжай в том же духе!';
-  }
-
-  return { weakest, advice };
-}
-
-function buildAdviceFromBreakdown(result, startIso, endIso) {
+function buildAdviceFromBreakdown(result) {
   const { breakdown } = result;
-  const healthScore  = Number(breakdown.health || 0);
+  const healthScore = Number(breakdown.health || 0);
   const financeScore = Number(breakdown.finance?.score || 0);
-  const consScore    = Number(breakdown.consistency?.score || 0);
+  const consScore = Number(breakdown.consistency?.score || 0);
 
   const pairs = [
     ['Health', healthScore],
@@ -509,7 +525,7 @@ function buildAdviceFromBreakdown(result, startIso, endIso) {
 
   const weakest = pairs[0][0];
   const det = breakdown.details || {};
-  const c  = breakdown.consistency || {};
+  const c = breakdown.consistency || {};
 
   let advice = 'Продолжай в том же духе.';
 
@@ -525,7 +541,7 @@ function buildAdviceFromBreakdown(result, startIso, endIso) {
     advice = financeScore < 70
       ? 'Пересмотри лимиты в 1–2 «текущих» категориях и плати одной картой для контроля.'
       : 'Финансы стабильны — при необходимости слегка ужесточи лимиты.';
-  } else { // Consistency
+  } else {
     advice = c.streak < 3
       ? 'Постарайся не прерывать цепочку 3+ дней подряд: сон ≥ 7ч, приём добавок, и по возможности тренировка.'
       : 'Отличная серия — держи темп!';
@@ -534,18 +550,17 @@ function buildAdviceFromBreakdown(result, startIso, endIso) {
   return { weakest, advice };
 }
 
-// хелпер для тренировок
-
+// ===================== TRAINING KEYBOARD =====================
 function sendTrainingActivityKeyboard(chatId) {
   return bot.sendMessage(chatId, 'Выбери тип тренировки (или введи свой):', {
     reply_markup: {
       inline_keyboard: [
         [
-          { text: 'Зал',  callback_data: 'trainact:Зал' },
+          { text: 'Зал', callback_data: 'trainact:Зал' },
           { text: 'Бокс', callback_data: 'trainact:Бокс' }
         ],
         [
-          { text: 'Бег',  callback_data: 'trainact:Бег' },
+          { text: 'Бег', callback_data: 'trainact:Бег' },
           { text: 'Йога', callback_data: 'trainact:Йога' }
         ],
         [
@@ -556,8 +571,7 @@ function sendTrainingActivityKeyboard(chatId) {
   });
 }
 
-// медикаменты хелпер
-
+// ===================== MEDS NOTIFY FILTER =====================
 function shouldNotifyToday(frequency, now = new Date()) {
   if (!frequency || frequency === 'daily') return true;
 
@@ -569,19 +583,15 @@ function shouldNotifyToday(frequency, now = new Date()) {
     return set.has(dow);
   }
 
-  return false; // было true — теперь правильно
+  return false;
 }
 
-// ========= ПРЕДПОЧТЕНИЯ ДЛЯ DAILY CHECKS (таблицу считаем созданной) ========= //
+// ===================== DAILY CHECK PREFS =====================
 function getPrefs(userId) {
   return new Promise((resolve) => {
     db.get('SELECT morning_enabled, evening_enabled FROM check_prefs WHERE user_id = ?', [userId], (err, row) => {
-      if (!row) {
-        // если нет записи — считаем включено обе
-        resolve({ morning_enabled: 1, evening_enabled: 1 });
-      } else {
-        resolve(row);
-      }
+      if (!row) resolve({ morning_enabled: 1, evening_enabled: 1 });
+      else resolve(row);
     });
   });
 }
@@ -597,7 +607,6 @@ function setPrefs(userId, key, value) {
   });
 }
 
-// апсертер дневного чека (таблицу считаем созданной)
 function upsertDailyCheck(userId, patch) {
   return new Promise((resolve, reject) => {
     const date = patch.date || ymd();
@@ -617,7 +626,7 @@ function upsertDailyCheck(userId, patch) {
   });
 }
 
-// ========= ОБРАБОТКА СООБЩЕНИЙ ========= //
+// ===================== MESSAGE HANDLER =====================
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text?.trim();
@@ -628,9 +637,11 @@ bot.on('message', async (msg) => {
     const hours = parseFloat((text || '').replace(',', '.'));
     const dateStr = userStates[chatId].date || ymd();
     delete userStates[chatId];
+
     if (isNaN(hours) || hours <= 0 || hours > 24) {
       return bot.sendMessage(chatId, 'Не понял число часов. Пример: 7.5');
     }
+
     return getUserId(chatId, async (userId) => {
       if (!userId) return bot.sendMessage(chatId, '❌ Нет привязки.');
       await upsertDailyCheck(userId, { date: dateStr, sleep_hours: hours });
@@ -638,8 +649,87 @@ bot.on('message', async (msg) => {
     });
   }
 
-  // 1) Состояние тренировки
-  if (userStates[chatId]?.step && userStates[chatId]?.step !== 'sleep_custom') {
+  // ===== GOALS CHECKIN STEPS (ВАЖНО: внутри message) =====
+  if (userStates[chatId]?.step?.startsWith('goal_checkin_')) {
+    const st = userStates[chatId];
+
+    // 1) ждём value
+    if (st.step === 'goal_checkin_value') {
+      const v = Number(String(text).replace(',', '.'));
+      if (!isFinite(v)) {
+        return bot.sendMessage(chatId, 'Не понял число. Пример: 12 или 12.5');
+      }
+
+      st.data.value = v;
+      st.step = 'goal_checkin_did';
+
+      return bot.sendMessage(chatId, 'Делал что-то для цели на этой неделе?', {
+        reply_markup: {
+          inline_keyboard: [[
+            { text: '✅ Да', callback_data: 'goalck_ds:1' },
+            { text: '⏭ Нет', callback_data: 'goalck_ds:0' },
+          ]]
+        }
+      });
+    }
+
+    // 2) ждём note
+    if (st.step === 'goal_checkin_note') {
+      const note = (text || '').trim();
+      const finalNote = (!note || note === '-') ? null : note;
+
+      try {
+        const dateStr = ymd();
+
+        const userId = await new Promise((resolve) => getUserId(chatId, resolve));
+        if (!userId) throw new Error('no_user_bind');
+
+        await dbRun(
+          `INSERT INTO goal_checkins (user_id, goal_id, date, value, did_something, note)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [userId, st.data.goalId, dateStr, Number(st.data.value || 0), st.data.did_something ? 1 : 0, finalNote]
+        );
+
+        const unit = st.data.unit ? ` ${st.data.unit}` : '';
+        const tgt = Number(st.data.target || 0);
+        const pctVal = Number(st.data.value || 0);
+
+        const progressPct = (() => {
+          if (!tgt) return null;
+          if (st.data.direction === 'decrease') {
+            // простая метрика для decrease: если <= target => 100, иначе target/value
+            if (pctVal <= tgt) return 100;
+            if (pctVal <= 0) return 0;
+            return Math.round(Math.max(0, Math.min(1, tgt / pctVal)) * 100);
+          }
+          return Math.round((pctVal / tgt) * 100);
+        })();
+
+        delete userStates[chatId];
+
+        return bot.sendMessage(
+          chatId,
+          `✅ Чек-ин сохранён\n` +
+          `🎯 ${st.data.goalTitle}\n` +
+          `Текущее: *${pctVal}${unit}*` +
+          (tgt ? `\nЦель: *${tgt}${unit}*` : '') +
+          (progressPct != null ? `\nПрогресс: *${progressPct}%*` : ''),
+          { parse_mode: 'Markdown' }
+        );
+      } catch (e) {
+        console.error('goal checkin save error', e);
+        delete userStates[chatId];
+        return bot.sendMessage(chatId, '❌ Не удалось сохранить чек-ин. Попробуй ещё раз: /goalcheck');
+      }
+    }
+
+    // если шаг неизвестен — не даём провалиться дальше
+    return;
+  }
+
+  // 1) Состояние тренировки — только training steps
+  const trainingSteps = new Set(['date', 'time', 'place', 'activity', 'notes']);
+  if (trainingSteps.has(userStates[chatId]?.step) && userStates[chatId]?.step !== 'sleep_custom') {
     return handleTrainingSteps(chatId, text);
   }
 
@@ -691,7 +781,7 @@ bot.on('message', async (msg) => {
     });
   }
 
-  // 5) /goals
+  // 5) /goals (оставил как было; можно обновить на goal_checkins отдельным шагом)
   if (text === '/goals') {
     return getUserId(chatId, (userId) => {
       if (!userId) return bot.sendMessage(chatId, '❌ Вы не привязаны к пользователю в системе.');
@@ -706,32 +796,44 @@ bot.on('message', async (msg) => {
     });
   }
 
-  // 6) /start /help
+  // 6) /help
   if (text === '/help') return bot.sendMessage(chatId, helpMessage);
 
+  // 7) /start
   if (text === '/start') {
     bot.sendMessage(chatId, `👋 Добро пожаловать в K-Board Bot!
-  
+
 Чтобы подключить Telegram к своему аккаунту, введите токен, полученный в личном кабинете, например:
 
 /connect abc123`);
     return;
   }
 
-  // 7) /train
+  // 8) /train
   if (text === '/train') {
     userStates[chatId] = { step: 'date', data: { type: 'training' } };
     return bot.sendMessage(chatId, 'Введите дату в формате 17.08 или 17 августа:');
   }
 
+  // 9) /goalcheck
+  if (text === '/goalcheck') {
+    return getUserId(chatId, async (userId) => {
+      if (!userId) return bot.sendMessage(chatId, '❌ Вы не привязаны к пользователю в системе.');
+      try {
+        await sendWeeklyGoalsPrompt(chatId, userId);
+      } catch (e) {
+        console.error('goalcheck cmd error', e);
+        bot.sendMessage(chatId, '❌ Ошибка при получении целей. Попробуй позже.');
+      }
+    });
+  }
+
   // Фоллбек
-  if (text.startsWith('/')) return; // чтобы не спамить «Не понял» на команды
+  if (text.startsWith('/')) return;
   return bot.sendMessage(chatId, '🤖 Не понял. Напиши /help для списка команд.');
 });
 
-// ========= КОМАНДЫ ВНЕ message-лиснера ========= //
-
-// /checkon [morning|evening|all]
+// ===================== COMMANDS OUTSIDE message =====================
 bot.onText(/^\/checkon(?:\s+(morning|evening|all))?$/, (msg, match) => {
   const chatId = msg.chat.id;
   const scope = match[1] || 'all';
@@ -743,7 +845,6 @@ bot.onText(/^\/checkon(?:\s+(morning|evening|all))?$/, (msg, match) => {
   });
 });
 
-// /checkoff [morning|evening|all]
 bot.onText(/^\/checkoff(?:\s+(morning|evening|all))?$/, (msg, match) => {
   const chatId = msg.chat.id;
   const scope = match[1] || 'all';
@@ -755,7 +856,6 @@ bot.onText(/^\/checkoff(?:\s+(morning|evening|all))?$/, (msg, match) => {
   });
 });
 
-// /budget [YYYY-MM]
 bot.onText(/^\/budget(?:\s+(\d{4})-(\d{2}))?$/, (msg, match) => {
   const chatId = msg.chat.id;
   const inputYear = match[1];
@@ -800,7 +900,7 @@ bot.onText(/^\/budget(?:\s+(\d{4})-(\d{2}))?$/, (msg, match) => {
 
       let totalBudget = 0, totalSpent = 0, totalForecast = 0;
       const lines = rows.map(r => {
-        const pct = r.budget ? Math.round((r.spent / r.budget) * 100) : 0;
+        const p = r.budget ? Math.round((r.spent / r.budget) * 100) : 0;
         const remaining = Math.round((r.budget || 0) - (r.spent || 0));
         const dailyRate = currentDay ? (r.spent / currentDay) : 0;
         const forecast = Math.round(dailyRate * daysInMonth);
@@ -808,7 +908,7 @@ bot.onText(/^\/budget(?:\s+(\d{4})-(\d{2}))?$/, (msg, match) => {
         totalSpent += Number(r.spent || 0);
         totalForecast += forecast;
         const warn = forecast > r.budget ? ' ⚠️' : '';
-        return `• ${r.category}: ${pct}% | остаток *${remaining}* ₽ | прогноз *${forecast}* ₽${warn}`;
+        return `• ${r.category}: ${p}% | остаток *${remaining}* ₽ | прогноз *${forecast}* ₽${warn}`;
       }).join('\n');
 
       const header =
@@ -822,16 +922,15 @@ bot.onText(/^\/budget(?:\s+(\d{4})-(\d{2}))?$/, (msg, match) => {
   });
 });
 
-// ========= INLINE-КНОПКИ ========= //
+// ===================== CALLBACK QUERY HANDLER =====================
 bot.on('callback_query', async (query) => {
-  const chatId = query.message.chat.id;
+  const chatId = query.message?.chat?.id;
   const data = query.data || '';
   const parts = data.split(':');
   const key = parts[0];
 
-  // daily_checks
+  // ---- daily_checks ----
   if (key === 'sleep') {
-    // sleep:YYYY-MM-DD:7
     const dateStr = parts[1];
     const val = parts[2];
     return getUserId(chatId, async (userId) => {
@@ -842,9 +941,9 @@ bot.on('callback_query', async (query) => {
   }
 
   if (key === 'sleepother') {
-    // sleepother:YYYY-MM-DD
     const dateStr = parts[1];
     userStates[chatId] = { step: 'sleep_custom', date: dateStr };
+    await bot.answerCallbackQuery(query.id, { text: 'Ок' });
     return bot.sendMessage(chatId, 'Сколько часов спал? Например: 7.5');
   }
 
@@ -876,22 +975,20 @@ bot.on('callback_query', async (query) => {
   }
 
   if (key === 'trainact') {
-    const choice = parts[1]; // 'Зал' | 'Бокс' | 'Бег' | 'Йога' | 'other'
-    // Убедимся, что есть стейт
+    const choice = parts[1];
     if (!userStates[chatId]) {
       userStates[chatId] = { step: 'activity', data: { type: 'training' } };
     }
     const state = userStates[chatId];
-    const data = state.data || (state.data = { type: 'training' });
-  
+    const stData = state.data || (state.data = { type: 'training' });
+
     if (choice === 'other') {
-      state.step = 'activity'; // переходим на ручной ввод
+      state.step = 'activity';
       await bot.answerCallbackQuery(query.id, { text: 'Введи тип тренировки текстом' });
       return bot.sendMessage(chatId, 'Напиши тип тренировки сообщением (например: «Кроссфит»):');
     }
-  
-    // Выбран пресет кнопкой
-    data.activity = choice;
+
+    stData.activity = choice;
     state.step = 'notes';
     await bot.answerCallbackQuery(query.id, { text: `Выбрано: ${choice}` });
     return bot.sendMessage(chatId, 'Введите заметки (или "-" если нет):');
@@ -901,13 +998,13 @@ bot.on('callback_query', async (query) => {
     const dateStr = parts[1];
     return getUserId(chatId, async (userId) => {
       if (!userId) return;
-      await upsertDailyCheck(userId, { date: dateStr }); // просто обновим updated_at
+      await upsertDailyCheck(userId, { date: dateStr });
       return bot.answerCallbackQuery(query.id, { text: 'Сохранено ✅' });
     });
   }
 
   if (key === 'checkoptout') {
-    const scope = parts[1]; // morning|evening
+    const scope = parts[1];
     return getUserId(chatId, async (userId) => {
       if (!userId) return;
       await setPrefs(userId, scope + '_enabled', 0);
@@ -916,17 +1013,16 @@ bot.on('callback_query', async (query) => {
     });
   }
 
+  // ---- meds ----
   if (key === 'med') {
-    const action = parts[1];       // take | skip
-    const medicationId = parts[2]; // id лекарства
-    const dateStr = parts[3];      // YYYY-MM-DD
-    const time = parts[4];         // HH:MM
-    const chatId = query.message.chat.id;
-  
+    const action = parts[1];
+    const medicationId = parts[2];
+    const dateStr = parts[3];
+    const time = parts[4];
+
     return getUserId(chatId, async (userId) => {
       if (!userId) return bot.answerCallbackQuery(query.id, { text: 'Нет привязки.', show_alert: true });
-  
-      // записываем в medication_intakes
+
       await new Promise((resolve, reject) => {
         db.run(
           `INSERT INTO medication_intakes (medication_id, user_id, intake_date, intake_time, status)
@@ -935,21 +1031,83 @@ bot.on('callback_query', async (query) => {
           (err) => err ? reject(err) : resolve()
         );
       });
-  
-      // меняем текст сообщения
-      let statusText = action === 'take' ? '✅ Выпил' : '⏭ Пропустил';
+
+      const statusText = action === 'take' ? '✅ Выпил' : '⏭ Пропустил';
       await bot.editMessageText(`${query.message.text}\n\n${statusText}`, {
         chat_id: chatId,
         message_id: query.message.message_id,
         parse_mode: 'Markdown'
       });
-  
+
       return bot.answerCallbackQuery(query.id, { text: 'Записал 👍' });
     });
   }
+
+  // ---- goalcheck flow ----
+  if (key === 'goalck_pick') {
+    const goalId = parts[1];
+
+    return getUserId(chatId, async (userId) => {
+      if (!userId) return bot.answerCallbackQuery(query.id, { text: 'Нет привязки.', show_alert: true });
+
+      const goal = await dbGet(
+        `SELECT id, title, target, unit, direction
+           FROM goals
+          WHERE id=? AND user_id=?`,
+        [goalId, userId]
+      );
+      if (!goal) return bot.answerCallbackQuery(query.id, { text: 'Цель не найдена', show_alert: true });
+
+      userStates[chatId] = {
+        step: 'goal_checkin_value',
+        data: {
+          goalId: goal.id,
+          goalTitle: goal.title,
+          unit: goal.unit || '',
+          direction: goal.direction || 'increase',
+          target: Number(goal.target || 0),
+          did_something: 1,
+        }
+      };
+
+      await bot.answerCallbackQuery(query.id, { text: `Ок, обновим: ${goal.title}` });
+
+      return bot.sendMessage(
+        chatId,
+        `🎯 *${goal.title}*\nВведи *текущее значение* (числом).${goal.unit ? `\nЕдиница: *${goal.unit}*` : ''}`,
+        { parse_mode: 'Markdown' }
+      );
+    });
+  }
+
+  if (key === 'goalck_later') {
+    await bot.answerCallbackQuery(query.id, { text: 'Ок, напомню позже 🙂' });
+    return bot.sendMessage(chatId, '👌 Хорошо. Можешь в любой момент вызвать /goalcheck');
+  }
+
+  if (key === 'goalck_ds') {
+    const val = Number(parts[1]) ? 1 : 0;
+    const st = userStates[chatId];
+    if (!st || st.step !== 'goal_checkin_did') {
+      return bot.answerCallbackQuery(query.id, { text: 'Сессия устарела. /goalcheck', show_alert: true });
+    }
+    st.data.did_something = val;
+    st.step = 'goal_checkin_note';
+
+    await bot.answerCallbackQuery(query.id, { text: val ? 'Ок: делал' : 'Ок: не делал' });
+
+    return bot.sendMessage(
+      chatId,
+      'Добавь комментарий (опционально). Напиши текст или отправь `-`, если без комментария.',
+      { parse_mode: 'Markdown' }
+    );
+  }
+
+  // если не обработали — просто закрываем
+  return bot.answerCallbackQuery(query.id).catch(() => {});
 });
 
-// ========= ПОШАГОВОЕ ДОБАВЛЕНИЕ (твой сценарий тренировки) ========= //
+// ===================== TRAINING STEPS =====================
 async function handleTrainingSteps(chatId, text) {
   const state = userStates[chatId];
   const { step, data } = state;
@@ -969,7 +1127,7 @@ async function handleTrainingSteps(chatId, text) {
   } else if (step === 'place') {
     data.place = text;
     state.step = 'activity';
-    await sendTrainingActivityKeyboard(chatId); // теперь можно await
+    await sendTrainingActivityKeyboard(chatId);
     return bot.sendMessage(chatId, 'Можешь выбрать кнопкой выше или ввести свой вариант сообщением.');
   } else if (step === 'activity') {
     const manual = (text || '').trim();
@@ -994,7 +1152,7 @@ async function handleTrainingSteps(chatId, text) {
   }
 }
 
-// ========= УТРО/ВЕЧЕР DAILY CHECKS (инлайн-кнопки) ========= //
+// ===================== DAILY CHECKS PROMPTS =====================
 function sendMorningSleepPrompt(chat_id, dateStr = ymd()) {
   const kb = {
     inline_keyboard: [
@@ -1042,13 +1200,29 @@ function sendEveningCheckin(chat_id, dateStr = ymd()) {
   return bot.sendMessage(chat_id, '🧭 Вечерний чек-ин:', { reply_markup: kb });
 }
 
-// ========= CRON: напоминания о лекарствах (каждую минуту, разово, МСК) ========= //
+// ===================== CRONS =====================
+
+// Еженедельный чек-ин по целям (понедельник 13:00 МСК)
+cron.schedule('0 13 * * 1', () => {
+  db.all('SELECT user_id, chat_id FROM telegram_users', [], async (err, rows) => {
+    if (err || !rows?.length) return;
+
+    for (const { user_id, chat_id } of rows) {
+      try {
+        await sendWeeklyGoalsPrompt(chat_id, user_id);
+      } catch (e) {
+        console.error('weekly goals checkin cron error:', e);
+      }
+    }
+  });
+}, { timezone: 'Europe/Moscow' });
+
+// Напоминания о лекарствах (каждую минуту)
 cron.schedule('* * * * *', () => {
   const now = new Date();
-  const hhmm = now.toTimeString().slice(0, 5);    // "HH:MM"
-  const today = now.toISOString().slice(0, 10);   // "YYYY-MM-DD"
+  const hhmm = now.toTimeString().slice(0, 5);
+  const today = now.toISOString().slice(0, 10);
 
-  // активные курсы на сегодня
   db.all(
     `SELECT m.*, tu.chat_id
        FROM medications m
@@ -1062,19 +1236,17 @@ cron.schedule('* * * * *', () => {
 
       for (const m of rows) {
         let times = [];
-        try { times = JSON.parse(m.times || '[]'); } catch {}
+        try { times = JSON.parse(m.times || '[]'); } catch { times = []; }
         if (!shouldNotifyToday(m.frequency, now)) continue;
 
-        // если текущее время совпадает с одним из назначенных
         if (times.includes(hhmm)) {
-          // проверяем, отправляли ли уже сегодня в это время для этого курса
           db.get(
             `SELECT 1 FROM medication_notifications
               WHERE medication_id = ? AND notify_date = ? AND notify_time = ?`,
             [m.id, today, hhmm],
             (e, r) => {
-              if (e) return;           // в логах увидим, если что
-              if (r) return;           // уже отправляли — выходим
+              if (e) return;
+              if (r) return;
 
               const text = `💊 Напоминание: выпей *${m.name}*${m.dosage ? `, ${m.dosage}` : ''} (${hhmm})`;
               bot.sendMessage(m.chat_id, text, {
@@ -1087,7 +1259,6 @@ cron.schedule('* * * * *', () => {
                 }
               });
 
-              // фиксируем одноразовую отправку
               db.run(
                 `INSERT OR IGNORE INTO medication_notifications (medication_id, notify_date, notify_time, sent)
                  VALUES (?, ?, ?, 1)`,
@@ -1101,11 +1272,11 @@ cron.schedule('* * * * *', () => {
   );
 }, { timezone: 'Europe/Moscow' });
 
-// ========= CRON: очистка старых отметок по лекарствам (вс 03:00 МСК, храним 30 дней) ========= //
+// Очистка старых отметок по лекарствам (вс 03:00 МСК)
 cron.schedule('0 3 * * 0', () => {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 30);
-  const cutoffDate = cutoff.toISOString().slice(0, 10); // YYYY-MM-DD
+  const cutoffDate = cutoff.toISOString().slice(0, 10);
 
   db.run(
     `DELETE FROM medication_notifications WHERE notify_date < ?`,
@@ -1117,7 +1288,7 @@ cron.schedule('0 3 * * 0', () => {
   );
 }, { timezone: 'Europe/Moscow' });
 
-// ========= CRON: ежедневное уведомление при 75% бюджета (08:00 МСК) ========= //
+// Ежедневное уведомление при 75% бюджета (08:00 МСК)
 cron.schedule('0 8 * * *', async () => {
   const month = currentMonth();
   const sql = `
@@ -1143,12 +1314,12 @@ cron.schedule('0 8 * * *', async () => {
       try {
         const chatId = await getChatIdByUserId(r.user_id);
         if (!chatId) continue;
-        const pct = Math.round((r.spent / r.budget) * 100);
+        const p = Math.round((r.spent / r.budget) * 100);
         const remaining = Math.max(0, r.budget - r.spent);
         const msg =
           `⚠️ *Бюджет почти израсходован*\n` +
           `Категория: *${r.category}*\n` +
-          `Потрачено: *${Math.round(r.spent)}* из *${Math.round(r.budget)}* ₽ (${pct}%)\n` +
+          `Потрачено: *${Math.round(r.spent)}* из *${Math.round(r.budget)}* ₽ (${p}%)\n` +
           `Остаток: *${Math.round(remaining)}* ₽`;
         await bot.sendMessage(chatId, msg, { parse_mode: 'Markdown' });
       } catch (e) {
@@ -1158,7 +1329,7 @@ cron.schedule('0 8 * * *', async () => {
   });
 }, { timezone: 'Europe/Moscow' });
 
-// ========= CRON: недельный финансовый дайджест (понедельник 08:00 МСК) ========= //
+// Недельный финансовый дайджест (понедельник 08:00 МСК)
 cron.schedule('0 8 * * 1', async () => {
   const month = currentMonth();
   db.all('SELECT user_id, chat_id FROM telegram_users', [], async (err, bindings) => {
@@ -1204,19 +1375,19 @@ cron.schedule('0 8 * * 1', async () => {
 
         const budgetLines = stats.length
           ? stats.map(s => {
-              const pct = s.budget ? Math.round((s.spent / s.budget) * 100) : 0;
-              const remain = Math.round((s.budget || 0) - (s.spent || 0));
-              return `• ${s.category}: ${pct}% | остаток *${remain}* ₽`;
-            }).join('\n')
+            const p = s.budget ? Math.round((s.spent / s.budget) * 100) : 0;
+            const remain = Math.round((s.budget || 0) - (s.spent || 0));
+            return `• ${s.category}: ${p}% | остаток *${remain}* ₽`;
+          }).join('\n')
           : 'бюджеты не заданы';
 
-        const text =
+        const out =
           `🧾 *Финансовый дайджест*\n` +
           `Период: последние 7 дней\n\n` +
           `*Топ-3 расходов:*\n${topLines}\n\n` +
           `*Бюджеты (${month}):*\n${budgetLines}`;
 
-        await bot.sendMessage(chat_id, text, { parse_mode: 'Markdown' });
+        await bot.sendMessage(chat_id, out, { parse_mode: 'Markdown' });
       } catch (e) {
         console.error('Digest send error:', e);
       }
@@ -1224,40 +1395,35 @@ cron.schedule('0 8 * * 1', async () => {
   });
 }, { timezone: 'Europe/Moscow' });
 
-// ========= CRON: еженедельный отчёт по СКОРИНГУ (понедельник 11:00 МСК) ========= //
+// Еженедельный отчёт по скорингу (понедельник 11:00 МСК)
 cron.schedule('0 11 * * 1', () => {
   const cur = prevWeekRange();
   const prevStart = dayjs(cur.startIso).subtract(7, 'day').format('YYYY-MM-DD');
-  const prevEnd   = dayjs(cur.endIso).subtract(7, 'day').format('YYYY-MM-DD');
+  const prevEnd = dayjs(cur.endIso).subtract(7, 'day').format('YYYY-MM-DD');
 
   db.all('SELECT user_id, chat_id FROM telegram_users', [], async (err, rows) => {
     if (err || !rows?.length) return;
 
     for (const { user_id, chat_id } of rows) {
       try {
-        const curScore  = await computeScoreForPeriod(user_id, cur.startIso, cur.endIso);
+        const curScore = await computeScoreForPeriod(user_id, cur.startIso, cur.endIso);
         const prevScore = await computeScoreForPeriod(user_id, prevStart, prevEnd);
         const delta = Math.round(curScore.avg - prevScore.avg);
 
-        const { weakest, advice } = buildAdviceFromBreakdown(curScore, cur.startIso, cur.endIso);
+        const { weakest, advice } = buildAdviceFromBreakdown(curScore);
         const det = curScore.breakdown.details || {};
 
-        // sleep.avg: считаем из totalHours/дней
         const periodDays = dayjs(cur.endIso).diff(dayjs(cur.startIso), 'day') + 1;
         let sleepAvg = null;
         if (det.sleep) {
-          if (typeof det.sleep.avg_hours_per_day === 'number') {
-            sleepAvg = det.sleep.avg_hours_per_day;
-          } else if (typeof det.sleep.total_hours === 'number') {
-            sleepAvg = det.sleep.total_hours / Math.max(1, periodDays);
-          }
+          if (typeof det.sleep.avg_hours_per_day === 'number') sleepAvg = det.sleep.avg_hours_per_day;
+          else if (typeof det.sleep.total_hours === 'number') sleepAvg = det.sleep.total_hours / Math.max(1, periodDays);
         }
 
         const w = det.workouts || {};
         const workoutsLine =
           (typeof w.planned_days === 'number' && typeof w.done_days === 'number')
-            ? `${w.done_days} из ${w.planned_days}` +
-              (w.extra_unplanned_days ? ` (+${w.extra_unplanned_days} вне плана)` : '')
+            ? `${w.done_days} из ${w.planned_days}` + (w.extra_unplanned_days ? ` (+${w.extra_unplanned_days} вне плана)` : '')
             : '—';
 
         const medsLine =
@@ -1276,7 +1442,7 @@ cron.schedule('0 11 * * 1', () => {
 
           `Здоровье\n` +
           `• Сон: ${sleepAvg != null ? sleepAvg.toFixed(1) + ' ч/д' : '—'}\n` +
-          `• Тренировки: ${workoutsLine ? workoutsLine : '—'}\n` +
+          `• Тренировки: ${workoutsLine}\n` +
           `• Лекарства: ${medsLine}\n\n` +
 
           `Финансы\n` +
@@ -1297,7 +1463,7 @@ cron.schedule('0 11 * * 1', () => {
   });
 }, { timezone: 'Europe/Moscow' });
 
-// ========= ЕЖЕДНЕВНОЕ НАПОМИНАНИЕ ДЛЯ ВСЕХ (твоя существующая логика) ========= //
+// Ежедневное утреннее сообщение (как было)
 const motivationalQuotes = [
   "🚀 Вперёд к целям!",
   "🔥 Ты справишься!",
@@ -1317,7 +1483,6 @@ cron.schedule('0 5 * * *', () => {
         const firstName = chat.first_name || 'пользователь';
         const today = new Date().toISOString().split('T')[0];
 
-        // 1. HEALTH
         const healthList = await new Promise(resolve => {
           db.all(
             'SELECT time, activity, place FROM health WHERE user_id = ? AND date = ? AND completed = 0 AND type = "training" ORDER BY time',
@@ -1333,7 +1498,6 @@ cron.schedule('0 5 * * *', () => {
           );
         });
 
-        // 2. TASKS
         const taskList = await new Promise(resolve => {
           db.all(
             'SELECT text FROM todos WHERE user_id = ? AND completed = 0 ORDER BY due_date IS NULL, due_date ASC',
@@ -1345,7 +1509,6 @@ cron.schedule('0 5 * * *', () => {
           );
         });
 
-        // 3. GOALS
         const goalsList = await new Promise(resolve => {
           db.all(
             'SELECT title, current, target, unit, is_binary FROM goals WHERE user_id = ?',
@@ -1360,7 +1523,6 @@ cron.schedule('0 5 * * *', () => {
           );
         });
 
-        // 4. Final message
         const quote = motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)];
         const message =
           `Доброе утро, ${firstName} 👋\n\n` +
@@ -1379,16 +1541,15 @@ cron.schedule('0 5 * * *', () => {
   });
 });
 
-// ========= CRON: напоминание поставить бюджеты (1-е число, 07:00 МСК) ========= //
+// Напоминание поставить бюджеты (1-е число, 07:00 МСК)
 cron.schedule('0 7 1 * *', () => {
-  const month = currentMonth(); // YYYY-MM
+  const month = currentMonth();
 
   db.all('SELECT user_id, chat_id FROM telegram_users', [], async (err, rows) => {
     if (err || !rows?.length) return;
 
     for (const { user_id, chat_id } of rows) {
       try {
-        // 1) есть ли у пользователя хотя бы 2 транзакции? (иначе не шлём)
         const tx = await new Promise((resolve) => {
           db.get(
             `SELECT COUNT(*) AS cnt FROM finances WHERE user_id = ?`,
@@ -1396,9 +1557,8 @@ cron.schedule('0 7 1 * *', () => {
             (e, r) => resolve(r?.cnt ?? 0)
           );
         });
-        if (tx <= 1) continue; // мало данных — не актуально
+        if (tx <= 1) continue;
 
-        // 2) уже есть бюджеты на текущий месяц?
         const bc = await new Promise((resolve) => {
           db.get(
             `SELECT COUNT(*) AS cnt FROM budgets WHERE user_id = ? AND month = ?`,
@@ -1406,9 +1566,8 @@ cron.schedule('0 7 1 * *', () => {
             (e, r) => resolve(r?.cnt ?? 0)
           );
         });
-        if (bc > 0) continue; // бюджеты уже заданы — не тревожим
+        if (bc > 0) continue;
 
-        // 3) отправляем напоминание
         const msg =
           `📅 *Новый месяц — самое время задать бюджеты*\n` +
           `Период: *${month}*\n\n` +
@@ -1424,8 +1583,7 @@ cron.schedule('0 7 1 * *', () => {
   });
 }, { timezone: 'Europe/Moscow' });
 
-// ========= CRON: DAILY CHECKS рассылки ========= //
-// Утро — 08:30 МСК
+// DAILY CHECKS рассылки
 cron.schedule('30 8 * * *', () => {
   db.all('SELECT tu.user_id, tu.chat_id FROM telegram_users tu', [], async (err, rows) => {
     if (err) return;
@@ -1438,7 +1596,6 @@ cron.schedule('30 8 * * *', () => {
   });
 }, { timezone: 'Europe/Moscow' });
 
-// Вечер — 21:30 МСК
 cron.schedule('30 21 * * *', () => {
   db.all('SELECT tu.user_id, tu.chat_id FROM telegram_users tu', [], async (err, rows) => {
     if (err) return;
