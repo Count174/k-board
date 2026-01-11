@@ -8,7 +8,7 @@ function formatDue(due_date, time) {
   const d = due_date ? dayjs(due_date) : null;
 
   const dateStr = d ? d.format('DD.MM.YYYY') : '';
-  const timeStr = time ? time.slice(0, 5) : '';
+  const timeStr = time ? String(time).slice(0, 5) : '';
 
   if (dateStr && timeStr) return `${dateStr} · ${timeStr}`;
   return dateStr || timeStr;
@@ -73,7 +73,7 @@ export default function ToDoWidget() {
   };
 
   const activeCount = useMemo(
-    () => todos.filter(t => !t.completed).length,
+    () => todos.filter((t) => !t.completed).length,
     [todos]
   );
 
@@ -99,23 +99,35 @@ export default function ToDoWidget() {
         />
 
         <div className={styles.formRow}>
-          <input
-            className={styles.field}
-            type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
-          />
-          <input
-            className={styles.field}
-            type="time"
-            value={time}
-            onChange={(e) => setTime(e.target.value)}
-          />
+          {/* На мобилке у date/time нет нормальных placeholder — делаем подписи */}
+          <div className={styles.fieldWrap}>
+            <div className={styles.fieldLabel}>Дата</div>
+            <input
+              className={styles.field}
+              type="date"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              aria-label="Дата"
+            />
+          </div>
+
+          <div className={styles.fieldWrap}>
+            <div className={styles.fieldLabel}>Время</div>
+            <input
+              className={styles.field}
+              type="time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              aria-label="Время"
+            />
+          </div>
+
           <button
             className={styles.addBtn}
             onClick={addTodo}
             disabled={busy || !text.trim()}
             title="Добавить"
+            aria-label="Добавить задачу"
           >
             +
           </button>

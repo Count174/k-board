@@ -183,3 +183,10 @@
   text-decoration: line-through;
   color: rgba(255,255,255,.75);
 }
+
+.fieldWrap { min-width: 0; }
+.fieldLabel {
+  font-size: 11px;
+  color: rgba(255,255,255,.45);
+  margin: 0 0 6px 2px;
+}

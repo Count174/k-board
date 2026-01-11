@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./HealthWidget.module.css";
 import { get, post } from "../../api/api";
 import dayjs from "dayjs";
@@ -31,6 +31,9 @@ export default function HealthWidget() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState(null);
+
+  const dateRef = useRef(null);
+  const timeRef = useRef(null);
 
   const load = async () => {
     try {
@@ -65,18 +68,31 @@ export default function HealthWidget() {
     return events[0];
   }, [events]);
 
+  const getSafeTimeValue = () => {
+    // state может не успеть обновиться на мобиле — читаем ещё и из DOM
+    const fromState = (form.time || "").trim();
+    const fromDom = (timeRef.current?.value || "").trim();
+    const v = fromState || fromDom;
+    return v ? v.slice(0, 5) : "";
+  };
+
   const save = async () => {
     if (!form.date || !form.activity.trim()) return;
+
+    const safeDate = (form.date || dateRef.current?.value || "").trim();
+    const safeTime = getSafeTimeValue();
+
     setLoading(true);
     try {
       await post("health", {
         type: "training",
-        date: form.date,
-        time: form.time || null,
+        date: safeDate,
+        time: safeTime || null,
         place: form.place || "",
         activity: form.activity.trim(),
         notes: form.notes?.trim() || "",
       });
+
       setForm({ ...empty, date: dayjs().format("YYYY-MM-DD") });
       await load();
     } catch (e) {
@@ -100,7 +116,6 @@ export default function HealthWidget() {
   };
 
   const onKeyDown = (e) => {
-    // Enter в textarea не перехватываем
     if (e.key === "Enter" && e.target?.tagName !== "TEXTAREA") {
       save();
     }
@@ -129,18 +144,30 @@ export default function HealthWidget() {
 
       <div className={styles.form} onKeyDown={onKeyDown}>
         <div className={styles.grid2}>
-          <input
-            type="date"
-            value={form.date}
-            onChange={(e) => setForm({ ...form, date: e.target.value })}
-            className={styles.field}
-          />
-          <input
-            type="time"
-            value={form.time}
-            onChange={(e) => setForm({ ...form, time: e.target.value })}
-            className={styles.field}
-          />
+          {/* (4/5) маленькие подписи — чтобы на мобиле было понятно, что это */}
+          <div className={styles.fieldWrap}>
+            <div className={styles.fieldLabel}>Дата</div>
+            <input
+              ref={dateRef}
+              type="date"
+              value={form.date}
+              onChange={(e) => setForm({ ...form, date: e.target.value })}
+              className={styles.field}
+            />
+          </div>
+
+          <div className={styles.fieldWrap}>
+            <div className={styles.fieldLabel}>Время</div>
+            <input
+              ref={timeRef}
+              type="time"
+              value={form.time}
+              onChange={(e) => setForm({ ...form, time: e.target.value })}
+              onInput={(e) => setForm({ ...form, time: e.target.value })} // доп. страховка на мобиле
+              onBlur={(e) => setForm({ ...form, time: e.target.value })}  // доп. страховка на iOS
+              className={styles.field}
+            />
+          </div>
         </div>
 
         <div className={styles.grid2}>
