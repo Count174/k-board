@@ -95,8 +95,3 @@
   .deleteBtn svg {
     display: block;
   }
-  
-  .deleteBtn svg path {
-    stroke: currentColor !important;
-    fill: none !important;
-  }

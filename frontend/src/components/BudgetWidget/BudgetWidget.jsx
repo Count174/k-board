@@ -8,15 +8,19 @@ export default function BudgetWidget() {
     const m = String(d.getMonth() + 1).padStart(2, '0');
     return `${d.getFullYear()}-${m}`;
   });
+
   const [stats, setStats] = useState([]);
   const [form, setForm] = useState({ category: '', amount: '' });
 
   const reload = async () => {
     const s = await get(`budgets/stats?month=${month}`);
-    setStats(s);
+    setStats(Array.isArray(s) ? s : []);
   };
 
-  useEffect(() => { reload(); }, [month]);
+  useEffect(() => {
+    reload().catch(console.error);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [month]);
 
   const total = useMemo(() => {
     const budget = stats.reduce((a, x) => a + Number(x.budget || 0), 0);
@@ -28,6 +32,7 @@ export default function BudgetWidget() {
 
   const onSave = async () => {
     if (!form.category || !form.amount) return;
+
     await post('budgets', { ...form, month });
     setForm({ category: '', amount: '' });
     await reload();
@@ -39,15 +44,13 @@ export default function BudgetWidget() {
     const ok = window.confirm(`Удалить бюджет «${category}» за ${month}?`);
     if (!ok) return;
 
-    // оптимистично убираем карточку
     const prev = stats;
     setStats(prev.filter(x => x.id !== id));
 
     try {
       await remove(`budgets/${id}`);
-      await reload(); // на всякий случай пересчёт
+      await reload();
     } catch (e) {
-      // откат
       setStats(prev);
       alert('Не удалось удалить бюджет. Попробуй ещё раз.');
     }
@@ -87,23 +90,15 @@ export default function BudgetWidget() {
                 <div className={styles.headerRight}>
                   <div className={`${styles.badge} ${cls}`}>{usedPct}%</div>
 
+                  {/* как в GoalsWidget: простая "🗑️" внутри кнопки */}
                   <button
                     type="button"
                     className={styles.deleteBtn}
-                    title="Удалить бюджет"
+                    title="Удалить"
                     aria-label={`Удалить бюджет ${s.category}`}
                     onClick={() => onDelete(s.id, s.category)}
                   >
-                    {/* минималистичная иконка-крестик */}
-                    <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                      <path
-                        d="M18 6L6 18M6 6l12 12"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                      />
-                    </svg>
+                    🗑️
                   </button>
                 </div>
               </div>
