@@ -24,7 +24,10 @@ const FinanceWidget = () => {
   const [analyticsTx, setAnalyticsTx] = useState([]); // полный набор транзакций на период
   const [period, setPeriod] = useState("month");
   const [tab, setTab] = useState("transactions");
-  const [form, setForm] = useState({ type: "expense", category: "", amount: "" });
+  const [form, setForm] = useState({ type: "expense", category_id: "", comment: "", amount: "" });
+  const [categories, setCategories] = useState({ expense: [], income: [] });
+  const [showNewCategoryForm, setShowNewCategoryForm] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
 
   const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(true);
@@ -101,6 +104,26 @@ const FinanceWidget = () => {
     }
   };
 
+  // Загрузка категорий
+  const fetchCategories = async () => {
+    try {
+      const [expenseCats, incomeCats] = await Promise.all([
+        get("/categories?type=expense"),
+        get("/categories?type=income"),
+      ]);
+      setCategories({
+        expense: expenseCats || [],
+        income: incomeCats || [],
+      });
+    } catch (error) {
+      console.error("Ошибка при загрузке категорий:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
   useEffect(() => {
     setOffset(0);
     setHasMore(true);
@@ -113,10 +136,17 @@ const FinanceWidget = () => {
   }, [period, customApplied]);
 
   const handleAddTransaction = async () => {
-    if (!form.category || !form.amount) return;
+    if (!form.category_id || !form.amount) return;
     try {
-      await post("/finances", { ...form });
-      setForm({ type: "expense", category: "", amount: "" });
+      await post("/finances", { 
+        type: form.type,
+        category_id: form.category_id,
+        comment: form.comment || "",
+        amount: form.amount 
+      });
+      setForm({ type: "expense", category_id: "", comment: "", amount: "" });
+      setShowNewCategoryForm(false);
+      setNewCategoryName("");
       setOffset(0);
       setHasMore(true);
 
@@ -125,6 +155,28 @@ const FinanceWidget = () => {
       fetchAnalyticsTransactions(period);
     } catch (error) {
       console.error("Ошибка при добавлении транзакции:", error);
+    }
+  };
+
+  const handleCreateCategory = async () => {
+    if (!newCategoryName.trim()) return;
+    try {
+      const newCat = await post("/categories", {
+        name: newCategoryName.trim(),
+        type: form.type,
+        synonyms: form.comment ? [form.comment] : [],
+      });
+      
+      // Обновляем список категорий
+      await fetchCategories();
+      
+      // Устанавливаем новую категорию в форму
+      setForm({ ...form, category_id: newCat.id });
+      setShowNewCategoryForm(false);
+      setNewCategoryName("");
+    } catch (error) {
+      console.error("Ошибка при создании категории:", error);
+      alert("Ошибка при создании категории");
     }
   };
 
@@ -314,16 +366,57 @@ const FinanceWidget = () => {
           <div className={styles.addTransaction}>
             <select
               value={form.type}
-              onChange={(e) => setForm({ ...form, type: e.target.value })}
+              onChange={(e) => {
+                setForm({ type: e.target.value, category_id: "", comment: "", amount: "" });
+                setShowNewCategoryForm(false);
+              }}
             >
               <option value="income">Доход</option>
               <option value="expense">Расход</option>
             </select>
+            <select
+              value={form.category_id}
+              onChange={(e) => {
+                if (e.target.value === "new") {
+                  setShowNewCategoryForm(true);
+                  setForm({ ...form, category_id: "" });
+                } else {
+                  setForm({ ...form, category_id: e.target.value });
+                  setShowNewCategoryForm(false);
+                }
+              }}
+            >
+              <option value="">Выберите категорию</option>
+              {(categories[form.type] || []).map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.name}
+                </option>
+              ))}
+              <option value="new">➕ Создать новую...</option>
+            </select>
+            {showNewCategoryForm && (
+              <div style={{ display: "flex", gap: "8px", width: "100%" }}>
+                <input
+                  type="text"
+                  placeholder="Название категории"
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter") handleCreateCategory();
+                  }}
+                />
+                <button onClick={handleCreateCategory}>Создать</button>
+                <button onClick={() => {
+                  setShowNewCategoryForm(false);
+                  setNewCategoryName("");
+                }}>Отмена</button>
+              </div>
+            )}
             <input
               type="text"
-              placeholder="Категория"
-              value={form.category}
-              onChange={(e) => setForm({ ...form, category: e.target.value })}
+              placeholder="Комментарий (опционально)"
+              value={form.comment}
+              onChange={(e) => setForm({ ...form, comment: e.target.value })}
             />
             <input
               type="number"
@@ -331,13 +424,24 @@ const FinanceWidget = () => {
               value={form.amount}
               onChange={(e) => setForm({ ...form, amount: e.target.value })}
             />
-            <button onClick={handleAddTransaction}>Добавить</button>
+            <button onClick={handleAddTransaction} disabled={!form.category_id || !form.amount}>
+              Добавить
+            </button>
           </div>
 
           <ul className={styles.transactionsList}>
             {transactions.map((t) => (
               <li key={t.id} className={styles.transaction}>
-                <span>{t.category}</span>
+                <div>
+                  <span style={{ fontWeight: "bold" }}>
+                    {t.category_name || t.category}
+                  </span>
+                  {t.comment && (
+                    <span style={{ fontSize: "0.9em", color: "#666", marginLeft: "8px" }}>
+                      ({t.comment})
+                    </span>
+                  )}
+                </div>
                 <span className={t.type === "income" ? styles.income : styles.expense}>
                   {money(t.amount)}
                 </span>

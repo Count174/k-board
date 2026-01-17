@@ -19,10 +19,13 @@ exports.getAll = (req, res) => {
   const limit = Math.min(parseInt(req.query.limit, 10) || 20, 200);
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
   db.all(
-    `SELECT id, type, category, amount, date(date) AS date
-       FROM finances
-      WHERE user_id = ?
-      ORDER BY date(date) DESC, id DESC
+    `SELECT f.id, f.type, f.category, f.amount, date(f.date) AS date,
+            f.category_id, f.comment,
+            c.name AS category_name, c.slug AS category_slug
+       FROM finances f
+       LEFT JOIN categories c ON f.category_id = c.id
+      WHERE f.user_id = ?
+      ORDER BY date(f.date) DESC, f.id DESC
       LIMIT ? OFFSET ?`,
     [req.userId, limit, offset],
     (err, rows) => {
@@ -40,12 +43,15 @@ exports.getByPeriod = (req, res) => {
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
 
   db.all(
-    `SELECT id, type, category, amount, date(date) AS date
-       FROM finances
-      WHERE user_id = ?
-        AND date(date) >= date(?)
-        AND date(date) <= date(?)
-      ORDER BY date(date) DESC, id DESC
+    `SELECT f.id, f.type, f.category, f.amount, date(f.date) AS date,
+            f.category_id, f.comment,
+            c.name AS category_name, c.slug AS category_slug
+       FROM finances f
+       LEFT JOIN categories c ON f.category_id = c.id
+      WHERE f.user_id = ?
+        AND date(f.date) >= date(?)
+        AND date(f.date) <= date(?)
+      ORDER BY date(f.date) DESC, f.id DESC
       LIMIT ? OFFSET ?`,
     [req.userId, start, end, limit, offset],
     (err, rows) => {
@@ -80,20 +86,86 @@ exports.getMonthlyStats = (req, res) => {
   );
 };
 
-exports.create = (req, res) => {
-  const { type, category, amount, date } = req.body;
-  if (!type || !category || amount == null) {
-    return res.status(400).json({ error: 'type_category_amount_required' });
-  }
-  db.run(
-    `INSERT INTO finances (user_id, type, category, amount, date)
-     VALUES (?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP))`,
-    [req.userId, type, category, amount, date],
-    function (err) {
-      if (err) return res.status(500).send(err);
-      res.status(201).json({ id: this.lastID });
+exports.create = async (req, res) => {
+  try {
+    const { type, category, amount, date, category_id, comment } = req.body;
+    
+    if (!type || amount == null) {
+      return res.status(400).json({ error: 'type_amount_required' });
     }
-  );
+    
+    // Если передан category_id, используем его, иначе ищем по category (для обратной совместимости)
+    let finalCategoryId = category_id || null;
+    let finalCategory = category || '';
+    let finalComment = comment || '';
+    
+    // Если category_id не передан, но есть category (текст), сохраняем его как comment
+    // и пытаемся найти категорию по тексту
+    if (!finalCategoryId && category) {
+      finalComment = category;
+      
+      // Пытаемся найти категорию по тексту
+      const normalizedText = category.toLowerCase().trim();
+      const found = await get(
+        `SELECT c.id FROM categories c
+         WHERE c.user_id = ? AND c.type = ?
+         AND (
+           LOWER(c.name) = ? OR
+           EXISTS (
+             SELECT 1 FROM json_each(c.synonyms) s
+             WHERE LOWER(s.value) = ?
+           )
+         )
+         LIMIT 1`,
+        [req.userId, type, normalizedText, normalizedText]
+      );
+      
+      if (found) {
+        finalCategoryId = found.id;
+      }
+    }
+    
+    // Если category_id все еще null, используем старую логику (сохраняем category как текст)
+    // Это для обратной совместимости
+    if (!finalCategoryId && category) {
+      finalCategory = category;
+    }
+    
+    return new Promise((resolve, reject) => {
+      db.run(
+        `INSERT INTO finances (user_id, type, category, amount, date, category_id, comment)
+         VALUES (?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?)`,
+        [req.userId, type, finalCategory, amount, date, finalCategoryId, finalComment],
+        async function (err) {
+          if (err) {
+            console.error('finances.create db error:', err);
+            return res.status(500).json({ error: 'failed_to_create_finance' });
+          }
+          
+          // Получаем созданную запись с категорией
+          try {
+            const created = await get(
+              `SELECT f.id, f.type, f.category, f.amount, date(f.date) AS date,
+                      f.category_id, f.comment,
+                      c.name AS category_name, c.slug AS category_slug
+               FROM finances f
+               LEFT JOIN categories c ON f.category_id = c.id
+               WHERE f.id = ?`,
+              [this.lastID]
+            );
+            
+            res.status(201).json(created || { id: this.lastID });
+          } catch (e) {
+            console.error('finances.create fetch error:', e);
+            res.status(201).json({ id: this.lastID });
+          }
+        }
+      );
+    });
+  } catch (e) {
+    console.error('finances.create error:', e);
+    res.status(500).json({ error: 'failed_to_create_finance' });
+  }
 };
 
 exports.remove = (req, res) => {
@@ -120,12 +192,15 @@ exports.getRange = async (req, res) => {
     if (!start || !end) return res.status(400).json({ error: 'start_end_required' });
 
     const rows = await all(
-      `SELECT date(date) AS date, type, amount, category, id
-         FROM finances
-        WHERE user_id = ?
-          AND date(date) >= date(?)
-          AND date(date) <= date(?)
-        ORDER BY date(date), id`,
+      `SELECT date(f.date) AS date, f.type, f.amount, f.category, f.id,
+              f.category_id, f.comment,
+              c.name AS category_name, c.slug AS category_slug
+         FROM finances f
+         LEFT JOIN categories c ON f.category_id = c.id
+        WHERE f.user_id = ?
+          AND date(f.date) >= date(?)
+          AND date(f.date) <= date(?)
+        ORDER BY date(f.date), f.id`,
       [req.userId, start, end]
     );
 

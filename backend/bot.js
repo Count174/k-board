@@ -99,6 +99,180 @@ function getUserId(chatId, callback) {
   });
 }
 
+// ===================== CATEGORIES HELPERS =====================
+
+/**
+ * Найти категорию по тексту через синонимы
+ */
+function findCategoryByText(userId, text, type) {
+  return new Promise((resolve) => {
+    const normalizedText = text.toLowerCase().trim();
+    
+    db.all(
+      `SELECT id, name, slug, synonyms, type
+       FROM categories
+       WHERE user_id = ? AND type = ?`,
+      [userId, type],
+      (err, categories) => {
+        if (err || !categories) return resolve(null);
+        
+        for (const cat of categories) {
+          const synonyms = cat.synonyms ? JSON.parse(cat.synonyms) : [];
+          const normalizedSynonyms = synonyms.map(s => s.toLowerCase().trim());
+          
+          // Проверяем точное совпадение или вхождение
+          if (normalizedSynonyms.includes(normalizedText) ||
+              normalizedSynonyms.some(s => normalizedText.includes(s) || s.includes(normalizedText)) ||
+              normalizedText.includes(cat.name.toLowerCase()) ||
+              cat.name.toLowerCase().includes(normalizedText)) {
+            return resolve({ id: cat.id, name: cat.name, slug: cat.slug });
+          }
+        }
+        
+        resolve(null);
+      }
+    );
+  });
+}
+
+/**
+ * Получить список категорий пользователя
+ */
+function getUserCategories(userId, type) {
+  return new Promise((resolve) => {
+    db.all(
+      `SELECT id, name, slug FROM categories
+       WHERE user_id = ? AND type = ?
+       ORDER BY name
+       LIMIT 10`,
+      [userId, type],
+      (err, rows) => {
+        if (err) return resolve([]);
+        resolve(rows || []);
+      }
+    );
+  });
+}
+
+/**
+ * Показать кнопки для выбора категории
+ */
+async function showCategorySelection(chatId, userId, type, amount, categoryText) {
+  const categories = await getUserCategories(userId, type);
+  
+  if (categories.length === 0) {
+    // Если категорий нет, создаем стандартные
+    return bot.sendMessage(chatId, 
+      `❌ Категории не настроены. Пожалуйста, создайте категории через веб-интерфейс или используйте формат: /cat <название>`
+    );
+  }
+  
+  // Создаем кнопки (по 2 в ряд)
+  const keyboard = [];
+  for (let i = 0; i < categories.length; i += 2) {
+    const row = [];
+    row.push({ 
+      text: categories[i].name, 
+      callback_data: `fin_cat:${categories[i].id}:${type}:${amount}:${encodeURIComponent(categoryText)}` 
+    });
+    if (categories[i + 1]) {
+      row.push({ 
+        text: categories[i + 1].name, 
+        callback_data: `fin_cat:${categories[i + 1].id}:${type}:${amount}:${encodeURIComponent(categoryText)}` 
+      });
+    }
+    keyboard.push(row);
+  }
+  
+  // Кнопка "Другое" для создания новой категории
+  keyboard.push([{ 
+    text: '➕ Создать новую...', 
+    callback_data: `fin_cat_new:${type}:${amount}:${encodeURIComponent(categoryText)}` 
+  }]);
+  
+  const typeText = type === 'income' ? 'доход' : 'расход';
+  bot.sendMessage(
+    chatId,
+    `Какой категории отнести "${categoryText}"?\n\nСумма: ${amount}₽ (${typeText})`,
+    {
+      reply_markup: {
+        inline_keyboard: keyboard
+      }
+    }
+  );
+}
+
+/**
+ * Добавить синоним к категории, если его еще нет
+ */
+function addSynonymIfNeeded(userId, categoryId, text) {
+  return new Promise((resolve) => {
+    db.get(
+      'SELECT synonyms FROM categories WHERE id = ? AND user_id = ?',
+      [categoryId, userId],
+      (err, cat) => {
+        if (err || !cat) return resolve();
+        
+        const synonyms = cat.synonyms ? JSON.parse(cat.synonyms) : [];
+        const normalizedText = text.toLowerCase().trim();
+        const normalizedSynonyms = synonyms.map(s => s.toLowerCase().trim());
+        
+        // Если синонима еще нет, добавляем
+        if (!normalizedSynonyms.includes(normalizedText)) {
+          synonyms.push(text);
+          db.run(
+            'UPDATE categories SET synonyms = ? WHERE id = ? AND user_id = ?',
+            [JSON.stringify(synonyms), categoryId, userId],
+            () => resolve()
+          );
+        } else {
+          resolve();
+        }
+      }
+    );
+  });
+}
+
+/**
+ * Создать новую категорию
+ */
+function createCategory(userId, name, type, initialSynonym = null) {
+  return new Promise((resolve, reject) => {
+    const slug = name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-zа-яё0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+    
+    const synonyms = initialSynonym ? [initialSynonym] : [];
+    
+    db.run(
+      `INSERT INTO categories (user_id, name, slug, synonyms, type)
+       VALUES (?, ?, ?, ?, ?)`,
+      [userId, name, slug, JSON.stringify(synonyms), type],
+      function (err) {
+        if (err) {
+          if (err.message.includes('UNIQUE constraint')) {
+            // Категория уже существует, получаем её
+            db.get(
+              'SELECT id, name FROM categories WHERE user_id = ? AND slug = ?',
+              [userId, slug],
+              (e, row) => {
+                if (e || !row) return reject(err);
+                resolve({ id: row.id, name: row.name });
+              }
+            );
+          } else {
+            reject(err);
+          }
+        } else {
+          resolve({ id: this.lastID, name });
+        }
+      }
+    );
+  });
+}
+
 function getChatIdByUserId(userId) {
   return new Promise((resolve) => {
     db.get('SELECT chat_id FROM telegram_users WHERE user_id = ?', [userId], (err, row) => {
@@ -727,31 +901,89 @@ bot.on('message', async (msg) => {
     return;
   }
 
-  // 1) Состояние тренировки — только training steps
+  // 1) Состояние создания категории для финансов
+  if (userStates[chatId]?.step === 'fin_cat_create') {
+    const state = userStates[chatId];
+    const { type, amount, categoryText } = state.data;
+    const categoryName = text.trim();
+    
+    if (!categoryName) {
+      return bot.sendMessage(chatId, '❌ Название категории не может быть пустым. Попробуйте еще раз:');
+    }
+    
+    delete userStates[chatId];
+    
+    return getUserId(chatId, async (userId) => {
+      if (!userId) return bot.sendMessage(chatId, '❌ Вы не привязаны к пользователю в системе.');
+      
+      try {
+        // Создаем категорию
+        const newCategory = await createCategory(userId, categoryName, type, categoryText);
+        
+        // Сохраняем финансовую запись
+        db.run(
+          'INSERT INTO finances (user_id, type, category, amount, category_id, comment) VALUES (?, ?, ?, ?, ?, ?)',
+          [userId, type, newCategory.name, amount, newCategory.id, categoryText],
+          (err) => {
+            if (err) {
+              console.error('Finance insert error:', err);
+              return bot.sendMessage(chatId, '❌ Ошибка при добавлении.');
+            }
+            
+            bot.sendMessage(chatId, 
+              `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}₽ добавлен.\n` +
+              `📁 Создана категория: "${newCategory.name}"`
+            );
+          }
+        );
+      } catch (e) {
+        console.error('Category creation error:', e);
+        bot.sendMessage(chatId, '❌ Ошибка при создании категории. Попробуйте еще раз.');
+      }
+    });
+  }
+
+  // 2) Состояние тренировки — только training steps
   const trainingSteps = new Set(['date', 'time', 'place', 'activity', 'notes']);
   if (trainingSteps.has(userStates[chatId]?.step) && userStates[chatId]?.step !== 'sleep_custom') {
     return handleTrainingSteps(chatId, text);
   }
 
-  // 2) Финансы: +/-
+  // 3) Финансы: +/-
   if (/^[+-]\d+/.test(text)) {
     const match = text.match(/^([+-])(\d+)\s+(.+)/);
     if (match) {
-      const [, sign, amountStr, category] = match;
+      const [, sign, amountStr, categoryText] = match;
       const type = sign === '+' ? 'income' : 'expense';
       const amount = parseFloat(amountStr);
 
-      return getUserId(chatId, (userId) => {
+      return getUserId(chatId, async (userId) => {
         if (!userId) return bot.sendMessage(chatId, '❌ Вы не привязаны к пользователю в системе.');
 
-        db.run(
-          'INSERT INTO finances (user_id, type, category, amount) VALUES (?, ?, ?, ?)',
-          [userId, type, category, amount],
-          (err) => {
-            if (err) return bot.sendMessage(chatId, '❌ Ошибка при добавлении.');
-            bot.sendMessage(chatId, `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}₽ (${category}) добавлен.`);
-          }
-        );
+        // Ищем категорию по тексту
+        const foundCategory = await findCategoryByText(userId, categoryText, type);
+        
+        if (foundCategory) {
+          // Категория найдена - сохраняем сразу
+          db.run(
+            'INSERT INTO finances (user_id, type, category, amount, category_id, comment) VALUES (?, ?, ?, ?, ?, ?)',
+            [userId, type, foundCategory.name, amount, foundCategory.id, categoryText],
+            async (err) => {
+              if (err) {
+                console.error('Finance insert error:', err);
+                return bot.sendMessage(chatId, '❌ Ошибка при добавлении.');
+              }
+              
+              // Добавляем текст в синонимы, если его там еще нет
+              await addSynonymIfNeeded(userId, foundCategory.id, categoryText);
+              
+              bot.sendMessage(chatId, `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}₽ (${foundCategory.name}) добавлен.`);
+            }
+          );
+        } else {
+          // Категория не найдена - показываем кнопки для выбора
+          await showCategorySelection(chatId, userId, type, amount, categoryText);
+        }
       });
     }
   }
@@ -1040,6 +1272,75 @@ bot.on('callback_query', async (query) => {
       });
 
       return bot.answerCallbackQuery(query.id, { text: 'Записал 👍' });
+    });
+  }
+
+  // ---- finance category selection ----
+  if (key === 'fin_cat') {
+    const categoryId = parseInt(parts[1], 10);
+    const type = parts[2];
+    const amount = parseFloat(parts[3]);
+    const categoryText = decodeURIComponent(parts[4] || '');
+    
+    return getUserId(chatId, async (userId) => {
+      if (!userId) return bot.answerCallbackQuery(query.id, { text: 'Нет привязки.', show_alert: true });
+      
+      // Получаем информацию о категории
+      db.get(
+        'SELECT name FROM categories WHERE id = ? AND user_id = ?',
+        [categoryId, userId],
+        async (err, cat) => {
+          if (err || !cat) {
+            return bot.answerCallbackQuery(query.id, { text: 'Категория не найдена', show_alert: true });
+          }
+          
+          // Сохраняем финансовую запись
+          db.run(
+            'INSERT INTO finances (user_id, type, category, amount, category_id, comment) VALUES (?, ?, ?, ?, ?, ?)',
+            [userId, type, cat.name, amount, categoryId, categoryText],
+            async (err) => {
+              if (err) {
+                console.error('Finance insert error:', err);
+                return bot.answerCallbackQuery(query.id, { text: 'Ошибка при сохранении', show_alert: true });
+              }
+              
+              // Добавляем текст в синонимы
+              await addSynonymIfNeeded(userId, categoryId, categoryText);
+              
+              await bot.answerCallbackQuery(query.id, { text: '✅ Сохранено' });
+              await bot.editMessageText(
+                `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}₽ (${cat.name}) добавлен.`,
+                {
+                  chat_id: chatId,
+                  message_id: query.message.message_id
+                }
+              );
+            }
+          );
+        }
+      );
+    });
+  }
+  
+  if (key === 'fin_cat_new') {
+    const type = parts[1];
+    const amount = parseFloat(parts[2]);
+    const categoryText = decodeURIComponent(parts[3] || '');
+    
+    return getUserId(chatId, async (userId) => {
+      if (!userId) return bot.answerCallbackQuery(query.id, { text: 'Нет привязки.', show_alert: true });
+      
+      // Сохраняем состояние для создания новой категории
+      userStates[chatId] = {
+        step: 'fin_cat_create',
+        data: { type, amount, categoryText }
+      };
+      
+      await bot.answerCallbackQuery(query.id, { text: 'Ок' });
+      return bot.sendMessage(
+        chatId,
+        `Введите название новой категории для "${categoryText}":\n\nПример: Продукты, Транспорт, Развлечения`
+      );
     });
   }
 
