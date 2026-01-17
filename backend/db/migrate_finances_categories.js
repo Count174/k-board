@@ -11,7 +11,7 @@ const db = require('./db');
  * 5. Если не находит - помечает как "Прочее" (или можно оставить null)
  */
 
-// Маппинг популярных категорий (можно расширить)
+// Маппинг популярных категорий на основе реальных данных
 const CATEGORY_MAPPING = {
   // Продукты
   'яндекс лавка': 'produkty',
@@ -36,9 +36,13 @@ const CATEGORY_MAPPING = {
   'завтрак': 'eda-vne-doma',
   'доставка еды': 'eda-vne-doma',
   'яндекс еда': 'eda-vne-doma',
+  'еда вне дома': 'eda-vne-doma',
+  'еда вне домп': 'eda-vne-doma', // опечатка
+  'чаевые': 'eda-vne-doma',
   
   // Квартира и ЖКХ
   'квартира': 'kvartira-i-zhkh',
+  'квартира (+залог)': 'kvartira-i-zhkh',
   'жкх': 'kvartira-i-zhkh',
   'коммуналка': 'kvartira-i-zhkh',
   'аренда': 'kvartira-i-zhkh',
@@ -47,6 +51,7 @@ const CATEGORY_MAPPING = {
   'вода': 'kvartira-i-zhkh',
   'газ': 'kvartira-i-zhkh',
   'интернет': 'kvartira-i-zhkh',
+  'связь': 'kvartira-i-zhkh',
   
   // Транспорт
   'транспорт': 'transport',
@@ -58,6 +63,8 @@ const CATEGORY_MAPPING = {
   'бензин': 'transport',
   'парковка': 'transport',
   'каршеринг': 'transport',
+  'карш': 'transport',
+  'самокат': 'transport',
   
   // Спорт
   'спорт': 'sport',
@@ -76,6 +83,14 @@ const CATEGORY_MAPPING = {
   'стоматолог': 'zdorove',
   'анализы': 'zdorove',
   'больница': 'zdorove',
+  'таблетки': 'zdorove',
+  'психолог': 'zdorove',
+  'массаж': 'zdorove',
+  
+  // Красота и уход
+  'стрижка': 'krasota-i-uhod',
+  'волосы': 'krasota-i-uhod',
+  'золотое яблоко': 'krasota-i-uhod',
   
   // Развлечения
   'развлечения': 'razvlecheniya',
@@ -85,6 +100,9 @@ const CATEGORY_MAPPING = {
   'игры': 'razvlecheniya',
   'стрим': 'razvlecheniya',
   'подписки': 'razvlecheniya',
+  'киберспорт': 'razvlecheniya',
+  'свидание': 'razvlecheniya',
+  'бусти': 'razvlecheniya',
   
   // Обучение
   'обучение': 'obuchenie',
@@ -92,51 +110,114 @@ const CATEGORY_MAPPING = {
   'книги': 'obuchenie',
   'образование': 'obuchenie',
   'университет': 'obuchenie',
+  'французский': 'obuchenie',
   
   // Одежда
   'одежда': 'odezhda',
   'обувь': 'odezhda',
+  'шоппинг': 'odezhda',
+  
+  // Товары для дома
+  'товары для дома': 'tovary-dlya-doma',
+  
+  // Путешествия
+  'путешествия': 'puteshestviya',
+  
+  // Проекты
+  'свои проекты': 'proekty',
+  'сервера': 'proekty',
+  
+  // Займы
+  'loan': 'zaymy',
+  'займ': 'zaymy',
+  'займы': 'zaymy',
+  
+  // Подарки (расходы)
+  'подарки': 'razvlecheniya', // или можно создать отдельную категорию
+  'подарок': 'razvlecheniya',
+  'цветы': 'razvlecheniya',
   
   // Доходы
   'зарплата': 'zarplata',
   'подработка': 'podrabotka',
   'фриланс': 'podrabotka',
   'проект': 'podrabotka',
-  'подарок': 'podarki',
-  'подарки': 'podarki',
+  'шабашка': 'podrabotka',
+  'консультация': 'podrabotka',
+  'лекция': 'podrabotka',
+  'авито': 'prodazhi',
+  'инвестиции': 'investicii',
+  'впн': 'prochie-dohody',
+  'отпускные': 'prochie-dohody',
+  'свои проекты': 'prochie-dohody', // доходы от проектов
 };
 
 async function migrateFinances() {
   return new Promise((resolve, reject) => {
-    // Получаем все записи без category_id
-    db.all(
-      `SELECT id, user_id, type, category, amount, date
-       FROM finances
-       WHERE category_id IS NULL
-       ORDER BY user_id, id`,
-      [],
-      async (err, rows) => {
-        if (err) {
-          console.error('❌ Ошибка получения записей:', err);
-          return reject(err);
-        }
+    // Сначала проверяем, что категории созданы для всех пользователей
+    db.all('SELECT DISTINCT user_id FROM finances WHERE category_id IS NULL', [], async (err, userIds) => {
+      if (err) {
+        console.error('❌ Ошибка получения пользователей:', err);
+        return reject(err);
+      }
+      
+      // Проверяем наличие категорий для каждого пользователя
+      for (const { user_id } of userIds || []) {
+        const count = await new Promise((res) => {
+          db.get('SELECT COUNT(*) as cnt FROM categories WHERE user_id = ?', [user_id], (e, r) => {
+            res(r?.cnt || 0);
+          });
+        });
         
-        if (!rows || rows.length === 0) {
-          console.log('ℹ️ Нет записей для миграции');
-          return resolve();
+        if (count === 0) {
+          console.log(`⚠️ Для user_id=${user_id} категории не найдены. Запустите сначала migrate_categories.js`);
+          console.log(`   Или создайте категории вручную для этого пользователя.`);
         }
-        
-        console.log(`📊 Найдено ${rows.length} записей для миграции`);
+      }
+      
+      // Получаем все записи без category_id
+      db.all(
+        `SELECT id, user_id, type, category, amount, date
+         FROM finances
+         WHERE category_id IS NULL
+         ORDER BY user_id, id`,
+        [],
+        async (err, rows) => {
+          if (err) {
+            console.error('❌ Ошибка получения записей:', err);
+            return reject(err);
+          }
+          
+          if (!rows || rows.length === 0) {
+            console.log('ℹ️ Нет записей для миграции');
+            return resolve();
+          }
+          
+          console.log(`📊 Найдено ${rows.length} записей для миграции`);
         
         let processed = 0;
         let matched = 0;
         let notMatched = 0;
         
         for (const row of rows) {
-          const normalizedCategory = (row.category || '').toLowerCase().trim();
+          // Нормализуем категорию: приводим к нижнему регистру и убираем лишние пробелы
+          const originalCategory = (row.category || '').trim();
+          const normalizedCategory = originalCategory.toLowerCase().trim();
           
-          // Ищем slug категории по маппингу
+          // Ищем slug категории по маппингу (точное совпадение после нормализации)
           let categorySlug = CATEGORY_MAPPING[normalizedCategory];
+          
+          // Если не нашли точное совпадение, пробуем найти по частичному совпадению
+          if (!categorySlug) {
+            for (const [key, slug] of Object.entries(CATEGORY_MAPPING)) {
+              const normalizedKey = key.toLowerCase().trim();
+              // Проверяем вхождение в обе стороны
+              if (normalizedCategory.includes(normalizedKey) || normalizedKey.includes(normalizedCategory)) {
+                categorySlug = slug;
+                break;
+              }
+            }
+          }
           
           // Если не нашли в маппинге, ищем по синонимам в БД
           if (!categorySlug) {
@@ -151,24 +232,24 @@ async function migrateFinances() {
             const category = await getCategoryBySlug(row.user_id, categorySlug, row.type);
             
             if (category) {
-              await updateFinance(row.id, category.id, row.category);
+              await updateFinance(row.id, category.id, originalCategory);
               matched++;
               
               // Добавляем исходный текст в синонимы, если его там нет
-              await addSynonymIfNeeded(row.user_id, category.id, row.category);
+              await addSynonymIfNeeded(row.user_id, category.id, originalCategory);
             } else {
               notMatched++;
-              console.log(`⚠️ Категория "${categorySlug}" не найдена для user_id=${row.user_id}`);
+              console.log(`⚠️ Категория "${categorySlug}" не найдена для user_id=${row.user_id}. Запустите migrate_categories.js`);
             }
           } else {
             // Не нашли категорию - помечаем как "Прочее"
             const prochee = await getCategoryBySlug(row.user_id, 'prochee', row.type);
             if (prochee) {
-              await updateFinance(row.id, prochee.id, row.category);
-              await addSynonymIfNeeded(row.user_id, prochee.id, row.category);
+              await updateFinance(row.id, prochee.id, originalCategory);
+              await addSynonymIfNeeded(row.user_id, prochee.id, originalCategory);
             }
             notMatched++;
-            console.log(`⚠️ Категория не найдена для "${row.category}" (user_id=${row.user_id})`);
+            console.log(`⚠️ Категория не найдена для "${originalCategory}" (user_id=${row.user_id})`);
           }
           
           processed++;
@@ -177,14 +258,15 @@ async function migrateFinances() {
           }
         }
         
-        console.log(`\n✅ Миграция завершена:`);
-        console.log(`   Всего: ${processed}`);
-        console.log(`   Найдено категорий: ${matched}`);
-        console.log(`   Не найдено: ${notMatched}`);
-        
-        resolve();
-      }
-    );
+          console.log(`\n✅ Миграция завершена:`);
+          console.log(`   Всего: ${processed}`);
+          console.log(`   Найдено категорий: ${matched}`);
+          console.log(`   Не найдено: ${notMatched}`);
+          
+          resolve();
+        }
+      );
+    });
   });
 }
 
