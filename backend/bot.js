@@ -217,18 +217,31 @@ async function showCategorySelection(chatId, userId, type, amount, categoryText)
     categories.push(...newCategories);
   }
   
+  // Сохраняем данные в состояние пользователя, чтобы не передавать длинный текст в callback_data
+  const stateKey = `fin_pending_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  userStates[chatId] = {
+    step: 'fin_pending',
+    data: {
+      type,
+      amount,
+      categoryText,
+      stateKey
+    }
+  };
+  
   // Создаем кнопки (по 2 в ряд)
   const keyboard = [];
   for (let i = 0; i < categories.length; i += 2) {
     const row = [];
+    // Используем только короткий идентификатор в callback_data
     row.push({ 
       text: categories[i].name, 
-      callback_data: `fin_cat:${categories[i].id}:${type}:${amount}:${encodeURIComponent(categoryText)}` 
+      callback_data: `fin_cat:${categories[i].id}:${stateKey}` 
     });
     if (categories[i + 1]) {
       row.push({ 
         text: categories[i + 1].name, 
-        callback_data: `fin_cat:${categories[i + 1].id}:${type}:${amount}:${encodeURIComponent(categoryText)}` 
+        callback_data: `fin_cat:${categories[i + 1].id}:${stateKey}` 
       });
     }
     keyboard.push(row);
@@ -237,7 +250,7 @@ async function showCategorySelection(chatId, userId, type, amount, categoryText)
   // Кнопка "Другое" для создания новой категории
   keyboard.push([{ 
     text: '➕ Создать новую...', 
-    callback_data: `fin_cat_new:${type}:${amount}:${encodeURIComponent(categoryText)}` 
+    callback_data: `fin_cat_new:${stateKey}` 
   }]);
   
   const typeText = type === 'income' ? 'доход' : 'расход';
@@ -1331,12 +1344,18 @@ bot.on('callback_query', async (query) => {
   // ---- finance category selection ----
   if (key === 'fin_cat') {
     const categoryId = parseInt(parts[1], 10);
-    const type = parts[2];
-    const amount = parseFloat(parts[3]);
-    const categoryText = decodeURIComponent(parts[4] || '');
+    const stateKey = parts[2];
     
     return getUserId(chatId, async (userId) => {
       if (!userId) return bot.answerCallbackQuery(query.id, { text: 'Нет привязки.', show_alert: true });
+      
+      // Получаем данные из состояния пользователя
+      const state = userStates[chatId];
+      if (!state || state.step !== 'fin_pending' || state.data.stateKey !== stateKey) {
+        return bot.answerCallbackQuery(query.id, { text: 'Сессия устарела. Попробуйте снова.', show_alert: true });
+      }
+      
+      const { type, amount, categoryText } = state.data;
       
       // Получаем информацию о категории
       db.get(
@@ -1360,6 +1379,9 @@ bot.on('callback_query', async (query) => {
               // Добавляем текст в синонимы
               await addSynonymIfNeeded(userId, categoryId, categoryText);
               
+              // Удаляем состояние
+              delete userStates[chatId];
+              
               await bot.answerCallbackQuery(query.id, { text: '✅ Сохранено' });
               await bot.editMessageText(
                 `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}₽ (${cat.name}) добавлен.`,
@@ -1376,12 +1398,18 @@ bot.on('callback_query', async (query) => {
   }
   
   if (key === 'fin_cat_new') {
-    const type = parts[1];
-    const amount = parseFloat(parts[2]);
-    const categoryText = decodeURIComponent(parts[3] || '');
+    const stateKey = parts[1];
     
     return getUserId(chatId, async (userId) => {
       if (!userId) return bot.answerCallbackQuery(query.id, { text: 'Нет привязки.', show_alert: true });
+      
+      // Получаем данные из состояния пользователя
+      const state = userStates[chatId];
+      if (!state || state.step !== 'fin_pending' || state.data.stateKey !== stateKey) {
+        return bot.answerCallbackQuery(query.id, { text: 'Сессия устарела. Попробуйте снова.', show_alert: true });
+      }
+      
+      const { type, amount, categoryText } = state.data;
       
       // Сохраняем состояние для создания новой категории
       userStates[chatId] = {
