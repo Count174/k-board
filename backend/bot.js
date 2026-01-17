@@ -114,21 +114,48 @@ function findCategoryByText(userId, text, type) {
        WHERE user_id = ? AND type = ?`,
       [userId, type],
       (err, categories) => {
-        if (err || !categories) return resolve(null);
+        if (err) {
+          console.error('findCategoryByText error:', err);
+          return resolve(null);
+        }
+        
+        if (!categories || categories.length === 0) {
+          console.log(`⚠️ Категории не найдены для user_id=${userId}, type=${type}`);
+          return resolve(null);
+        }
         
         for (const cat of categories) {
-          const synonyms = cat.synonyms ? JSON.parse(cat.synonyms) : [];
-          const normalizedSynonyms = synonyms.map(s => s.toLowerCase().trim());
+          let synonyms = [];
+          try {
+            synonyms = cat.synonyms ? JSON.parse(cat.synonyms) : [];
+          } catch (e) {
+            console.error(`Ошибка парсинга synonyms для категории ${cat.name}:`, e);
+            synonyms = [];
+          }
           
-          // Проверяем точное совпадение или вхождение
-          if (normalizedSynonyms.includes(normalizedText) ||
-              normalizedSynonyms.some(s => normalizedText.includes(s) || s.includes(normalizedText)) ||
-              normalizedText.includes(cat.name.toLowerCase()) ||
-              cat.name.toLowerCase().includes(normalizedText)) {
+          const normalizedSynonyms = synonyms.map(s => s.toLowerCase().trim());
+          const normalizedCatName = cat.name.toLowerCase().trim();
+          
+          // Проверяем точное совпадение с синонимом
+          if (normalizedSynonyms.includes(normalizedText)) {
+            console.log(`✅ Найдена категория "${cat.name}" по точному совпадению синонима "${text}"`);
+            return resolve({ id: cat.id, name: cat.name, slug: cat.slug });
+          }
+          
+          // Проверяем вхождение текста в синоним или наоборот
+          if (normalizedSynonyms.some(s => normalizedText === s || normalizedText.includes(s) || s.includes(normalizedText))) {
+            console.log(`✅ Найдена категория "${cat.name}" по частичному совпадению синонима "${text}"`);
+            return resolve({ id: cat.id, name: cat.name, slug: cat.slug });
+          }
+          
+          // Проверяем совпадение с названием категории
+          if (normalizedText === normalizedCatName || normalizedText.includes(normalizedCatName) || normalizedCatName.includes(normalizedText)) {
+            console.log(`✅ Найдена категория "${cat.name}" по названию "${text}"`);
             return resolve({ id: cat.id, name: cat.name, slug: cat.slug });
           }
         }
         
+        console.log(`⚠️ Категория не найдена для текста "${text}" (user_id=${userId}, type=${type})`);
         resolve(null);
       }
     );
@@ -161,10 +188,33 @@ async function showCategorySelection(chatId, userId, type, amount, categoryText)
   const categories = await getUserCategories(userId, type);
   
   if (categories.length === 0) {
-    // Если категорий нет, создаем стандартные
-    return bot.sendMessage(chatId, 
-      `❌ Категории не настроены. Пожалуйста, создайте категории через веб-интерфейс или используйте формат: /cat <название>`
-    );
+    // Если категорий нет, пытаемся создать стандартные категории
+    console.log(`⚠️ Категории не найдены для user_id=${userId}, type=${type}. Пытаюсь создать стандартные...`);
+    
+    // Импортируем стандартные категории из миграции
+    const { STANDARD_CATEGORIES, INCOME_CATEGORIES } = require('./db/migrate_categories');
+    const catsToCreate = type === 'expense' ? STANDARD_CATEGORIES : INCOME_CATEGORIES;
+    
+    // Создаем категории
+    for (const cat of catsToCreate) {
+      try {
+        await createCategory(userId, cat.name, type, cat.synonyms[0] || '');
+      } catch (e) {
+        console.error(`Ошибка создания категории ${cat.name}:`, e);
+      }
+    }
+    
+    // Получаем категории снова
+    const newCategories = await getUserCategories(userId, type);
+    
+    if (newCategories.length === 0) {
+      return bot.sendMessage(chatId, 
+        `❌ Не удалось создать категории. Пожалуйста, создайте категории через веб-интерфейс.`
+      );
+    }
+    
+    // Показываем кнопки с новыми категориями
+    categories.push(...newCategories);
   }
   
   // Создаем кнопки (по 2 в ряд)
@@ -961,9 +1011,11 @@ bot.on('message', async (msg) => {
         if (!userId) return bot.sendMessage(chatId, '❌ Вы не привязаны к пользователю в системе.');
 
         // Ищем категорию по тексту
+        console.log(`🔍 Ищем категорию для: "${categoryText}" (user_id=${userId}, type=${type})`);
         const foundCategory = await findCategoryByText(userId, categoryText, type);
         
         if (foundCategory) {
+          console.log(`✅ Категория найдена: ${foundCategory.name} (id=${foundCategory.id})`);
           // Категория найдена - сохраняем сразу
           db.run(
             'INSERT INTO finances (user_id, type, category, amount, category_id, comment) VALUES (?, ?, ?, ?, ?, ?)',
@@ -981,6 +1033,7 @@ bot.on('message', async (msg) => {
             }
           );
         } else {
+          console.log(`⚠️ Категория не найдена для "${categoryText}", показываю кнопки выбора`);
           // Категория не найдена - показываем кнопки для выбора
           await showCategorySelection(chatId, userId, type, amount, categoryText);
         }
