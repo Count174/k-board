@@ -60,7 +60,7 @@ async function sendEmail({ to, subject, html, text }) {
   const timeoutMs = 15000; // 15 сек на отправку
   try {
     const sendPromise = transport.sendMail({
-      from: `"K-Board" <${from}>`,
+      from: `"Oubaitori" <${from}>`,
       to,
       subject,
       html,
@@ -83,7 +83,7 @@ async function sendEmail({ to, subject, html, text }) {
  * Отправить письмо для восстановления пароля
  */
 async function sendPasswordResetEmail(email, resetToken, resetUrl) {
-  const subject = 'Восстановление пароля K-Board';
+  const subject = 'Восстановление пароля Oubaitori';
   const html = `
     <!DOCTYPE html>
     <html>
@@ -101,7 +101,7 @@ async function sendPasswordResetEmail(email, resetToken, resetUrl) {
     <body>
       <div class="container">
         <h2>Восстановление пароля</h2>
-        <p>Вы запросили восстановление пароля для вашего аккаунта K-Board.</p>
+        <p>Вы запросили восстановление пароля для вашего аккаунта Oubaitori.</p>
         <p>Нажмите на кнопку ниже, чтобы сбросить пароль:</p>
         <a href="${resetUrl}" class="button">Сбросить пароль</a>
         <p>Или скопируйте эту ссылку в браузер:</p>
@@ -109,7 +109,7 @@ async function sendPasswordResetEmail(email, resetToken, resetUrl) {
         <p>Ссылка действительна в течение 1 часа.</p>
         <p>Если вы не запрашивали восстановление пароля, просто проигнорируйте это письмо.</p>
         <div class="footer">
-          <p>С уважением,<br>Команда K-Board</p>
+          <p>С уважением,<br>Команда Oubaitori</p>
         </div>
       </div>
     </body>
@@ -123,7 +123,7 @@ async function sendPasswordResetEmail(email, resetToken, resetUrl) {
  * Отправить письмо об успешной смене пароля
  */
 async function sendPasswordChangedEmail(email) {
-  const subject = 'Пароль изменен - K-Board';
+  const subject = 'Пароль изменен - Oubaitori';
   const html = `
     <!DOCTYPE html>
     <html>
@@ -140,11 +140,11 @@ async function sendPasswordChangedEmail(email) {
       <div class="container">
         <h2>Пароль успешно изменен</h2>
         <div class="alert">
-          <strong>Ваш пароль был успешно изменен.</strong>
+          <strong>Ваш пароль в Oubaitori был успешно изменен.</strong>
         </div>
         <p>Если это были не вы, немедленно свяжитесь с поддержкой.</p>
         <div class="footer">
-          <p>С уважением,<br>Команда K-Board</p>
+          <p>С уважением,<br>Команда Oubaitori</p>
         </div>
       </div>
     </body>
