@@ -381,7 +381,7 @@ export default function DashboardHero() {
         <div className={styles.statsCol}>
           <Stat icon={LineChart} label="Сон" value={`${sleepAvg} ч/д`} sub="цель 7–8 ч"/>
           <Stat icon={Dumbbell} label="Тренировки" value={workoutsLine} sub="из плановых"/>
-          <Stat icon={Activity} label="Consistency" value={consistency} />
+          <Stat icon={Activity} label="Регулярность" value={consistency} />
         </div>
       </div>
     </section>

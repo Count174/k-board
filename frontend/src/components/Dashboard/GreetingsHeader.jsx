@@ -111,17 +111,14 @@ function ScorePill() {
   const stroke =
     pct >= 80 ? '#4ade80' : pct >= 60 ? '#facc15' : '#f87171';
 
-  let top = null, low = null;
-  if (detail) {
-    const arr = [
-      { key: 'Health', val: detail.health ?? 0 },
-      { key: 'Finance', val: detail.finance ?? 0 },
-      { key: 'Consistency', val: detail.consistency ?? 0 },
-    ];
-    arr.sort((a, b) => b.val - a.val);
-    top = arr[0];
-    low = arr[arr.length - 1];
-  }
+  const LABELS = [
+    { key: 'health', labelRu: 'Здоровье', val: detail?.health ?? 0 },
+    { key: 'finance', labelRu: 'Финансы', val: detail?.finance ?? 0 },
+    { key: 'consistency', labelRu: 'Регулярность', val: detail?.consistency ?? 0 },
+  ];
+  const sorted = [...LABELS].sort((a, b) => b.val - a.val);
+  const top = sorted[0];
+  const low = sorted[sorted.length - 1];
 
   return (
     <div className={styles.scoreWrap}>
@@ -148,7 +145,7 @@ function ScorePill() {
           <div className={styles.scoreNumber}>{pct}</div>
         </div>
         <div className={styles.scoreLabel}>
-          <div className={styles.scoreTitle}>Скоринг</div>
+          <div className={styles.scoreTitle}>Оценка недели</div>
           {trend != null && (
             <div className={styles.scoreTrend}>
               {trend > 0 ? `↑ +${trend}` : trend < 0 ? `↓ ${trend}` : '— 0'}
@@ -160,19 +157,19 @@ function ScorePill() {
       {open && (
         <div ref={popRef} className={styles.scorePopover}>
           <div className={styles.popHeader}>
-            <div className={styles.popTitle}>📊 Детали скоринга (7 дней)</div>
+            <div className={styles.popTitle}>📊 Из чего сложилась оценка (7 дней)</div>
             {detail && top && low && (
               <div className={styles.popBadges}>
-                <span className={styles.badgeGood}>Сильная: {top.key}</span>
-                <span className={styles.badgeWarn}>Зона роста: {low.key}</span>
+                <span className={styles.badgeGood}>Сильная сторона: {top.labelRu}</span>
+                <span className={styles.badgeWarn}>Над чем поработать: {low.labelRu}</span>
               </div>
             )}
           </div>
 
           <div className={styles.miniSection}>
-            <MiniBar label="Health" value={detail?.health ?? 0} />
-            <MiniBar label="Finance" value={detail?.finance ?? 0} />
-            <MiniBar label="Consistency" value={detail?.consistency ?? 0} />
+            <MiniBar label="Здоровье" value={detail?.health ?? 0} />
+            <MiniBar label="Финансы" value={detail?.finance ?? 0} />
+            <MiniBar label="Регулярность" value={detail?.consistency ?? 0} />
           </div>
         </div>
       )}
