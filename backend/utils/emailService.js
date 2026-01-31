@@ -19,7 +19,8 @@ function initTransporter() {
 
   const host = process.env.SMTP_HOST;
   const port = parseInt(process.env.SMTP_PORT || '587', 10);
-  const secure = process.env.SMTP_SECURE === 'true' || port === 465;
+  // Порт 465 = неявный SSL (SMTPS), всегда secure. 587 = STARTTLS.
+  const secure = port === 465 || process.env.SMTP_SECURE === 'true';
   const user = process.env.SMTP_USER;
   const pass = process.env.SMTP_PASS;
   const from = process.env.EMAIL_FROM || user;
