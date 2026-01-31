@@ -1,7 +1,7 @@
 // src/pages/LoginPage.jsx
 import { useState } from 'react';
 import { post } from '../api/api.js';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import styles from '../styles/Auth.module.css';
 
 export default function LoginPage() {
@@ -52,7 +52,7 @@ export default function LoginPage() {
       </form>
 
       <p className={styles.forgot}>
-        <a href="#">Forgotten your password?</a>
+        <Link to="/forgot-password">Забыли пароль?</Link>
       </p>
     </div>
   );

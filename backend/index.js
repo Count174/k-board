@@ -1,3 +1,4 @@
+require('dotenv').config();
 const cors = require('cors');
 const PORT = 3002;
 const path = require('path');

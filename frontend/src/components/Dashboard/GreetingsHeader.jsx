@@ -1,9 +1,10 @@
 // src/components/GreetingsHeader/GreetingsHeader.jsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import styles from './GreetingsHeader.module.css';
-import { User, Link2, LogOut, History, Heart } from 'lucide-react';
+import { User, Link2, LogOut, History, Heart, Key } from 'lucide-react';
 import dayjs from 'dayjs';
 import { get } from '../../api/api';
+import ChangePasswordModal from '../ChangePasswordModal';
 
 /* ================= ScorePill with details ================= */
 
@@ -195,6 +196,7 @@ function LogoMark() {
 
 function GreetingsHeader({ user, onConnectClick, onLogout }) {
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const dropdownRef = useRef(null);
 
   const formattedDate = useMemo(() => {
@@ -276,6 +278,14 @@ function GreetingsHeader({ user, onConnectClick, onLogout }) {
                 История пользователя
               </button>
 
+              <button
+                onClick={() => { setDropdownOpen(false); setShowChangePassword(true); }}
+                className={styles.dropItem}
+              >
+                <Key size={16} />
+                Сменить пароль
+              </button>
+
               <div className={styles.dropDivider} />
 
               <button
@@ -289,6 +299,11 @@ function GreetingsHeader({ user, onConnectClick, onLogout }) {
           )}
         </div>
       </div>
+
+      <ChangePasswordModal
+        open={showChangePassword}
+        onClose={() => setShowChangePassword(false)}
+      />
     </div>
   );
 }

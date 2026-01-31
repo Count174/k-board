@@ -3,6 +3,8 @@ import Dashboard from './Dashboard';
 import LoginPage from './LoginPage';
 import RegisterPage from './RegisterPage';
 import UserHistoryPage from './HistoryPage';
+import ForgotPasswordPage from './ForgotPasswordPage';
+import ResetPasswordPage from './ResetPasswordPage';
 import '../styles/index.css';
 
 // Временный лендинг-заглушка (потом заменишь на реальный компонент)
@@ -44,6 +46,14 @@ export default function App() {
         <Route
           path="/register"
           element={isLoggedIn() ? <Navigate to="/dashboard" replace /> : <RegisterPage />}
+        />
+        <Route
+          path="/forgot-password"
+          element={isLoggedIn() ? <Navigate to="/dashboard" replace /> : <ForgotPasswordPage />}
+        />
+        <Route
+          path="/reset-password"
+          element={isLoggedIn() ? <Navigate to="/dashboard" replace /> : <ResetPasswordPage />}
         />
 
         {/* Приватные страницы */}
