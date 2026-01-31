@@ -5,6 +5,7 @@ import RegisterPage from './RegisterPage';
 import UserHistoryPage from './HistoryPage';
 import ForgotPasswordPage from './ForgotPasswordPage';
 import ResetPasswordPage from './ResetPasswordPage';
+import HelicopterPage from './HelicopterPage';
 import '../styles/index.css';
 
 // Временный лендинг-заглушка (потом заменишь на реальный компонент)
@@ -55,6 +56,9 @@ export default function App() {
           path="/reset-password"
           element={isLoggedIn() ? <Navigate to="/dashboard" replace /> : <ResetPasswordPage />}
         />
+
+        {/* CEO Dashboard — доступ по секретному токену */}
+        <Route path="/helicopter" element={<HelicopterPage />} />
 
         {/* Приватные страницы */}
         <Route

@@ -24,6 +24,7 @@ const onboardingRoutes = require('./routes/onboarding');
 const loansRoutes = require('./routes/loans')
 const historyRoutes = require('./routes/history');
 const categoriesRoutes = require('./routes/categories');
+const ceoRoutes = require('./routes/ceo');
 
 app.set('trust proxy', 1); // доверие первому прокси (nginx)
 const allowedOrigins = new Set([
@@ -64,7 +65,7 @@ app.use('/api/onboarding', onboardingRoutes);
 app.use('/api/loans', loansRoutes);
 app.use('/api/history', historyRoutes);
 app.use('/api/categories', categoriesRoutes);
-
+app.use('/api/ceo', ceoRoutes);
 
 // Статика фронта
 app.use('/k-board/images', express.static(path.join(publicPath, 'images')));

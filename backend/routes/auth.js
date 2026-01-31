@@ -6,6 +6,7 @@ const db = require('../db/db');
 const router = express.Router();
 const authMiddleware = require('../middleware/authMiddleware');
 const { sendPasswordResetEmail, sendPasswordChangedEmail } = require('../utils/emailService');
+const { notifyNewUser } = require('../utils/ceoTelegram');
 
 // Регистрация
 router.post('/register', async (req, res) => {
@@ -28,6 +29,8 @@ router.post('/register', async (req, res) => {
         [safeName, email, hash],
         function (err2) {
           if (err2) return res.status(500).json({ error: 'Ошибка при регистрации' });
+
+          notifyNewUser(safeName, email).catch(() => {});
 
           // ставим ту же cookie, что и при логине
           res.cookie('userId', this.lastID, {

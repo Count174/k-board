@@ -1,0 +1,180 @@
+.wrap {
+  min-height: 100vh;
+  background: var(--bg-0);
+  color: var(--text-0);
+  padding: 24px;
+  padding-bottom: 48px;
+}
+
+.gate {
+  max-width: 360px;
+  margin: 80px auto 0;
+  padding: 32px;
+  background: var(--card-grad);
+  border: 1px solid var(--stroke-1);
+  border-radius: 20px;
+  box-shadow: var(--shadow-1);
+}
+
+.gateTitle {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0 0 8px;
+  color: var(--text-0);
+}
+
+.gateHint {
+  color: var(--text-2);
+  font-size: 0.9rem;
+  margin: 0 0 20px;
+}
+
+.gateForm {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gateInput {
+  padding: 12px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--stroke-2);
+  background: var(--bg-2);
+  color: var(--text-0);
+  font-size: 1rem;
+}
+
+.gateInput::placeholder {
+  color: var(--text-2);
+}
+
+.gateInput:focus {
+  outline: none;
+  border-color: var(--brand-2);
+}
+
+.gateBtn {
+  padding: 12px 20px;
+  border-radius: 10px;
+  border: none;
+  background: var(--btn);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.gateBtn:hover {
+  background: var(--btn-hover);
+}
+
+.gateBtnSecondary {
+  composes: gateBtn;
+  background: transparent;
+  border: 1px solid var(--stroke-2);
+  color: var(--text-1);
+  margin-top: 8px;
+}
+
+.gateBtnSecondary:hover {
+  background: var(--glass-2);
+}
+
+.error {
+  color: #f87171;
+  margin: 0 0 16px;
+}
+
+.loading {
+  text-align: center;
+  padding: 80px 24px;
+  color: var(--text-2);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.refresh {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--stroke-2);
+  background: var(--bg-2);
+  color: var(--text-1);
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.refresh:hover:not(:disabled) {
+  background: var(--glass-2);
+  color: var(--text-0);
+}
+
+.refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.section {
+  margin-bottom: 36px;
+}
+
+.sectionTitle {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text-1);
+  margin: 0 0 16px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.card {
+  background: var(--card-grad);
+  border: 1px solid var(--stroke-1);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: var(--shadow-1);
+}
+
+.cardTitle {
+  font-size: 0.8rem;
+  color: var(--text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.cardValue {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-0);
+}
+
+.cardSub {
+  font-size: 0.8rem;
+  color: var(--text-2);
+  margin-top: 4px;
+}
+
+.chart {
+  background: var(--card-grad);
+  border: 1px solid var(--stroke-1);
+  border-radius: 14px;
+  padding: 16px;
+  margin-top: 12px;
+  min-height: 220px;
+}
