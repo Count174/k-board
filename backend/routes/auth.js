@@ -142,18 +142,22 @@ router.post('/forgot-password', async (req, res) => {
         const baseUrl = process.env.FRONTEND_URL || req.protocol + '://' + req.get('host');
         const resetUrl = `${baseUrl}/reset-password?token=${token}`;
 
-        // Отправляем email
-        const emailResult = await sendPasswordResetEmail(user.email, token, resetUrl);
-        
-        if (!emailResult.success) {
-          console.error('Ошибка отправки email:', emailResult.error);
-          // Не сообщаем пользователю об ошибке email, чтобы не раскрывать информацию
-        }
-
-        res.json({ 
-          success: true, 
-          message: 'Если пользователь с таким email существует, на него будет отправлено письмо' 
+        // Отвечаем сразу, чтобы не получить 504 при медленной/недоступной почте
+        res.json({
+          success: true,
+          message: 'Если пользователь с таким email существует, на него будет отправлено письмо',
         });
+
+        // Отправляем email в фоне (не блокируем ответ)
+        sendPasswordResetEmail(user.email, token, resetUrl)
+          .then((emailResult) => {
+            if (!emailResult.success) {
+              console.error('Ошибка отправки email восстановления пароля:', emailResult.error);
+            }
+          })
+          .catch((e) => {
+            console.error('Ошибка отправки email восстановления пароля:', e);
+          });
       }
     );
   });

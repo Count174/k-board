@@ -37,6 +37,8 @@ function initTransporter() {
       user,
       pass,
     },
+    connectionTimeout: 10000,  // 10 сек на подключение
+    greetingTimeout: 10000,   // 10 сек на приветствие SMTP
   });
 
   return transporter;
@@ -54,14 +56,19 @@ async function sendEmail({ to, subject, html, text }) {
 
   const from = process.env.EMAIL_FROM || process.env.SMTP_USER;
 
+  const timeoutMs = 15000; // 15 сек на отправку
   try {
-    const info = await transport.sendMail({
+    const sendPromise = transport.sendMail({
       from: `"K-Board" <${from}>`,
       to,
       subject,
       html,
       text: text || html.replace(/<[^>]*>/g, ''), // Убираем HTML теги для текстовой версии
     });
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => reject(new Error('Email send timeout')), timeoutMs);
+    });
+    const info = await Promise.race([sendPromise, timeoutPromise]);
 
     console.log(`✅ Email отправлен: ${to} (${info.messageId})`);
     return { success: true, messageId: info.messageId };
