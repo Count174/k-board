@@ -431,12 +431,7 @@ async function sendWeeklyGoalsPrompt(chatId, userId) {
   }
   kb.push([{ text: 'Позже', callback_data: 'goalck_later' }]);
 
-  const text =
-    `🗓 *Еженедельный чек-ин по целям*\n` +
-    `Есть цели без обновления за неделю: *${due.length}*\n\n` +
-    due.map(goalLine).join('\n') +
-    `\n\nВыбери цель, чтобы обновить значение:`;
-
+  const text = `🎯 Чек-ин по целям: *${due.length}* без обновления за неделю. Выбери цель:`;
   return bot.sendMessage(chatId, text, {
     parse_mode: 'Markdown',
     reply_markup: { inline_keyboard: kb }
@@ -1579,7 +1574,7 @@ function sendEveningCheckin(chat_id, dateStr = ymd()) {
       ]
     ]
   };
-  return bot.sendMessage(chat_id, '🧭 Вечерний чек-ин:', { reply_markup: kb });
+  return bot.sendMessage(chat_id, 'Как день? 👇', { reply_markup: kb });
 }
 
 // ===================== CRONS =====================
@@ -1698,11 +1693,7 @@ cron.schedule('0 8 * * *', async () => {
         if (!chatId) continue;
         const p = Math.round((r.spent / r.budget) * 100);
         const remaining = Math.max(0, r.budget - r.spent);
-        const msg =
-          `⚠️ *Бюджет почти израсходован*\n` +
-          `Категория: *${r.category}*\n` +
-          `Потрачено: *${Math.round(r.spent)}* из *${Math.round(r.budget)}* ₽ (${p}%)\n` +
-          `Остаток: *${Math.round(remaining)}* ₽`;
+        const msg = `⚠️ Бюджет *${r.category}*: ${p}% (осталось *${Math.round(remaining)}* ₽)`;
         await bot.sendMessage(chatId, msg, { parse_mode: 'Markdown' });
       } catch (e) {
         console.error('Send warn error:', e);
@@ -1751,24 +1742,18 @@ cron.schedule('0 8 * * 1', async () => {
           );
         });
 
-        const topLines = top3.length
-          ? top3.map((r, i) => `${i + 1}. ${r.category} — *${Math.round(r.total)}* ₽`).join('\n')
-          : 'нет расходов за неделю';
-
-        const budgetLines = stats.length
+        const topLine = top3.length
+          ? top3.map((r, i) => `${r.category} ${Math.round(r.total)} ₽`).join(', ')
+          : 'нет расходов';
+        const budgetLine = stats.length
           ? stats.map(s => {
             const p = s.budget ? Math.round((s.spent / s.budget) * 100) : 0;
             const remain = Math.round((s.budget || 0) - (s.spent || 0));
-            return `• ${s.category}: ${p}% | остаток *${remain}* ₽`;
-          }).join('\n')
+            return `${s.category} ${p}% (ост. ${remain} ₽)`;
+          }).join(' · ')
           : 'бюджеты не заданы';
 
-        const out =
-          `🧾 *Финансовый дайджест*\n` +
-          `Период: последние 7 дней\n\n` +
-          `*Топ-3 расходов:*\n${topLines}\n\n` +
-          `*Бюджеты (${month}):*\n${budgetLines}`;
-
+        const out = `🧾 Неделя. Топ: ${topLine}. Бюджеты: ${budgetLine}`;
         await bot.sendMessage(chat_id, out, { parse_mode: 'Markdown' });
       } catch (e) {
         console.error('Digest send error:', e);
@@ -1813,29 +1798,11 @@ cron.schedule('0 11 * * 1', () => {
             ? `${det.meds.taken}/${det.meds.planned}`
             : 'нет курсов';
 
+        const deltaStr = delta === 0 ? '' : delta > 0 ? ` (↑ +${delta}%)` : ` (↓ ${delta}%)`;
         const msg =
-          `📊 *Еженедельный отчёт*\n` +
-          `Период: *${cur.startIso} — ${cur.endIso}*\n\n` +
-          `Средний скоринг: *${curScore.avg}%* ` +
-          (delta === 0 ? '(—0%)' : delta > 0 ? `(↑ +${delta}%)` : `(↓ ${delta}%)`) + `\n` +
-          `• Health: ${curScore.breakdown.health}%\n` +
-          `• Finance: ${curScore.breakdown.finance.score}%\n` +
-          `• Consistency: ${curScore.breakdown.consistency.score}%\n\n` +
-
-          `Здоровье\n` +
-          `• Сон: ${sleepAvg != null ? sleepAvg.toFixed(1) + ' ч/д' : '—'}\n` +
-          `• Тренировки: ${workoutsLine}\n` +
-          `• Лекарства: ${medsLine}\n\n` +
-
-          `Финансы\n` +
-          `• Оценка бюджета: ${curScore.breakdown.finance.score}%\n\n` +
-
-          `Consistency\n` +
-          `• Хорошие дни: ${curScore.breakdown.consistency.goodDays} из ${curScore.breakdown.consistency.totalDays}\n` +
-          `• Серия: ${curScore.breakdown.consistency.streak} подряд\n\n` +
-
-          `💡 Рекомендация (${weakest}):\n` +
-          `${advice}`;
+          `📊 Неделя *${cur.startIso} — ${cur.endIso}*. Скор *${curScore.avg}%*${deltaStr}.\n` +
+          `Сон ${sleepAvg != null ? sleepAvg.toFixed(1) + ' ч' : '—'}, тренировки ${workoutsLine}, финансы ${curScore.breakdown.finance.score}%, серия ${curScore.breakdown.consistency.streak} дн.\n` +
+          `💡 ${advice}`;
 
         await bot.sendMessage(chat_id, msg, { parse_mode: 'Markdown' });
       } catch (e) {
@@ -1905,14 +1872,16 @@ cron.schedule('0 5 * * *', () => {
           );
         });
 
+        const nTrain = (healthList.match(/💪 Тренировка/g) || []).length;
+        const nTasks = (taskList.match(/•/g) || []).length;
+        const nGoals = (goalsList.match(/•/g) || []).length;
+        const parts = [];
+        if (nTrain) parts.push(`${nTrain} тренировок`);
+        if (nTasks) parts.push(`${nTasks} задач`);
+        if (nGoals) parts.push(`${nGoals} целей`);
+        const summary = parts.length ? `Сегодня: ${parts.join(', ')}. ` : '';
         const quote = motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)];
-        const message =
-          `Доброе утро, ${firstName} 👋\n\n` +
-          `Сегодня по планам:\n\n` +
-          (healthList ? `💪 Здоровье\n${healthList}\n\n` : '') +
-          (taskList ? `☑️ Незавершённые задачи\n${taskList}\n\n` : '') +
-          (goalsList ? `🎯 Долгосрочные цели\n${goalsList}\n\n` : '') +
-          `🔥 ${quote}\nХорошего дня, ${firstName}!`;
+        const message = `Доброе утро, ${firstName} 👋 ${summary}${quote}. Хорошего дня!`;
 
         await bot.sendMessage(chat_id, message);
         console.log(`✅ Утреннее сообщение отправлено: ${chat_id}`);
@@ -1950,11 +1919,7 @@ cron.schedule('0 7 1 * *', () => {
         });
         if (bc > 0) continue;
 
-        const msg =
-          `📅 *Новый месяц — самое время задать бюджеты*\n` +
-          `Период: *${month}*\n\n` +
-          `Задай лимиты по ключевым категориям в веб-кабинете (раздел «Бюджеты»).\n` +
-          `Подсказка: в любой момент можно посмотреть /budget ${month}`;
+        const msg = `📅 Новый месяц — задай бюджеты в приложении (раздел «Бюджеты»). /budget ${month}`;
         await bot.sendMessage(chat_id, msg, { parse_mode: 'Markdown' });
 
         console.log('monthly budget reminder sent', { user_id, chat_id, month });
@@ -1987,5 +1952,23 @@ cron.schedule('30 21 * * *', () => {
         sendEveningCheckin(r.chat_id, ymd());
       }
     }
+  });
+}, { timezone: 'Europe/Moscow' });
+
+// Напоминание занести расходы, если за день не было ни одной транзакции (19:30 МСК)
+cron.schedule('30 19 * * *', () => {
+  const today = new Date().toISOString().slice(0, 10);
+  db.all('SELECT user_id, chat_id FROM telegram_users', [], (err, rows) => {
+    if (err) return;
+    rows.forEach((r) => {
+      db.get(
+        'SELECT 1 FROM finances WHERE user_id = ? AND date(date) = ? LIMIT 1',
+        [r.user_id, today],
+        (e, row) => {
+          if (e || row) return;
+          bot.sendMessage(r.chat_id, '💸 Сегодня ещё не было расходов. Занести траты? Напиши в чат, например: -500 кофе').catch(() => {});
+        }
+      );
+    });
   });
 }, { timezone: 'Europe/Moscow' });
