@@ -67,7 +67,8 @@ app.use('/api/history', historyRoutes);
 app.use('/api/categories', categoriesRoutes);
 app.use('/api/ceo', ceoRoutes);
 
-// Статика фронта
+// Статика: favicon и изображения из корневой public
+app.get('/favicon.png', (req, res) => res.sendFile(path.join(publicPath, 'favicon.png')));
 app.use('/k-board/images', express.static(path.join(publicPath, 'images')));
 
 
