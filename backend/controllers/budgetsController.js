@@ -16,21 +16,23 @@ exports.getAll = (req, res) => {
 };
 
 // POST /api/budgets { category, amount, month }
+// Категория сравнивается без учёта регистра; при сохранении приводится к нижнему.
 exports.upsert = (req, res) => {
-    const category = String(req.body.category || '').trim().replace(/\s+/g, ' ');
-    const amount = Number(req.body.amount);
-    const month = String(req.body.month);
-  if (!category || !amount || !month) {
+  const raw = String(req.body.category || '').trim().replace(/\s+/g, ' ');
+  const category = raw.toLowerCase();
+  const amount = Number(req.body.amount);
+  const month = String(req.body.month);
+  if (!raw || !amount || !month) {
     return res.status(400).json({ error: "category, amount, month обязательны" });
   }
 
   db.get(
-    "SELECT id FROM budgets WHERE user_id = ? AND category = ? AND month = ?",
-    [req.userId, category, month],
+    "SELECT id, category FROM budgets WHERE user_id = ? AND LOWER(TRIM(category)) = LOWER(TRIM(?)) AND month = ?",
+    [req.userId, raw, month],
     (err, row) => {
       if (err) return res.status(500).send(err);
       if (row) {
-        db.run("UPDATE budgets SET amount = ? WHERE id = ?", [amount, row.id], function (err2) {
+        db.run("UPDATE budgets SET amount = ?, category = ? WHERE id = ?", [amount, category, row.id], function (err2) {
           if (err2) return res.status(500).send(err2);
           res.json({ updated: true });
         });
