@@ -431,7 +431,7 @@ async function sendWeeklyGoalsPrompt(chatId, userId) {
   }
   kb.push([{ text: 'Позже', callback_data: 'goalck_later' }]);
 
-  const text = `🎯 Чек-ин по целям: *${due.length}* без обновления за неделю. Выбери цель:`;
+  const text = `🎯 Чек-ин по целям\n\n*${due.length}* без обновления за неделю.\nВыбери цель:`;
   return bot.sendMessage(chatId, text, {
     parse_mode: 'Markdown',
     reply_markup: { inline_keyboard: kb }
@@ -1753,7 +1753,7 @@ cron.schedule('0 8 * * 1', async () => {
           }).join(' · ')
           : 'бюджеты не заданы';
 
-        const out = `🧾 Неделя. Топ: ${topLine}. Бюджеты: ${budgetLine}`;
+        const out = `🧾 Неделя\n\nТоп: ${topLine}\nБюджеты: ${budgetLine}`;
         await bot.sendMessage(chat_id, out, { parse_mode: 'Markdown' });
       } catch (e) {
         console.error('Digest send error:', e);
@@ -1800,8 +1800,11 @@ cron.schedule('0 11 * * 1', () => {
 
         const deltaStr = delta === 0 ? '' : delta > 0 ? ` (↑ +${delta}%)` : ` (↓ ${delta}%)`;
         const msg =
-          `📊 Неделя *${cur.startIso} — ${cur.endIso}*. Скор *${curScore.avg}%*${deltaStr}.\n` +
-          `Сон ${sleepAvg != null ? sleepAvg.toFixed(1) + ' ч' : '—'}, тренировки ${workoutsLine}, финансы ${curScore.breakdown.finance.score}%, серия ${curScore.breakdown.consistency.streak} дн.\n` +
+          `📊 Неделя *${cur.startIso} — ${cur.endIso}*\nОценка: *${curScore.avg}%*${deltaStr}\n\n` +
+          `Сон: ${sleepAvg != null ? sleepAvg.toFixed(1) + ' ч' : '—'}\n` +
+          `Тренировки: ${workoutsLine}\n` +
+          `Финансы: ${curScore.breakdown.finance.score}%\n` +
+          `Серия: ${curScore.breakdown.consistency.streak} дн.\n\n` +
           `💡 ${advice}`;
 
         await bot.sendMessage(chat_id, msg, { parse_mode: 'Markdown' });
@@ -1879,9 +1882,9 @@ cron.schedule('0 5 * * *', () => {
         if (nTrain) parts.push(`${nTrain} тренировок`);
         if (nTasks) parts.push(`${nTasks} задач`);
         if (nGoals) parts.push(`${nGoals} целей`);
-        const summary = parts.length ? `Сегодня: ${parts.join(', ')}. ` : '';
+        const summary = parts.length ? `Сегодня: ${parts.join(', ')}.` : '';
         const quote = motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)];
-        const message = `Доброе утро, ${firstName} 👋 ${summary}${quote}. Хорошего дня!`;
+        const message = `Доброе утро, ${firstName} 👋\n\n${summary ? summary + '\n\n' : ''}${quote}\nХорошего дня!`;
 
         await bot.sendMessage(chat_id, message);
         console.log(`✅ Утреннее сообщение отправлено: ${chat_id}`);
