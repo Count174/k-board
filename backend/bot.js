@@ -163,15 +163,14 @@ function findCategoryByText(userId, text, type) {
 }
 
 /**
- * Получить список категорий пользователя
+ * Получить список категорий пользователя (все, без лимита)
  */
 function getUserCategories(userId, type) {
   return new Promise((resolve) => {
     db.all(
       `SELECT id, name, slug FROM categories
        WHERE user_id = ? AND type = ?
-       ORDER BY name
-       LIMIT 10`,
+       ORDER BY name`,
       [userId, type],
       (err, rows) => {
         if (err) return resolve([]);
@@ -182,86 +181,75 @@ function getUserCategories(userId, type) {
 }
 
 /**
- * Показать кнопки для выбора категории
+ * Получить топ-N самых используемых категорий пользователя
+ */
+function getTopCategories(userId, type, limit = 8) {
+  return new Promise((resolve) => {
+    db.all(
+      `SELECT c.id, c.name, c.slug, COUNT(f.id) AS cnt
+       FROM categories c
+       LEFT JOIN finances f ON f.category_id = c.id AND f.user_id = c.user_id
+       WHERE c.user_id = ? AND c.type = ?
+       GROUP BY c.id
+       ORDER BY cnt DESC, c.name ASC
+       LIMIT ?`,
+      [userId, type, limit],
+      (err, rows) => {
+        if (err) return resolve([]);
+        resolve(rows || []);
+      }
+    );
+  });
+}
+
+/**
+ * Показать кнопки для выбора категории (топ-8 + «Ввести текстом»)
  */
 async function showCategorySelection(chatId, userId, type, amount, categoryText) {
-  const categories = await getUserCategories(userId, type);
-  
+  let categories = await getUserCategories(userId, type);
+
   if (categories.length === 0) {
-    // Если категорий нет, пытаемся создать стандартные категории
     console.log(`⚠️ Категории не найдены для user_id=${userId}, type=${type}. Пытаюсь создать стандартные...`);
-    
-    // Импортируем стандартные категории из миграции
     const { STANDARD_CATEGORIES, INCOME_CATEGORIES } = require('./db/migrate_categories');
     const catsToCreate = type === 'expense' ? STANDARD_CATEGORIES : INCOME_CATEGORIES;
-    
-    // Создаем категории
     for (const cat of catsToCreate) {
-      try {
-        await createCategory(userId, cat.name, type, cat.synonyms[0] || '');
-      } catch (e) {
+      try { await createCategory(userId, cat.name, type, cat.synonyms[0] || ''); } catch (e) {
         console.error(`Ошибка создания категории ${cat.name}:`, e);
       }
     }
-    
-    // Получаем категории снова
-    const newCategories = await getUserCategories(userId, type);
-    
-    if (newCategories.length === 0) {
-      return bot.sendMessage(chatId, 
-        `❌ Не удалось создать категории. Пожалуйста, создайте категории через веб-интерфейс.`
-      );
+    categories = await getUserCategories(userId, type);
+    if (categories.length === 0) {
+      return bot.sendMessage(chatId, `❌ Не удалось создать категории. Создайте через веб-интерфейс.`);
     }
-    
-    // Показываем кнопки с новыми категориями
-    categories.push(...newCategories);
   }
-  
-  // Сохраняем данные в состояние пользователя, чтобы не передавать длинный текст в callback_data
+
+  // Берём топ-8 самых используемых для кнопок
+  const topCats = await getTopCategories(userId, type, 8);
+  const catsForButtons = topCats.length > 0 ? topCats : categories.slice(0, 8);
+
   const stateKey = `fin_pending_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   userStates[chatId] = {
     step: 'fin_pending',
-    data: {
-      type,
-      amount,
-      categoryText,
-      stateKey
-    }
+    data: { type, amount, categoryText, stateKey }
   };
-  
-  // Создаем кнопки (по 2 в ряд)
+
   const keyboard = [];
-  for (let i = 0; i < categories.length; i += 2) {
+  for (let i = 0; i < catsForButtons.length; i += 2) {
     const row = [];
-    // Используем только короткий идентификатор в callback_data
-    row.push({ 
-      text: categories[i].name, 
-      callback_data: `fin_cat:${categories[i].id}:${stateKey}` 
-    });
-    if (categories[i + 1]) {
-      row.push({ 
-        text: categories[i + 1].name, 
-        callback_data: `fin_cat:${categories[i + 1].id}:${stateKey}` 
-      });
+    row.push({ text: catsForButtons[i].name, callback_data: `fin_cat:${catsForButtons[i].id}:${stateKey}` });
+    if (catsForButtons[i + 1]) {
+      row.push({ text: catsForButtons[i + 1].name, callback_data: `fin_cat:${catsForButtons[i + 1].id}:${stateKey}` });
     }
     keyboard.push(row);
   }
-  
-  // Кнопка "Другое" для создания новой категории
-  keyboard.push([{ 
-    text: '➕ Создать новую...', 
-    callback_data: `fin_cat_new:${stateKey}` 
-  }]);
-  
+  // Кнопка «Ввести текстом» — чтобы найти среди ВСЕХ категорий или создать новую
+  keyboard.push([{ text: '✏️ Ввести текстом...', callback_data: `fin_cat_search:${stateKey}` }]);
+
   const typeText = type === 'income' ? 'доход' : 'расход';
   bot.sendMessage(
     chatId,
     `Какой категории отнести "${categoryText}"?\n\nСумма: ${amount}₽ (${typeText})`,
-    {
-      reply_markup: {
-        inline_keyboard: keyboard
-      }
-    }
+    { reply_markup: { inline_keyboard: keyboard } }
   );
 }
 
@@ -331,6 +319,30 @@ function createCategory(userId, name, type, initialSynonym = null) {
         } else {
           resolve({ id: this.lastID, name });
         }
+      }
+    );
+  });
+}
+
+/**
+ * Сохранить финансовую запись и ответить пользователю (общая функция)
+ */
+function saveFinalFinance(chatId, userId, type, amount, category, originalText) {
+  return new Promise((resolve) => {
+    db.run(
+      'INSERT INTO finances (user_id, type, category, amount, category_id, comment) VALUES (?, ?, ?, ?, ?, ?)',
+      [userId, type, category.name, amount, category.id, originalText],
+      async (err) => {
+        if (err) {
+          console.error('Finance insert error:', err);
+          await bot.sendMessage(chatId, '❌ Ошибка при добавлении.');
+          return resolve();
+        }
+        await addSynonymIfNeeded(userId, category.id, originalText);
+        await bot.sendMessage(chatId,
+          `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}₽ (${category.name}) добавлен.`
+        );
+        resolve();
       }
     );
   });
@@ -959,14 +971,93 @@ bot.on('message', async (msg) => {
     return;
   }
 
-  // 1) Состояние создания категории для финансов
+  // 1a) Текстовый поиск категории (после нажатия «Ввести текстом»)
+  if (userStates[chatId]?.step === 'fin_cat_text') {
+    const state = userStates[chatId];
+    const { type, amount, categoryText } = state.data;
+    const query = text.trim();
+
+    if (!query) {
+      return bot.sendMessage(chatId, '❌ Название не может быть пустым. Попробуйте ещё раз:');
+    }
+
+    return getUserId(chatId, async (userId) => {
+      if (!userId) return bot.sendMessage(chatId, '❌ Вы не привязаны к пользователю в системе.');
+
+      const allCats = await getUserCategories(userId, type);
+      const normalizedQuery = query.toLowerCase().trim();
+
+      // Ищем: точное совпадение по имени, затем частичное (содержит)
+      const exactMatch = allCats.find(c => c.name.toLowerCase().trim() === normalizedQuery);
+      if (exactMatch) {
+        delete userStates[chatId];
+        return saveFinalFinance(chatId, userId, type, amount, exactMatch, categoryText);
+      }
+
+      const partialMatches = allCats.filter(c =>
+        c.name.toLowerCase().includes(normalizedQuery) || normalizedQuery.includes(c.name.toLowerCase())
+      );
+
+      if (partialMatches.length === 1) {
+        // Одно совпадение — используем
+        delete userStates[chatId];
+        return saveFinalFinance(chatId, userId, type, amount, partialMatches[0], categoryText);
+      }
+
+      if (partialMatches.length > 1) {
+        // Несколько совпадений — показываем кнопки
+        const stateKey = `fin_pending_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        userStates[chatId] = {
+          step: 'fin_pending',
+          data: { type, amount, categoryText, stateKey, pendingNewName: query }
+        };
+
+        const keyboard = [];
+        for (let i = 0; i < partialMatches.length; i += 2) {
+          const row = [{ text: partialMatches[i].name, callback_data: `fin_cat:${partialMatches[i].id}:${stateKey}` }];
+          if (partialMatches[i + 1]) {
+            row.push({ text: partialMatches[i + 1].name, callback_data: `fin_cat:${partialMatches[i + 1].id}:${stateKey}` });
+          }
+          keyboard.push(row);
+        }
+        keyboard.push([{ text: '➕ Создать "' + query + '"', callback_data: `fin_cat_new:${stateKey}` }]);
+        keyboard.push([{ text: '✏️ Ввести другое...', callback_data: `fin_cat_search:${stateKey}` }]);
+
+        return bot.sendMessage(
+          chatId,
+          `Нашёл несколько похожих категорий по запросу "${query}":`,
+          { reply_markup: { inline_keyboard: keyboard } }
+        );
+      }
+
+      // Ничего не нашли — предлагаем создать или ввести заново
+      const stateKey = `fin_pending_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      userStates[chatId] = {
+        step: 'fin_pending',
+        data: { type, amount, categoryText, stateKey, pendingNewName: query }
+      };
+
+      const keyboard = [
+        [{ text: '➕ Создать "' + query + '"', callback_data: `fin_cat_new:${stateKey}` }],
+        [{ text: '✏️ Ввести другое...', callback_data: `fin_cat_search:${stateKey}` }]
+      ];
+
+      return bot.sendMessage(
+        chatId,
+        `Категория "${query}" не найдена.`,
+        { reply_markup: { inline_keyboard: keyboard } }
+      );
+    });
+  }
+
+  // 1b) Создание новой категории (после ввода названия)
   if (userStates[chatId]?.step === 'fin_cat_create') {
     const state = userStates[chatId];
     const { type, amount, categoryText } = state.data;
     const categoryName = text.trim();
     
     if (!categoryName) {
-      return bot.sendMessage(chatId, '❌ Название категории не может быть пустым. Попробуйте еще раз:');
+      return bot.sendMessage(chatId, '❌ Название категории не может быть пустым. Попробуйте ещё раз:');
     }
     
     delete userStates[chatId];
@@ -975,10 +1066,7 @@ bot.on('message', async (msg) => {
       if (!userId) return bot.sendMessage(chatId, '❌ Вы не привязаны к пользователю в системе.');
       
       try {
-        // Создаем категорию
         const newCategory = await createCategory(userId, categoryName, type, categoryText);
-        
-        // Сохраняем финансовую запись
         db.run(
           'INSERT INTO finances (user_id, type, category, amount, category_id, comment) VALUES (?, ?, ?, ?, ?, ?)',
           [userId, type, newCategory.name, amount, newCategory.id, categoryText],
@@ -987,7 +1075,6 @@ bot.on('message', async (msg) => {
               console.error('Finance insert error:', err);
               return bot.sendMessage(chatId, '❌ Ошибка при добавлении.');
             }
-            
             bot.sendMessage(chatId, 
               `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}₽ добавлен.\n` +
               `📁 Создана категория: "${newCategory.name}"`
@@ -996,7 +1083,7 @@ bot.on('message', async (msg) => {
         );
       } catch (e) {
         console.error('Category creation error:', e);
-        bot.sendMessage(chatId, '❌ Ошибка при создании категории. Попробуйте еще раз.');
+        bot.sendMessage(chatId, '❌ Ошибка при создании категории. Попробуйте ещё раз.');
       }
     });
   }
@@ -1392,21 +1479,68 @@ bot.on('callback_query', async (query) => {
     });
   }
   
+  // «Ввести текстом» — переход к текстовому поиску категории
+  if (key === 'fin_cat_search') {
+    const stateKey = parts[1];
+
+    return getUserId(chatId, async (userId) => {
+      if (!userId) return bot.answerCallbackQuery(query.id, { text: 'Нет привязки.', show_alert: true });
+
+      const state = userStates[chatId];
+      if (!state || state.step !== 'fin_pending' || state.data.stateKey !== stateKey) {
+        return bot.answerCallbackQuery(query.id, { text: 'Сессия устарела. Попробуйте снова.', show_alert: true });
+      }
+
+      const { type, amount, categoryText } = state.data;
+
+      userStates[chatId] = {
+        step: 'fin_cat_text',
+        data: { type, amount, categoryText }
+      };
+
+      await bot.answerCallbackQuery(query.id, { text: 'Ок' });
+      return bot.sendMessage(
+        chatId,
+        `Напиши название категории для "${categoryText}".\n\nЕсли такая категория есть — выберу её, если нет — предложу создать.`
+      );
+    });
+  }
+
   if (key === 'fin_cat_new') {
     const stateKey = parts[1];
     
     return getUserId(chatId, async (userId) => {
       if (!userId) return bot.answerCallbackQuery(query.id, { text: 'Нет привязки.', show_alert: true });
       
-      // Получаем данные из состояния пользователя
       const state = userStates[chatId];
       if (!state || state.step !== 'fin_pending' || state.data.stateKey !== stateKey) {
         return bot.answerCallbackQuery(query.id, { text: 'Сессия устарела. Попробуйте снова.', show_alert: true });
       }
       
-      const { type, amount, categoryText } = state.data;
+      const { type, amount, categoryText, pendingNewName } = state.data;
+
+      // Если имя уже введено через текстовый поиск — создаём сразу
+      if (pendingNewName) {
+        delete userStates[chatId];
+        try {
+          const newCategory = await createCategory(userId, pendingNewName, type, categoryText);
+          await bot.answerCallbackQuery(query.id, { text: '✅ Создана' });
+          await bot.editMessageText(
+            `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}₽ добавлен.\n📁 Категория: "${newCategory.name}"`,
+            { chat_id: chatId, message_id: query.message.message_id }
+          );
+          db.run(
+            'INSERT INTO finances (user_id, type, category, amount, category_id, comment) VALUES (?, ?, ?, ?, ?, ?)',
+            [userId, type, newCategory.name, amount, newCategory.id, categoryText]
+          );
+        } catch (e) {
+          console.error('Category creation error:', e);
+          await bot.answerCallbackQuery(query.id, { text: 'Ошибка при создании', show_alert: true });
+        }
+        return;
+      }
       
-      // Сохраняем состояние для создания новой категории
+      // Иначе — просим ввести название
       userStates[chatId] = {
         step: 'fin_cat_create',
         data: { type, amount, categoryText }
