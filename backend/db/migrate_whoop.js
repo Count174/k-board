@@ -42,6 +42,32 @@ async function main() {
   await run(`CREATE INDEX IF NOT EXISTS idx_whoop_oauth_states_user_id ON whoop_oauth_states(user_id)`);
   await run(`CREATE INDEX IF NOT EXISTS idx_whoop_oauth_states_expires_at ON whoop_oauth_states(expires_at)`);
 
+  await run(`
+    CREATE TABLE IF NOT EXISTS whoop_daily_metrics (
+      user_id INTEGER NOT NULL,
+      date TEXT NOT NULL,
+      sleep_hours REAL,
+      recovery_percent REAL,
+      whoop_sleep_id TEXT,
+      whoop_cycle_id INTEGER,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY(user_id, date),
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  await run(`
+    CREATE TABLE IF NOT EXISTS whoop_workout_imports (
+      user_id INTEGER NOT NULL,
+      workout_id TEXT NOT NULL,
+      workout_start TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY(user_id, workout_id),
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
   await run(`DELETE FROM whoop_oauth_states WHERE datetime(expires_at) < datetime('now')`);
 
   console.log('✅ WHOOP tables are ready');

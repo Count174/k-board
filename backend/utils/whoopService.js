@@ -191,6 +191,40 @@ function mapRecovery(record) {
   };
 }
 
+function mapSleep(record) {
+  if (!record) return null;
+  const score = record.score || {};
+  const stage = score.stage_summary || {};
+  const totalMs = Number(stage.total_in_bed_time_milli || 0);
+  const sleepHours = totalMs > 0 ? Number((totalMs / 3600000).toFixed(2)) : null;
+  return {
+    id: record.id || null,
+    cycleId: record.cycle_id || null,
+    start: record.start || null,
+    end: record.end || null,
+    sleepHours,
+    sleepPerformancePercentage: score.sleep_performance_percentage ?? null,
+    sleepConsistencyPercentage: score.sleep_consistency_percentage ?? null,
+    sleepEfficiencyPercentage: score.sleep_efficiency_percentage ?? null,
+  };
+}
+
+function mapWorkout(record) {
+  if (!record) return null;
+  const score = record.score || {};
+  return {
+    id: record.id || null,
+    v1Id: record.v1_id || null,
+    start: record.start || null,
+    end: record.end || null,
+    sportName: record.sport_name || null,
+    sportId: record.sport_id || null,
+    strain: score.strain ?? null,
+    averageHeartRate: score.average_heart_rate ?? null,
+    maxHeartRate: score.max_heart_rate ?? null,
+  };
+}
+
 async function getLatestRecovery(userId) {
   let conn = await getConnection(userId);
   if (!conn) return null;
@@ -217,6 +251,31 @@ async function getLatestRecovery(userId) {
   }
 }
 
+async function getLatestSleep(userId) {
+  let conn = await getConnection(userId);
+  if (!conn) return null;
+
+  conn = await refreshIfNeeded(conn);
+  if (!conn?.access_token) return null;
+
+  const data = await whoopApiGet('/activity/sleep?limit=1', conn.access_token);
+  const record = Array.isArray(data?.records) ? data.records[0] : null;
+  return mapSleep(record);
+}
+
+async function getRecentWorkouts(userId, hoursBack = 8) {
+  let conn = await getConnection(userId);
+  if (!conn) return [];
+
+  conn = await refreshIfNeeded(conn);
+  if (!conn?.access_token) return [];
+
+  const startIso = new Date(Date.now() - hoursBack * 3600 * 1000).toISOString();
+  const data = await whoopApiGet(`/activity/workout?limit=25&start=${encodeURIComponent(startIso)}`, conn.access_token);
+  const records = Array.isArray(data?.records) ? data.records : [];
+  return records.map(mapWorkout).filter(Boolean);
+}
+
 async function disconnect(userId) {
   await run('DELETE FROM whoop_connections WHERE user_id = ?', [userId]);
 }
@@ -232,7 +291,11 @@ module.exports = {
   connectByCode,
   getConnection,
   getLatestRecovery,
+  getLatestSleep,
+  getRecentWorkouts,
   disconnect,
   clearExpiredStates,
   mapRecovery,
+  mapSleep,
+  mapWorkout,
 };

@@ -10,7 +10,7 @@ dayjs.extend(isSameOrBefore);
 dayjs.extend(isBetween);
 const cron = require('node-cron');
 const crypto = require('crypto');
-const { getLatestRecovery } = require('./utils/whoopService');
+const { getLatestRecovery, getLatestSleep, getRecentWorkouts } = require('./utils/whoopService');
 
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
@@ -869,6 +869,106 @@ function upsertDailyCheck(userId, patch) {
       (err) => err ? reject(err) : resolve()
     );
   });
+}
+
+function upsertWhoopDailyMetric(userId, patch) {
+  return new Promise((resolve, reject) => {
+    const date = patch.date || ymd();
+    db.run(
+      `INSERT INTO whoop_daily_metrics
+         (user_id, date, sleep_hours, recovery_percent, whoop_sleep_id, whoop_cycle_id)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(user_id, date) DO UPDATE SET
+         sleep_hours=COALESCE(excluded.sleep_hours, whoop_daily_metrics.sleep_hours),
+         recovery_percent=COALESCE(excluded.recovery_percent, whoop_daily_metrics.recovery_percent),
+         whoop_sleep_id=COALESCE(excluded.whoop_sleep_id, whoop_daily_metrics.whoop_sleep_id),
+         whoop_cycle_id=COALESCE(excluded.whoop_cycle_id, whoop_daily_metrics.whoop_cycle_id),
+         updated_at=CURRENT_TIMESTAMP`,
+      [
+        userId,
+        date,
+        patch.sleep_hours ?? null,
+        patch.recovery_percent ?? null,
+        patch.whoop_sleep_id ?? null,
+        patch.whoop_cycle_id ?? null
+      ],
+      (err) => err ? reject(err) : resolve()
+    );
+  });
+}
+
+async function syncWhoopDailyForUser(userId) {
+  const [sleep, recovery] = await Promise.all([
+    getLatestSleep(userId).catch(() => null),
+    getLatestRecovery(userId).catch(() => null),
+  ]);
+
+  let metricDate = ymd();
+  if (sleep?.end) {
+    const d = new Date(sleep.end);
+    if (!Number.isNaN(d.getTime())) metricDate = ymd(d);
+  }
+
+  await upsertWhoopDailyMetric(userId, {
+    date: metricDate,
+    sleep_hours: sleep?.sleepHours ?? null,
+    recovery_percent: recovery?.recoveryScore ?? null,
+    whoop_sleep_id: sleep?.id ?? null,
+    whoop_cycle_id: recovery?.cycleId ?? sleep?.cycleId ?? null,
+  });
+
+  if (sleep?.sleepHours != null) {
+    await upsertDailyCheck(userId, { date: metricDate, sleep_hours: sleep.sleepHours });
+  }
+
+  return { sleep, recovery, metricDate };
+}
+
+async function importWhoopWorkoutsForUser(userId, chatId) {
+  const workouts = await getRecentWorkouts(userId, 8).catch(() => []);
+  if (!workouts.length) return 0;
+
+  let imported = 0;
+  for (const w of workouts) {
+    if (!w?.id || !w?.start) continue;
+
+    const mark = await dbRun(
+      `INSERT OR IGNORE INTO whoop_workout_imports (user_id, workout_id, workout_start)
+       VALUES (?, ?, ?)`,
+      [userId, w.id, w.start]
+    );
+
+    if (!mark?.changes) continue;
+
+    const start = dayjs(w.start);
+    const end = w.end ? dayjs(w.end) : null;
+    const date = start.isValid() ? start.format('YYYY-MM-DD') : ymd();
+    const time = start.isValid() ? start.format('HH:mm') : '00:00';
+    const durationMin = (start.isValid() && end?.isValid()) ? Math.max(1, end.diff(start, 'minute')) : null;
+    const activity = w.sportName ? `WHOOP: ${w.sportName}` : 'WHOOP тренировка';
+    const notes = [
+      `whoop_workout_id=${w.id}`,
+      w.strain != null ? `strain=${Number(w.strain).toFixed(1)}` : null,
+      durationMin != null ? `duration=${durationMin}m` : null,
+    ].filter(Boolean).join(' | ');
+
+    await dbRun(
+      'INSERT INTO health (user_id, type, date, time, place, activity, notes, completed) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [userId, 'training', date, time, 'WHOOP', activity, notes, 1]
+    );
+
+    imported += 1;
+    if (chatId) {
+      await bot.sendMessage(chatId, `💪 Записали вашу тренировку из WHOOP (${w.sportName || 'workout'}). Хорошая работа!`).catch(() => {});
+    }
+  }
+
+  if (imported > 0) {
+    const workoutDoneDate = ymd();
+    await upsertDailyCheck(userId, { date: workoutDoneDate, workout_done: 1 }).catch(() => {});
+  }
+
+  return imported;
 }
 
 // ===================== MESSAGE HANDLER =====================
@@ -2070,15 +2170,23 @@ cron.schedule('0 7 1 * *', () => {
 
 // DAILY CHECKS рассылки
 cron.schedule('30 8 * * *', () => {
-  db.all('SELECT tu.user_id, tu.chat_id FROM telegram_users tu', [], async (err, rows) => {
+  db.all(
+    `SELECT tu.user_id, tu.chat_id,
+            CASE WHEN wc.user_id IS NULL THEN 0 ELSE 1 END AS has_whoop
+       FROM telegram_users tu
+       LEFT JOIN whoop_connections wc ON wc.user_id = tu.user_id`,
+    [],
+    async (err, rows) => {
     if (err) return;
     for (const r of rows) {
       const prefs = await getPrefs(r.user_id);
-      if (prefs.morning_enabled) {
+      // Если WHOOP подключён — сон подтянем автоматически, без вопроса пользователю
+      if (prefs.morning_enabled && !r.has_whoop) {
         sendMorningSleepPrompt(r.chat_id, ymd());
       }
     }
-  });
+    }
+  );
 }, { timezone: 'Europe/Moscow' });
 
 cron.schedule('30 21 * * *', () => {
@@ -2111,8 +2219,28 @@ cron.schedule('30 19 * * *', () => {
   });
 }, { timezone: 'Europe/Moscow' });
 
-// WHOOP: ежедневная сводка восстановления в 12:00 МСК
-cron.schedule('0 12 * * *', () => {
+// WHOOP: синхронизация сна/восстановления в БД (11:50 МСК)
+cron.schedule('50 11 * * *', () => {
+  db.all(
+    `SELECT tu.user_id
+       FROM telegram_users tu
+       JOIN whoop_connections wc ON wc.user_id = tu.user_id`,
+    [],
+    async (err, rows) => {
+      if (err || !rows?.length) return;
+      for (const r of rows) {
+        try {
+          await syncWhoopDailyForUser(r.user_id);
+        } catch (e) {
+          console.error('whoop 11:50 sync error:', e?.message || e);
+        }
+      }
+    }
+  );
+}, { timezone: 'Europe/Moscow' });
+
+// WHOOP: импорт тренировок каждые 4 часа + уведомление в TG
+cron.schedule('0 */4 * * *', () => {
   db.all(
     `SELECT tu.user_id, tu.chat_id
        FROM telegram_users tu
@@ -2120,27 +2248,52 @@ cron.schedule('0 12 * * *', () => {
     [],
     async (err, rows) => {
       if (err || !rows?.length) return;
+      for (const r of rows) {
+        try {
+          await importWhoopWorkoutsForUser(r.user_id, r.chat_id);
+        } catch (e) {
+          console.error('whoop workouts sync error:', e?.message || e);
+        }
+      }
+    }
+  );
+}, { timezone: 'Europe/Moscow' });
+
+// WHOOP: ежедневная сводка в 12:00 МСК (из синхронизированных данных)
+cron.schedule('0 12 * * *', () => {
+  const today = ymd();
+  db.all(
+    `SELECT tu.user_id, tu.chat_id, wdm.sleep_hours, wdm.recovery_percent
+       FROM telegram_users tu
+       JOIN whoop_connections wc ON wc.user_id = tu.user_id
+  LEFT JOIN whoop_daily_metrics wdm
+         ON wdm.user_id = tu.user_id AND wdm.date = ?`,
+    [today],
+    async (err, rows) => {
+      if (err || !rows?.length) return;
 
       for (const r of rows) {
         try {
-          const recovery = await getLatestRecovery(r.user_id);
-          if (!recovery) continue;
+          let sleepHours = r.sleep_hours != null ? Number(r.sleep_hours) : null;
+          let recoveryPct = r.recovery_percent != null ? Number(r.recovery_percent) : null;
 
-          const score = recovery.recoveryScore != null ? `${recovery.recoveryScore}%` : '—';
-          const rhr = recovery.restingHeartRate != null ? `${recovery.restingHeartRate} bpm` : '—';
-          const hrv = recovery.hrvRmssd != null ? `${Math.round(recovery.hrvRmssd)}` : '—';
-          const spo2 = recovery.spo2 != null ? `${recovery.spo2}%` : '—';
+          // fallback: если 11:50 синк по какой-то причине не сработал
+          if (sleepHours == null || recoveryPct == null) {
+            const synced = await syncWhoopDailyForUser(r.user_id).catch(() => null);
+            sleepHours = sleepHours ?? (synced?.sleep?.sleepHours ?? null);
+            recoveryPct = recoveryPct ?? (synced?.recovery?.recoveryScore ?? null);
+          }
 
+          const score = recoveryPct != null ? `${Math.round(recoveryPct)}%` : '—';
+          const sleepText = sleepHours != null ? `${Number(sleepHours).toFixed(1)} ч` : '—';
           const text =
-            `🟢 WHOOP recovery на сегодня\n\n` +
-            `Recovery: *${score}*\n` +
-            `RHR: *${rhr}*\n` +
-            `HRV (RMSSD): *${hrv}*\n` +
-            `SpO2: *${spo2}*`;
+            `🟢 WHOOP на сегодня\n\n` +
+            `Восстановление: *${score}*\n` +
+            `Сон: *${sleepText}*`;
 
           await bot.sendMessage(r.chat_id, text, { parse_mode: 'Markdown' });
         } catch (e) {
-          console.error('whoop daily recovery cron error:', e?.message || e);
+          console.error('whoop daily digest cron error:', e?.message || e);
         }
       }
     }
