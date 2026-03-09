@@ -10,6 +10,7 @@ dayjs.extend(isSameOrBefore);
 dayjs.extend(isBetween);
 const cron = require('node-cron');
 const crypto = require('crypto');
+const { getLatestRecovery } = require('./utils/whoopService');
 
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
@@ -2108,4 +2109,40 @@ cron.schedule('30 19 * * *', () => {
       );
     });
   });
+}, { timezone: 'Europe/Moscow' });
+
+// WHOOP: ежедневная сводка восстановления в 12:00 МСК
+cron.schedule('0 12 * * *', () => {
+  db.all(
+    `SELECT tu.user_id, tu.chat_id
+       FROM telegram_users tu
+       JOIN whoop_connections wc ON wc.user_id = tu.user_id`,
+    [],
+    async (err, rows) => {
+      if (err || !rows?.length) return;
+
+      for (const r of rows) {
+        try {
+          const recovery = await getLatestRecovery(r.user_id);
+          if (!recovery) continue;
+
+          const score = recovery.recoveryScore != null ? `${recovery.recoveryScore}%` : '—';
+          const rhr = recovery.restingHeartRate != null ? `${recovery.restingHeartRate} bpm` : '—';
+          const hrv = recovery.hrvRmssd != null ? `${Math.round(recovery.hrvRmssd)}` : '—';
+          const spo2 = recovery.spo2 != null ? `${recovery.spo2}%` : '—';
+
+          const text =
+            `🟢 WHOOP recovery на сегодня\n\n` +
+            `Recovery: *${score}*\n` +
+            `RHR: *${rhr}*\n` +
+            `HRV (RMSSD): *${hrv}*\n` +
+            `SpO2: *${spo2}*`;
+
+          await bot.sendMessage(r.chat_id, text, { parse_mode: 'Markdown' });
+        } catch (e) {
+          console.error('whoop daily recovery cron error:', e?.message || e);
+        }
+      }
+    }
+  );
 }, { timezone: 'Europe/Moscow' });

@@ -195,6 +195,67 @@
   border-color: rgba(255,255,255,0.12);
 }
 
+.whoopCard,
+.whoopCardConnected{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--stroke-1);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-0);
+}
+
+.whoopCard{
+  cursor: pointer;
+  transition: transform .12s ease, background .12s ease, border-color .12s ease;
+}
+
+.whoopCard:hover{
+  transform: translateY(-1px);
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(255,255,255,0.12);
+}
+
+.whoopText{
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+
+.whoopTitle{
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.whoopMeta{
+  font-size: 11px;
+  color: var(--text-2);
+  line-height: 1.2;
+}
+
+.whoopUnlink{
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: transparent;
+  color: var(--text-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.whoopUnlink:hover{
+  background: rgba(239,68,68,0.12);
+  border-color: rgba(239,68,68,0.2);
+}
+
 .scoreRing{
   position:relative;
   width:38px;

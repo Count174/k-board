@@ -82,6 +82,31 @@ db.serialize(() => {
       FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
     )
   `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS whoop_connections (
+      user_id INTEGER PRIMARY KEY,
+      whoop_user_id TEXT,
+      access_token TEXT NOT NULL,
+      refresh_token TEXT,
+      token_type TEXT,
+      scope TEXT,
+      expires_at TEXT,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS whoop_oauth_states (
+      state TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      expires_at TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
 });
 
 db.close();

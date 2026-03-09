@@ -25,6 +25,7 @@ const loansRoutes = require('./routes/loans')
 const historyRoutes = require('./routes/history');
 const categoriesRoutes = require('./routes/categories');
 const ceoRoutes = require('./routes/ceo');
+const whoopRoutes = require('./routes/whoop');
 
 app.set('trust proxy', 1); // доверие первому прокси (nginx)
 const allowedOrigins = new Set([
@@ -66,6 +67,7 @@ app.use('/api/loans', loansRoutes);
 app.use('/api/history', historyRoutes);
 app.use('/api/categories', categoriesRoutes);
 app.use('/api/ceo', ceoRoutes);
+app.use('/api/whoop', whoopRoutes);
 
 // Статика: favicon и изображения из корневой public
 app.get('/favicon.png', (req, res) => res.sendFile(path.join(publicPath, 'favicon.png')));

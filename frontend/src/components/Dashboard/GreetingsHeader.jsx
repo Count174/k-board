@@ -1,9 +1,9 @@
 // src/components/GreetingsHeader/GreetingsHeader.jsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import styles from './GreetingsHeader.module.css';
-import { User, Link2, LogOut, History, Heart, Key } from 'lucide-react';
+import { User, Link2, LogOut, History, Heart, Key, Activity, Unlink } from 'lucide-react';
 import dayjs from 'dayjs';
-import { get } from '../../api/api';
+import { get, post, remove } from '../../api/api';
 import ChangePasswordModal from '../ChangePasswordModal';
 
 /* ================= ScorePill with details ================= */
@@ -177,6 +177,104 @@ function ScorePill() {
   );
 }
 
+function useWhoopData() {
+  const [loading, setLoading] = useState(true);
+  const [configured, setConfigured] = useState(false);
+  const [connected, setConnected] = useState(false);
+  const [recovery, setRecovery] = useState(null);
+
+  const load = async () => {
+    try {
+      const data = await get('whoop/status');
+      setConfigured(Boolean(data?.configured));
+      setConnected(Boolean(data?.connected));
+      setRecovery(data?.recovery || null);
+    } catch {
+      setConfigured(false);
+      setConnected(false);
+      setRecovery(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  return { loading, configured, connected, recovery, reload: load };
+}
+
+function WhoopPill() {
+  const { loading, configured, connected, recovery, reload } = useWhoopData();
+  const [busy, setBusy] = useState(false);
+
+  if (loading) return null;
+  if (!configured) return null;
+
+  const onConnect = async () => {
+    try {
+      setBusy(true);
+      const resp = await post('whoop/connect');
+      if (resp?.url) {
+        window.location.href = resp.url;
+      }
+    } catch {
+      alert('Не удалось начать подключение WHOOP');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onDisconnect = async (e) => {
+    e.stopPropagation();
+    if (!window.confirm('Отключить WHOOP от аккаунта?')) return;
+    try {
+      setBusy(true);
+      await remove('whoop/disconnect');
+      await reload();
+    } catch {
+      alert('Не удалось отключить WHOOP');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!connected) {
+    return (
+      <button className={styles.whoopCard} onClick={onConnect} disabled={busy}>
+        <Activity size={15} />
+        <div className={styles.whoopText}>
+          <div className={styles.whoopTitle}>WHOOP</div>
+          <div className={styles.whoopMeta}>{busy ? 'Подключаем...' : 'Подключить'}</div>
+        </div>
+      </button>
+    );
+  }
+
+  const score = recovery?.recoveryScore != null ? `${Math.round(recovery.recoveryScore)}%` : '—';
+  const rhr = recovery?.restingHeartRate != null ? recovery.restingHeartRate : '—';
+  const hrv = recovery?.hrvRmssd != null ? Math.round(recovery.hrvRmssd) : '—';
+
+  return (
+    <div className={styles.whoopCardConnected}>
+      <Activity size={15} />
+      <div className={styles.whoopText}>
+        <div className={styles.whoopTitle}>WHOOP {score}</div>
+        <div className={styles.whoopMeta}>RHR {rhr} · HRV {hrv}</div>
+      </div>
+      <button
+        className={styles.whoopUnlink}
+        onClick={onDisconnect}
+        disabled={busy}
+        title="Отключить WHOOP"
+      >
+        <Unlink size={13} />
+      </button>
+    </div>
+  );
+}
+
 /* ================= Header ================= */
 
 function LogoMark() {
@@ -237,6 +335,7 @@ function GreetingsHeader({ user, onConnectClick, onLogout }) {
 
       <div className={styles.right}>
         <ScorePill />
+        <WhoopPill />
 
         <a
           href="https://dalink.to/whoiskirya"
