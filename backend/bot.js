@@ -1350,17 +1350,23 @@ bot.onText(/^\/whoopnow$/, (msg) => {
     if (!userId) return bot.sendMessage(chatId, '❌ Аккаунт не привязан.');
 
     try {
+      console.log('whoopnow requested', { user_id: userId, chat_id: chatId });
       const hasWhoop = await dbGet(
         'SELECT 1 FROM whoop_connections WHERE user_id = ? LIMIT 1',
         [userId]
-      ).catch(() => null);
+      ).catch((e) => {
+        console.error('whoopnow whoop_connections check error', { user_id: userId, e: e?.message || e });
+        return null;
+      });
 
       if (!hasWhoop) {
+        console.warn('whoopnow skipped: no whoop connection', { user_id: userId });
         return bot.sendMessage(chatId, '⚠️ WHOOP не подключён к аккаунту.');
       }
 
-      const sent = await sendWhoopDailyDigest(userId, chatId);
+      const sent = await sendWhoopDailyDigest(userId, chatId, 'whoopnow');
       if (!sent) {
+        console.warn('whoopnow no data after digest attempt', { user_id: userId, chat_id: chatId });
         return bot.sendMessage(chatId, '⚠️ Пока нет данных WHOOP. Попробуй чуть позже.');
       }
     } catch (e) {
@@ -1875,13 +1881,29 @@ async function runWhoopWorkoutSyncAllUsers() {
   }
 }
 
-async function sendWhoopDailyDigest(userId, chatId) {
-  const synced = await syncWhoopDailyForUser(userId).catch(() => null);
+async function sendWhoopDailyDigest(userId, chatId, source = 'cron') {
+  let syncErr = null;
+  const synced = await syncWhoopDailyForUser(userId).catch((e) => {
+    syncErr = e;
+    return null;
+  });
+  if (syncErr) {
+    console.warn('whoop digest sync failed', { user_id: userId, source, error: syncErr?.message || syncErr });
+  }
+
   let sleepHours = synced?.sleep?.sleepHours ?? null;
   let recoveryPct = synced?.recovery?.recoveryScore ?? null;
+  console.log('whoop digest sync result', {
+    user_id: userId,
+    source,
+    sleep_hours_from_sync: sleepHours,
+    recovery_from_sync: recoveryPct,
+    metric_date: synced?.metricDate || null
+  });
 
   // fallback: берём последние успешные данные из БД
   if (sleepHours == null || recoveryPct == null) {
+    let fallbackErr = null;
     const last = await dbGet(
       `SELECT sleep_hours, recovery_percent
          FROM whoop_daily_metrics
@@ -1889,12 +1911,29 @@ async function sendWhoopDailyDigest(userId, chatId) {
      ORDER BY date DESC
         LIMIT 1`,
       [userId]
-    ).catch(() => null);
+    ).catch((e) => {
+      fallbackErr = e;
+      return null;
+    });
+    if (fallbackErr) {
+      console.warn('whoop digest fallback query failed', {
+        user_id: userId,
+        source,
+        error: fallbackErr?.message || fallbackErr
+      });
+    }
+    console.log('whoop digest fallback row', {
+      user_id: userId,
+      source,
+      sleep_hours_db: last?.sleep_hours ?? null,
+      recovery_db: last?.recovery_percent ?? null
+    });
     sleepHours = sleepHours ?? (last?.sleep_hours != null ? Number(last.sleep_hours) : null);
     recoveryPct = recoveryPct ?? (last?.recovery_percent != null ? Number(last.recovery_percent) : null);
   }
 
   if (sleepHours == null && recoveryPct == null) {
+    console.warn('whoop digest skipped: no sleep/recovery data', { user_id: userId, source });
     return false;
   }
 
@@ -1905,6 +1944,13 @@ async function sendWhoopDailyDigest(userId, chatId) {
     `Восстановление: *${score}*\n` +
     `Сон: *${sleepText}*`;
 
+  console.log('whoop digest sending message', {
+    user_id: userId,
+    chat_id: chatId,
+    source,
+    score,
+    sleep_text: sleepText
+  });
   await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
   return true;
 }
