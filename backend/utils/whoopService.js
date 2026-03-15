@@ -34,7 +34,14 @@ function isConfigured() {
 }
 
 function getScopes() {
-  return process.env.WHOOP_SCOPES || 'read:recovery read:profile read:sleep read:workout';
+  const configured = process.env.WHOOP_SCOPES || 'read:recovery read:profile read:sleep read:workout';
+  const scopes = configured
+    .split(/\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  // Без offline WHOOP может не выдать refresh_token
+  if (!scopes.includes('offline')) scopes.push('offline');
+  return scopes.join(' ');
 }
 
 async function createOAuthState(userId) {
@@ -152,6 +159,18 @@ async function connectByCode(userId, code) {
     code,
     redirect_uri: process.env.WHOOP_REDIRECT_URI,
   });
+  if (!tokenData?.access_token) {
+    throw new Error('whoop_access_token_missing');
+  }
+  if (!tokenData?.refresh_token) {
+    console.error('whoop connect failed: refresh token missing', {
+      user_id: userId,
+      scope: tokenData?.scope || null,
+      token_type: tokenData?.token_type || null,
+      expires_in: tokenData?.expires_in || null
+    });
+    throw new Error('whoop_refresh_token_missing');
+  }
   await saveConnection(userId, tokenData);
 }
 
@@ -171,8 +190,9 @@ async function refreshIfNeeded(connection) {
   if (!shouldRefresh) return connection;
 
   if (!connection.refresh_token) {
-    console.warn('whoop refresh skipped: missing refresh token', { user_id: connection.user_id });
-    return connection;
+    const err = new Error('whoop_refresh_token_missing');
+    err.userId = connection.user_id;
+    throw err;
   }
 
   const tokenData = await fetchWhoopToken({

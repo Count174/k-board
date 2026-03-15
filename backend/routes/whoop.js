@@ -78,7 +78,10 @@ router.get('/callback', async (req, res) => {
     await connectByCode(userId, String(code));
     return res.redirect(successRedirect);
   } catch (e) {
-    console.error('whoop.callback error:', e);
+    console.error('whoop.callback error:', e?.message || e);
+    if ((e?.message || '') === 'whoop_refresh_token_missing') {
+      console.error('whoop.callback hint: проверь scopes приложения, должен быть offline');
+    }
     return res.redirect(failRedirect);
   }
 });
