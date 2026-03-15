@@ -183,9 +183,10 @@ async function refreshIfNeeded(connection) {
   return getConnection(connection.user_id);
 }
 
-async function whoopApiGet(path, accessToken) {
+async function whoopApiGet(path, accessToken, tokenType = 'Bearer') {
+  const authType = String(tokenType || 'Bearer').trim();
   const response = await fetch(`${WHOOP_API_BASE}${path}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+    headers: { Authorization: `${authType} ${accessToken}` },
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -263,7 +264,7 @@ async function getLatestRecovery(userId) {
   if (!conn?.access_token) return null;
 
   try {
-    const data = await whoopApiGet('/recovery?limit=1', conn.access_token);
+    const data = await whoopApiGet('/recovery?limit=1', conn.access_token, conn.token_type);
     const record = Array.isArray(data?.records) ? data.records[0] : null;
     return mapRecovery(record);
   } catch (e) {
@@ -274,7 +275,7 @@ async function getLatestRecovery(userId) {
         expires_at: new Date(0).toISOString(),
       });
       if (!refreshed?.access_token) return null;
-      const data = await whoopApiGet('/recovery?limit=1', refreshed.access_token);
+      const data = await whoopApiGet('/recovery?limit=1', refreshed.access_token, refreshed.token_type);
       const record = Array.isArray(data?.records) ? data.records[0] : null;
       return mapRecovery(record);
     }
@@ -290,7 +291,7 @@ async function getLatestSleep(userId) {
   if (!conn?.access_token) return null;
 
   try {
-    const data = await whoopApiGet('/activity/sleep?limit=1', conn.access_token);
+    const data = await whoopApiGet('/activity/sleep?limit=1', conn.access_token, conn.token_type);
     const record = Array.isArray(data?.records) ? data.records[0] : null;
     return mapSleep(record);
   } catch (e) {
@@ -301,7 +302,7 @@ async function getLatestSleep(userId) {
         expires_at: new Date(0).toISOString(),
       });
       if (!refreshed?.access_token) return null;
-      const data = await whoopApiGet('/activity/sleep?limit=1', refreshed.access_token);
+      const data = await whoopApiGet('/activity/sleep?limit=1', refreshed.access_token, refreshed.token_type);
       const record = Array.isArray(data?.records) ? data.records[0] : null;
       return mapSleep(record);
     }
@@ -317,7 +318,11 @@ async function getRecentWorkouts(userId, hoursBack = 8) {
   if (!conn?.access_token) return [];
 
   const startIso = new Date(Date.now() - hoursBack * 3600 * 1000).toISOString();
-  const data = await whoopApiGet(`/activity/workout?limit=25&start=${encodeURIComponent(startIso)}`, conn.access_token);
+  const data = await whoopApiGet(
+    `/activity/workout?limit=25&start=${encodeURIComponent(startIso)}`,
+    conn.access_token,
+    conn.token_type
+  );
   const records = Array.isArray(data?.records) ? data.records : [];
   return records.map(mapWorkout).filter(Boolean);
 }
