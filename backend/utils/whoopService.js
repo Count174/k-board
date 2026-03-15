@@ -34,7 +34,7 @@ function isConfigured() {
 }
 
 function getScopes() {
-  return process.env.WHOOP_SCOPES || 'read:recovery read:profile read:sleep';
+  return process.env.WHOOP_SCOPES || 'read:recovery read:profile read:sleep read:workout';
 }
 
 async function createOAuthState(userId) {
@@ -195,7 +195,15 @@ function mapSleep(record) {
   if (!record) return null;
   const score = record.score || {};
   const stage = score.stage_summary || {};
-  const totalMs = Number(stage.total_in_bed_time_milli || 0);
+  const totalMs = Number(
+    stage.total_in_bed_time_milli ||
+    (
+      Number(stage.total_light_sleep_time_milli || 0) +
+      Number(stage.total_slow_wave_sleep_time_milli || 0) +
+      Number(stage.total_rem_sleep_time_milli || 0) +
+      Number(stage.total_awake_time_milli || 0)
+    )
+  );
   const sleepHours = totalMs > 0 ? Number((totalMs / 3600000).toFixed(2)) : null;
   return {
     id: record.id || null,
