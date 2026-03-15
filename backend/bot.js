@@ -909,10 +909,35 @@ function upsertWhoopDailyMetric(userId, patch) {
 }
 
 async function syncWhoopDailyForUser(userId) {
+  let sleepErr = null;
+  let recoveryErr = null;
   const [sleep, recovery] = await Promise.all([
-    getLatestSleep(userId).catch(() => null),
-    getLatestRecovery(userId).catch(() => null),
+    getLatestSleep(userId).catch((e) => {
+      sleepErr = e;
+      return null;
+    }),
+    getLatestRecovery(userId).catch((e) => {
+      recoveryErr = e;
+      return null;
+    }),
   ]);
+
+  if (sleepErr) {
+    console.warn('whoop sleep sync error', {
+      user_id: userId,
+      status: sleepErr?.status || null,
+      path: sleepErr?.path || null,
+      error: sleepErr?.message || sleepErr
+    });
+  }
+  if (recoveryErr) {
+    console.warn('whoop recovery sync error', {
+      user_id: userId,
+      status: recoveryErr?.status || null,
+      path: recoveryErr?.path || null,
+      error: recoveryErr?.message || recoveryErr
+    });
+  }
 
   let metricDate = ymdMoscow();
   if (sleep?.end) {
@@ -932,7 +957,7 @@ async function syncWhoopDailyForUser(userId) {
     await upsertDailyCheck(userId, { date: metricDate, sleep_hours: sleep.sleepHours });
   }
 
-  return { sleep, recovery, metricDate };
+  return { sleep, recovery, metricDate, sleepErr, recoveryErr };
 }
 
 async function importWhoopWorkoutsForUser(userId, chatId) {
@@ -1898,7 +1923,13 @@ async function sendWhoopDailyDigest(userId, chatId, source = 'cron') {
     source,
     sleep_hours_from_sync: sleepHours,
     recovery_from_sync: recoveryPct,
-    metric_date: synced?.metricDate || null
+    metric_date: synced?.metricDate || null,
+    sleep_error: synced?.sleepErr?.message || null,
+    sleep_error_status: synced?.sleepErr?.status || null,
+    sleep_error_path: synced?.sleepErr?.path || null,
+    recovery_error: synced?.recoveryErr?.message || null,
+    recovery_error_status: synced?.recoveryErr?.status || null,
+    recovery_error_path: synced?.recoveryErr?.path || null
   });
 
   // fallback: берём последние успешные данные из БД

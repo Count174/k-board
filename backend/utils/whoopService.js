@@ -171,6 +171,8 @@ async function whoopApiGet(path, accessToken) {
   if (!response.ok) {
     const err = new Error(data?.error || `whoop_api_${response.status}`);
     err.status = response.status;
+    err.path = path;
+    err.details = data;
     throw err;
   }
   return data;
@@ -246,6 +248,7 @@ async function getLatestRecovery(userId) {
     return mapRecovery(record);
   } catch (e) {
     if (e.status === 401 && conn.refresh_token) {
+      console.warn('whoop recovery unauthorized, trying refresh', { user_id: userId, path: e.path || '/recovery?limit=1' });
       const refreshed = await refreshIfNeeded({
         ...conn,
         expires_at: new Date(0).toISOString(),
@@ -266,9 +269,24 @@ async function getLatestSleep(userId) {
   conn = await refreshIfNeeded(conn);
   if (!conn?.access_token) return null;
 
-  const data = await whoopApiGet('/activity/sleep?limit=1', conn.access_token);
-  const record = Array.isArray(data?.records) ? data.records[0] : null;
-  return mapSleep(record);
+  try {
+    const data = await whoopApiGet('/activity/sleep?limit=1', conn.access_token);
+    const record = Array.isArray(data?.records) ? data.records[0] : null;
+    return mapSleep(record);
+  } catch (e) {
+    if (e.status === 401 && conn.refresh_token) {
+      console.warn('whoop sleep unauthorized, trying refresh', { user_id: userId, path: e.path || '/activity/sleep?limit=1' });
+      const refreshed = await refreshIfNeeded({
+        ...conn,
+        expires_at: new Date(0).toISOString(),
+      });
+      if (!refreshed?.access_token) return null;
+      const data = await whoopApiGet('/activity/sleep?limit=1', refreshed.access_token);
+      const record = Array.isArray(data?.records) ? data.records[0] : null;
+      return mapSleep(record);
+    }
+    throw e;
+  }
 }
 
 async function getRecentWorkouts(userId, hoursBack = 8) {
