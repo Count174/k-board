@@ -1344,6 +1344,32 @@ bot.onText(/^\/checkoff(?:\s+(morning|evening|all))?$/, (msg, match) => {
   });
 });
 
+bot.onText(/^\/whoopnow$/, (msg) => {
+  const chatId = msg.chat.id;
+  getUserId(chatId, async (userId) => {
+    if (!userId) return bot.sendMessage(chatId, '❌ Аккаунт не привязан.');
+
+    try {
+      const hasWhoop = await dbGet(
+        'SELECT 1 FROM whoop_connections WHERE user_id = ? LIMIT 1',
+        [userId]
+      ).catch(() => null);
+
+      if (!hasWhoop) {
+        return bot.sendMessage(chatId, '⚠️ WHOOP не подключён к аккаунту.');
+      }
+
+      const sent = await sendWhoopDailyDigest(userId, chatId);
+      if (!sent) {
+        return bot.sendMessage(chatId, '⚠️ Пока нет данных WHOOP. Попробуй чуть позже.');
+      }
+    } catch (e) {
+      console.error('whoopnow cmd error:', e?.message || e);
+      return bot.sendMessage(chatId, '❌ Не удалось получить данные WHOOP. Попробуй позже.');
+    }
+  });
+});
+
 bot.onText(/^\/budget(?:\s+(\d{4})-(\d{2}))?$/, (msg, match) => {
   const chatId = msg.chat.id;
   const inputYear = match[1];
@@ -1849,6 +1875,40 @@ async function runWhoopWorkoutSyncAllUsers() {
   }
 }
 
+async function sendWhoopDailyDigest(userId, chatId) {
+  const synced = await syncWhoopDailyForUser(userId).catch(() => null);
+  let sleepHours = synced?.sleep?.sleepHours ?? null;
+  let recoveryPct = synced?.recovery?.recoveryScore ?? null;
+
+  // fallback: берём последние успешные данные из БД
+  if (sleepHours == null || recoveryPct == null) {
+    const last = await dbGet(
+      `SELECT sleep_hours, recovery_percent
+         FROM whoop_daily_metrics
+        WHERE user_id = ?
+     ORDER BY date DESC
+        LIMIT 1`,
+      [userId]
+    ).catch(() => null);
+    sleepHours = sleepHours ?? (last?.sleep_hours != null ? Number(last.sleep_hours) : null);
+    recoveryPct = recoveryPct ?? (last?.recovery_percent != null ? Number(last.recovery_percent) : null);
+  }
+
+  if (sleepHours == null && recoveryPct == null) {
+    return false;
+  }
+
+  const score = recoveryPct != null ? `${Math.round(recoveryPct)}%` : '—';
+  const sleepText = sleepHours != null ? `${Number(sleepHours).toFixed(1)} ч` : '—';
+  const text =
+    `🟢 WHOOP на сегодня\n\n` +
+    `Восстановление: *${score}*\n` +
+    `Сон: *${sleepText}*`;
+
+  await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
+  return true;
+}
+
 // ===================== CRONS =====================
 
 // Еженедельный чек-ин по целям (понедельник 13:00 МСК)
@@ -2282,38 +2342,10 @@ cron.schedule('0 12 * * *', () => {
 
       for (const r of rows) {
         try {
-          const synced = await syncWhoopDailyForUser(r.user_id).catch(() => null);
-          let sleepHours = synced?.sleep?.sleepHours ?? null;
-          let recoveryPct = synced?.recovery?.recoveryScore ?? null;
-
-          // fallback: берём последние успешные данные из БД
-          if (sleepHours == null || recoveryPct == null) {
-            const last = await dbGet(
-              `SELECT sleep_hours, recovery_percent
-                 FROM whoop_daily_metrics
-                WHERE user_id = ?
-             ORDER BY date DESC
-                LIMIT 1`,
-              [r.user_id]
-            ).catch(() => null);
-            sleepHours = sleepHours ?? (last?.sleep_hours != null ? Number(last.sleep_hours) : null);
-            recoveryPct = recoveryPct ?? (last?.recovery_percent != null ? Number(last.recovery_percent) : null);
-          }
-
-          // Не шлём пустой дайджест
-          if (sleepHours == null && recoveryPct == null) {
+          const sent = await sendWhoopDailyDigest(r.user_id, r.chat_id);
+          if (!sent) {
             console.warn('whoop digest skipped: no data', { user_id: r.user_id });
-            continue;
           }
-
-          const score = recoveryPct != null ? `${Math.round(recoveryPct)}%` : '—';
-          const sleepText = sleepHours != null ? `${Number(sleepHours).toFixed(1)} ч` : '—';
-          const text =
-            `🟢 WHOOP на сегодня\n\n` +
-            `Восстановление: *${score}*\n` +
-            `Сон: *${sleepText}*`;
-
-          await bot.sendMessage(r.chat_id, text, { parse_mode: 'Markdown' });
         } catch (e) {
           console.error('whoop daily digest cron error:', e?.message || e);
         }
