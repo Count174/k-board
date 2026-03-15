@@ -1395,7 +1395,7 @@ bot.onText(/^\/whoopnow$/, (msg) => {
           console.warn('whoopnow auth invalid', { user_id: userId, chat_id: chatId });
           return bot.sendMessage(
             chatId,
-            '🔐 Сессия WHOOP недействительна (401). Переподключи WHOOP в приложении и попробуй /whoopnow снова.'
+            '🔐 Сессия WHOOP недействительна. Переподключи WHOOP в приложении и попробуй /whoopnow снова.'
           );
         }
         console.warn('whoopnow no data after digest attempt', { user_id: userId, chat_id: chatId });
@@ -1924,7 +1924,9 @@ async function sendWhoopDailyDigest(userId, chatId, source = 'cron') {
   }
   const authInvalid =
     synced?.sleepErr?.status === 401 ||
-    synced?.recoveryErr?.status === 401;
+    synced?.recoveryErr?.status === 401 ||
+    synced?.sleepErr?.message === 'whoop_refresh_token_missing' ||
+    synced?.recoveryErr?.message === 'whoop_refresh_token_missing';
 
   let sleepHours = synced?.sleep?.sleepHours ?? null;
   let recoveryPct = synced?.recovery?.recoveryScore ?? null;
