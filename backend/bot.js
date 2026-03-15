@@ -1389,8 +1389,15 @@ bot.onText(/^\/whoopnow$/, (msg) => {
         return bot.sendMessage(chatId, '⚠️ WHOOP не подключён к аккаунту.');
       }
 
-      const sent = await sendWhoopDailyDigest(userId, chatId, 'whoopnow');
-      if (!sent) {
+      const digest = await sendWhoopDailyDigest(userId, chatId, 'whoopnow');
+      if (!digest.sent) {
+        if (digest.authInvalid) {
+          console.warn('whoopnow auth invalid', { user_id: userId, chat_id: chatId });
+          return bot.sendMessage(
+            chatId,
+            '🔐 Сессия WHOOP недействительна (401). Переподключи WHOOP в приложении и попробуй /whoopnow снова.'
+          );
+        }
         console.warn('whoopnow no data after digest attempt', { user_id: userId, chat_id: chatId });
         return bot.sendMessage(chatId, '⚠️ Пока нет данных WHOOP. Попробуй чуть позже.');
       }
@@ -1915,6 +1922,9 @@ async function sendWhoopDailyDigest(userId, chatId, source = 'cron') {
   if (syncErr) {
     console.warn('whoop digest sync failed', { user_id: userId, source, error: syncErr?.message || syncErr });
   }
+  const authInvalid =
+    synced?.sleepErr?.status === 401 ||
+    synced?.recoveryErr?.status === 401;
 
   let sleepHours = synced?.sleep?.sleepHours ?? null;
   let recoveryPct = synced?.recovery?.recoveryScore ?? null;
@@ -1964,8 +1974,8 @@ async function sendWhoopDailyDigest(userId, chatId, source = 'cron') {
   }
 
   if (sleepHours == null && recoveryPct == null) {
-    console.warn('whoop digest skipped: no sleep/recovery data', { user_id: userId, source });
-    return false;
+    console.warn('whoop digest skipped: no sleep/recovery data', { user_id: userId, source, auth_invalid: authInvalid });
+    return { sent: false, authInvalid };
   }
 
   const score = recoveryPct != null ? `${Math.round(recoveryPct)}%` : '—';
@@ -1983,7 +1993,7 @@ async function sendWhoopDailyDigest(userId, chatId, source = 'cron') {
     sleep_text: sleepText
   });
   await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
-  return true;
+  return { sent: true, authInvalid: false };
 }
 
 // ===================== CRONS =====================
@@ -2419,9 +2429,12 @@ cron.schedule('0 12 * * *', () => {
 
       for (const r of rows) {
         try {
-          const sent = await sendWhoopDailyDigest(r.user_id, r.chat_id);
-          if (!sent) {
-            console.warn('whoop digest skipped: no data', { user_id: r.user_id });
+          const digest = await sendWhoopDailyDigest(r.user_id, r.chat_id);
+          if (!digest.sent) {
+            console.warn('whoop digest skipped: no data', {
+              user_id: r.user_id,
+              auth_invalid: digest.authInvalid || false
+            });
           }
         } catch (e) {
           console.error('whoop daily digest cron error:', e?.message || e);
