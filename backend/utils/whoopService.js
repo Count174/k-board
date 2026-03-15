@@ -102,8 +102,21 @@ async function fetchWhoopToken(bodyParams) {
 }
 
 async function saveConnection(userId, tokenData) {
+  const existing = await getConnection(userId).catch(() => null);
   const expiresIn = Number(tokenData.expires_in || 3600);
   const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+
+  const accessToken = tokenData.access_token || existing?.access_token || '';
+  const refreshToken = tokenData.refresh_token || existing?.refresh_token || '';
+  const tokenType = tokenData.token_type || existing?.token_type || 'Bearer';
+  const scope = tokenData.scope || existing?.scope || '';
+  const whoopUserId = tokenData.user_id
+    ? String(tokenData.user_id)
+    : (existing?.whoop_user_id || null);
+
+  if (!accessToken) {
+    throw new Error('whoop_access_token_missing');
+  }
 
   await run(
     `INSERT INTO whoop_connections
@@ -119,14 +132,18 @@ async function saveConnection(userId, tokenData) {
        updated_at = CURRENT_TIMESTAMP`,
     [
       userId,
-      tokenData.access_token || '',
-      tokenData.refresh_token || '',
-      tokenData.token_type || 'Bearer',
-      tokenData.scope || '',
+      accessToken,
+      refreshToken,
+      tokenType,
+      scope,
       expiresAt,
-      tokenData.user_id ? String(tokenData.user_id) : null,
+      whoopUserId,
     ]
   );
+
+  if (!refreshToken) {
+    console.warn('whoop connection saved without refresh token', { user_id: userId });
+  }
 }
 
 async function connectByCode(userId, code) {
@@ -153,7 +170,10 @@ async function refreshIfNeeded(connection) {
   const shouldRefresh = !expTs || expTs - Date.now() < 60 * 1000;
   if (!shouldRefresh) return connection;
 
-  if (!connection.refresh_token) return connection;
+  if (!connection.refresh_token) {
+    console.warn('whoop refresh skipped: missing refresh token', { user_id: connection.user_id });
+    return connection;
+  }
 
   const tokenData = await fetchWhoopToken({
     grant_type: 'refresh_token',
