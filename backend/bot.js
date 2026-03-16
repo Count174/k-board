@@ -1369,7 +1369,7 @@ bot.onText(/^\/checkoff(?:\s+(morning|evening|all))?$/, (msg, match) => {
   });
 });
 
-bot.onText(/^\/whoopnow$/, (msg) => {
+bot.onText(/^\/whoopnow(?:@\w+)?$/, (msg) => {
   const chatId = msg.chat.id;
   getUserId(chatId, async (userId) => {
     if (!userId) return bot.sendMessage(chatId, '❌ Аккаунт не привязан.');
