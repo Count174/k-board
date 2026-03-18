@@ -530,11 +530,32 @@ async function calcWorkouts(userId, start, end) {
   };
 }
 
+async function getMergedSleepMap(userId, start, end) {
+  const [whoopRows, dailyRows] = await Promise.all([
+    sqlAll(
+      `SELECT date, sleep_hours
+         FROM whoop_daily_metrics
+        WHERE user_id=? AND date>=? AND date<=? AND sleep_hours IS NOT NULL`,
+      [userId, start, end]
+    ),
+    sqlAll(
+      `SELECT date, sleep_hours
+         FROM daily_checks
+        WHERE user_id=? AND date>=? AND date<=? AND sleep_hours IS NOT NULL`,
+      [userId, start, end]
+    ),
+  ]);
+
+  const sleepMap = new Map();
+  // Базой считаем WHOOP, а ручной ввод в daily_checks имеет приоритет
+  for (const r of whoopRows) sleepMap.set(String(r.date).slice(0, 10), Number(r.sleep_hours) || 0);
+  for (const r of dailyRows) sleepMap.set(String(r.date).slice(0, 10), Number(r.sleep_hours) || 0);
+  return sleepMap;
+}
+
 async function calcSleep(userId, start, end) {
-  const rows = await sqlAll(
-    `SELECT sleep_hours FROM daily_checks WHERE user_id=? AND date>=? AND date<=?`,
-    [userId, start, end]
-  );
+  const sleepMap = await getMergedSleepMap(userId, start, end);
+  const rows = Array.from(sleepMap.values()).map((v) => ({ sleep_hours: v }));
   const totalDays = eachDate(start, end).length;
   const totalHours = rows.reduce((s, r) => s + (Number(r.sleep_hours) || 0), 0);
   const norm = 7 * totalDays;
@@ -660,6 +681,7 @@ async function calcFinance(userId, start, end) {
 async function calcConsistency(userId, start, end) {
   const dates = eachDate(start, end);
   const totalDays = dates.length;
+  const sleepMap = await getMergedSleepMap(userId, start, end);
 
   const checks = await sqlAll(
     `SELECT date, sleep_hours, workout_done
@@ -715,7 +737,8 @@ async function calcConsistency(userId, start, end) {
   const goodFlags = [];
   for (const d of dates) {
     const ch = checkByDate.get(d) || {};
-    const sleepOK = (Number(ch.sleep_hours) || 0) >= 7;
+    const sleepHours = sleepMap.has(d) ? Number(sleepMap.get(d) || 0) : (Number(ch.sleep_hours) || 0);
+    const sleepOK = sleepHours >= 7;
     const workoutOK = Number(ch.workout_done) === 1 || workoutsDone.has(d);
 
     const planned = plannedPerDay[d] || 0;
@@ -1341,6 +1364,11 @@ bot.on('message', async (msg) => {
     });
   }
 
+  // 10) /whoopnow (в т.ч. /whoopnow@BotName)
+  if (/^\/whoopnow(?:@\w+)?$/.test(text)) {
+    return handleWhoopNowCommand(chatId);
+  }
+
   // Фоллбек
   if (text.startsWith('/')) return;
   return bot.sendMessage(chatId, '🤖 Не понял. Напиши /help для списка команд.');
@@ -1366,45 +1394,6 @@ bot.onText(/^\/checkoff(?:\s+(morning|evening|all))?$/, (msg, match) => {
     if (scope === 'morning' || scope === 'all') await setPrefs(userId, 'morning_enabled', 0);
     if (scope === 'evening' || scope === 'all') await setPrefs(userId, 'evening_enabled', 0);
     bot.sendMessage(chatId, '✅ Напоминания отключены (' + scope + ').');
-  });
-});
-
-bot.onText(/^\/whoopnow(?:@\w+)?$/, (msg) => {
-  const chatId = msg.chat.id;
-  getUserId(chatId, async (userId) => {
-    if (!userId) return bot.sendMessage(chatId, '❌ Аккаунт не привязан.');
-
-    try {
-      console.log('whoopnow requested', { user_id: userId, chat_id: chatId });
-      const hasWhoop = await dbGet(
-        'SELECT 1 FROM whoop_connections WHERE user_id = ? LIMIT 1',
-        [userId]
-      ).catch((e) => {
-        console.error('whoopnow whoop_connections check error', { user_id: userId, e: e?.message || e });
-        return null;
-      });
-
-      if (!hasWhoop) {
-        console.warn('whoopnow skipped: no whoop connection', { user_id: userId });
-        return bot.sendMessage(chatId, '⚠️ WHOOP не подключён к аккаунту.');
-      }
-
-      const digest = await sendWhoopDailyDigest(userId, chatId, 'whoopnow');
-      if (!digest.sent) {
-        if (digest.authInvalid) {
-          console.warn('whoopnow auth invalid', { user_id: userId, chat_id: chatId });
-          return bot.sendMessage(
-            chatId,
-            '🔐 Сессия WHOOP недействительна. Переподключи WHOOP в приложении и попробуй /whoopnow снова.'
-          );
-        }
-        console.warn('whoopnow no data after digest attempt', { user_id: userId, chat_id: chatId });
-        return bot.sendMessage(chatId, '⚠️ Пока нет данных WHOOP. Попробуй чуть позже.');
-      }
-    } catch (e) {
-      console.error('whoopnow cmd error:', e?.message || e);
-      return bot.sendMessage(chatId, '❌ Не удалось получить данные WHOOP. Попробуй позже.');
-    }
   });
 });
 
@@ -1996,6 +1985,44 @@ async function sendWhoopDailyDigest(userId, chatId, source = 'cron') {
   });
   await bot.sendMessage(chatId, text, { parse_mode: 'Markdown' });
   return { sent: true, authInvalid: false };
+}
+
+async function handleWhoopNowCommand(chatId) {
+  return getUserId(chatId, async (userId) => {
+    if (!userId) return bot.sendMessage(chatId, '❌ Аккаунт не привязан.');
+
+    try {
+      console.log('whoopnow requested', { user_id: userId, chat_id: chatId });
+      const hasWhoop = await dbGet(
+        'SELECT 1 FROM whoop_connections WHERE user_id = ? LIMIT 1',
+        [userId]
+      ).catch((e) => {
+        console.error('whoopnow whoop_connections check error', { user_id: userId, e: e?.message || e });
+        return null;
+      });
+
+      if (!hasWhoop) {
+        console.warn('whoopnow skipped: no whoop connection', { user_id: userId });
+        return bot.sendMessage(chatId, '⚠️ WHOOP не подключён к аккаунту.');
+      }
+
+      const digest = await sendWhoopDailyDigest(userId, chatId, 'whoopnow');
+      if (!digest.sent) {
+        if (digest.authInvalid) {
+          console.warn('whoopnow auth invalid', { user_id: userId, chat_id: chatId });
+          return bot.sendMessage(
+            chatId,
+            '🔐 Сессия WHOOP недействительна. Переподключи WHOOP в приложении и попробуй /whoopnow снова.'
+          );
+        }
+        console.warn('whoopnow no data after digest attempt', { user_id: userId, chat_id: chatId });
+        return bot.sendMessage(chatId, '⚠️ Пока нет данных WHOOP. Попробуй чуть позже.');
+      }
+    } catch (e) {
+      console.error('whoopnow cmd error:', e?.message || e);
+      return bot.sendMessage(chatId, '❌ Не удалось получить данные WHOOP. Попробуй позже.');
+    }
+  });
 }
 
 // ===================== CRONS =====================

@@ -23,14 +23,33 @@ const daysInMonth = (yyyyMM) => {
   return new Date(y, m, 0).getDate();
 };
 
+async function getMergedSleepMap(userId, start, end) {
+  const [whoopRows, dailyRows] = await Promise.all([
+    all(
+      `SELECT date, sleep_hours
+         FROM whoop_daily_metrics
+        WHERE user_id=? AND date>=? AND date<=? AND sleep_hours IS NOT NULL`,
+      [userId, start, end]
+    ),
+    all(
+      `SELECT date, sleep_hours
+         FROM daily_checks
+        WHERE user_id=? AND date>=? AND date<=? AND sleep_hours IS NOT NULL`,
+      [userId, start, end]
+    ),
+  ]);
+
+  const sleepMap = new Map();
+  // Базово берём WHOOP, ручные правки из daily_checks имеют приоритет
+  for (const r of whoopRows) sleepMap.set(String(r.date).slice(0, 10), Number(r.sleep_hours) || 0);
+  for (const r of dailyRows) sleepMap.set(String(r.date).slice(0, 10), Number(r.sleep_hours) || 0);
+  return sleepMap;
+}
+
 // ---------- HEALTH: сон строгий ----------
 async function calcSleepStrict(userId, start, end) {
-  const rows = await all(
-    `SELECT date, sleep_hours FROM daily_checks
-     WHERE user_id=? AND date>=? AND date<=?`,
-    [userId, start, end]
-  );
-  const vals = rows.map(r => Number(r.sleep_hours)).filter(v => !isNaN(v) && v > 0);
+  const sleepMap = await getMergedSleepMap(userId, start, end);
+  const vals = Array.from(sleepMap.values()).filter(v => !isNaN(v) && v > 0);
   const avg = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0;
 
   let score = 40;
@@ -199,15 +218,7 @@ async function calcFinanceTighter(userId, start, end) {
 // ---------- Consistency (streak по «кумулятивным» расходам) ----------
 async function calcConsistency(userId, start, end) {
   const days = eachDate(start, end);
-
-  // сон
-  const sleepMap = new Map(
-    (await all(
-      `SELECT date, sleep_hours FROM daily_checks
-       WHERE user_id=? AND date>=? AND date<=?`,
-      [userId, start, end]
-    )).map(r => [String(r.date).slice(0,10), Number(r.sleep_hours) || 0])
-  );
+  const sleepMap = await getMergedSleepMap(userId, start, end);
 
   // месяцы
   const months = Array.from(new Set(days.map(d => d.slice(0,7))));
