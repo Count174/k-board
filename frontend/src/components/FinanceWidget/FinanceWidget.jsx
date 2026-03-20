@@ -18,6 +18,16 @@ import dayjs from "dayjs";
 const PAGE = 20;
 
 const money = (v) => `${Number(v || 0).toLocaleString("ru-RU")} ₽`;
+const currencySymbol = (c) => ({ RUB: "₽", EUR: "€", USD: "$", TRY: "₺" }[String(c || "").toUpperCase()] || String(c || "").toUpperCase());
+const amountInRub = (t) => Number(t?.amount_rub ?? t?.amount ?? 0);
+const formatTxAmount = (t) => {
+  const cur = String(t?.currency || "RUB").toUpperCase();
+  const rub = amountInRub(t);
+  if (cur === "RUB") return money(rub);
+
+  const original = Number(t?.original_amount ?? t?.amount ?? 0);
+  return `${original.toLocaleString("ru-RU")} ${currencySymbol(cur)} (${money(rub)})`;
+};
 
 const FinanceWidget = () => {
   const [transactions, setTransactions] = useState([]);
@@ -184,13 +194,13 @@ const FinanceWidget = () => {
   const income = useMemo(() => {
     return transactions
       .filter((t) => t.type === "income")
-      .reduce((acc, t) => acc + parseFloat(t.amount), 0);
+      .reduce((acc, t) => acc + amountInRub(t), 0);
   }, [transactions]);
 
   const expense = useMemo(() => {
     return transactions
       .filter((t) => t.type === "expense")
-      .reduce((acc, t) => acc + Math.abs(parseFloat(t.amount)), 0);
+      .reduce((acc, t) => acc + Math.abs(amountInRub(t)), 0);
   }, [transactions]);
 
   // ====== категории для селектов (из analyticsTx) ======
@@ -217,7 +227,7 @@ const FinanceWidget = () => {
       if (!map.has(month)) map.set(month, { month, income: 0, expense: 0 });
 
       const row = map.get(month);
-      const amt = Number(t.amount) || 0;
+      const amt = amountInRub(t);
 
       if (t.type === "income") {
         if (incomeCategory !== "all" && t.category !== incomeCategory) continue;
@@ -237,13 +247,13 @@ const FinanceWidget = () => {
     if (expenseCategory !== "all") {
       const sum = rows
         .filter((t) => t.category === expenseCategory)
-        .reduce((s, t) => s + Math.abs(Number(t.amount) || 0), 0);
+        .reduce((s, t) => s + Math.abs(amountInRub(t)), 0);
       return [{ category: expenseCategory, amount: sum }];
     }
     const agg = {};
     for (const t of rows) {
       const c = String(t.category || "").trim() || "—";
-      agg[c] = (agg[c] || 0) + Math.abs(Number(t.amount) || 0);
+      agg[c] = (agg[c] || 0) + Math.abs(amountInRub(t));
     }
     return Object.entries(agg)
       .map(([category, amount]) => ({ category, amount }))
@@ -256,13 +266,13 @@ const FinanceWidget = () => {
     if (incomeCategory !== "all") {
       const sum = rows
         .filter((t) => t.category === incomeCategory)
-        .reduce((s, t) => s + (Number(t.amount) || 0), 0);
+        .reduce((s, t) => s + amountInRub(t), 0);
       return [{ category: incomeCategory, amount: sum }];
     }
     const agg = {};
     for (const t of rows) {
       const c = String(t.category || "").trim() || "—";
-      agg[c] = (agg[c] || 0) + (Number(t.amount) || 0);
+      agg[c] = (agg[c] || 0) + amountInRub(t);
     }
     return Object.entries(agg)
       .map(([category, amount]) => ({ category, amount }))
@@ -443,7 +453,7 @@ const FinanceWidget = () => {
                   )}
                 </div>
                 <span className={t.type === "income" ? styles.income : styles.expense}>
-                  {money(t.amount)}
+                  {formatTxAmount(t)}
                 </span>
               </li>
             ))}
