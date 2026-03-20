@@ -180,7 +180,7 @@ async function calcFinanceTighter(userId, start, end) {
   const byMonthBudget = new Map(budgets.map(r => [r.month, Number(r.total) || 0]));
 
   const expenses = await all(
-    `SELECT date(date) d, SUM(amount) spent
+    `SELECT date(date) d, SUM(COALESCE(amount_rub, amount)) spent
        FROM finances
       WHERE user_id=? AND type='expense'
         AND date(date)>=? AND date(date)<=?
@@ -235,7 +235,7 @@ async function calcConsistency(userId, start, end) {
 
   // расходы по дням
   const expRows = await all(
-    `SELECT date(date) AS d, SUM(amount) AS spent
+    `SELECT date(date) AS d, SUM(COALESCE(amount_rub, amount)) AS spent
        FROM finances
       WHERE user_id=? AND type='expense'
         AND date(date)>=? AND date(date)<=?

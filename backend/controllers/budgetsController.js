@@ -60,7 +60,7 @@ exports.getStats = (req, res) => {
     SELECT b.id,
            b.category,
            b.amount AS budget,
-           IFNULL(SUM(f.amount), 0) AS spent
+           IFNULL(SUM(COALESCE(f.amount_rub, f.amount)), 0) AS spent
     FROM budgets b
     LEFT JOIN finances f
       ON f.user_id = b.user_id

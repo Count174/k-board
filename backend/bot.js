@@ -11,6 +11,7 @@ dayjs.extend(isBetween);
 const cron = require('node-cron');
 const crypto = require('crypto');
 const { getLatestRecovery, getLatestSleep, getRecentWorkouts } = require('./utils/whoopService');
+const { normalizeCurrency, normalizeDate, getRateToRubForDate } = require('./utils/fxService');
 
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
@@ -206,7 +207,7 @@ function getTopCategories(userId, type, limit = 8) {
 /**
  * Показать кнопки для выбора категории (топ-8 + «Ввести текстом»)
  */
-async function showCategorySelection(chatId, userId, type, amount, categoryText) {
+async function showCategorySelection(chatId, userId, type, amount, categoryText, currency = 'RUB') {
   let categories = await getUserCategories(userId, type);
 
   if (categories.length === 0) {
@@ -231,7 +232,7 @@ async function showCategorySelection(chatId, userId, type, amount, categoryText)
   const stateKey = `fin_pending_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   userStates[chatId] = {
     step: 'fin_pending',
-    data: { type, amount, categoryText, stateKey }
+    data: { type, amount, categoryText, stateKey, currency: normalizeCurrency(currency) || 'RUB' }
   };
 
   const keyboard = [];
@@ -247,9 +248,10 @@ async function showCategorySelection(chatId, userId, type, amount, categoryText)
   keyboard.push([{ text: '✏️ Ввести текстом...', callback_data: `fin_cat_search:${stateKey}` }]);
 
   const typeText = type === 'income' ? 'доход' : 'расход';
+  const c = normalizeCurrency(currency) || 'RUB';
   bot.sendMessage(
     chatId,
-    `Какой категории отнести "${categoryText}"?\n\nСумма: ${amount}₽ (${typeText})`,
+    `Какой категории отнести "${categoryText}"?\n\nСумма: ${amount}${c === 'RUB' ? '₽' : ` ${c}`} (${typeText})`,
     { reply_markup: { inline_keyboard: keyboard } }
   );
 }
@@ -328,24 +330,76 @@ function createCategory(userId, name, type, initialSynonym = null) {
 /**
  * Сохранить финансовую запись и ответить пользователю (общая функция)
  */
-function saveFinalFinance(chatId, userId, type, amount, category, originalText) {
+async function insertFinanceWithCurrency(userId, {
+  type,
+  category,
+  amount,
+  categoryId = null,
+  comment = '',
+  date = null,
+  currency = 'RUB',
+}) {
+  const opDate = normalizeDate(date || ymd());
+  const cur = normalizeCurrency(currency || 'RUB') || 'RUB';
+  const fxRateToRub = await getRateToRubForDate(cur, opDate);
+  const amountRub = Number((Number(amount) * fxRateToRub).toFixed(2));
+
+  return dbRun(
+    `INSERT INTO finances
+      (user_id, type, category, amount, date, category_id, comment, original_amount, currency, fx_rate_to_rub, amount_rub)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [userId, type, category, Number(amount), opDate, categoryId, comment || '', Number(amount), cur, fxRateToRub, amountRub]
+  );
+}
+
+function parseFinanceCommand(text) {
+  const m = String(text || '').trim().match(/^([+-])(\d+(?:[.,]\d+)?)\s+(.+)$/);
+  if (!m) return null;
+  const sign = m[1];
+  const amount = Number(m[2].replace(',', '.'));
+  if (!Number.isFinite(amount) || amount <= 0) return null;
+
+  const tail = m[3].trim();
+  const tokens = tail.split(/\s+/);
+  let currency = 'RUB';
+  let categoryText = tail;
+  const maybeCur = normalizeCurrency(tokens[0]);
+  if (maybeCur) {
+    currency = maybeCur;
+    categoryText = tokens.slice(1).join(' ').trim();
+  }
+  if (!categoryText) return null;
+  return {
+    type: sign === '+' ? 'income' : 'expense',
+    amount,
+    currency,
+    categoryText,
+  };
+}
+
+function saveFinalFinance(chatId, userId, type, amount, category, originalText, currency = 'RUB') {
   return new Promise((resolve) => {
-    db.run(
-      'INSERT INTO finances (user_id, type, category, amount, category_id, comment) VALUES (?, ?, ?, ?, ?, ?)',
-      [userId, type, category.name, amount, category.id, originalText],
-      async (err) => {
-        if (err) {
-          console.error('Finance insert error:', err);
-          await bot.sendMessage(chatId, '❌ Ошибка при добавлении.');
-          return resolve();
-        }
+    insertFinanceWithCurrency(userId, {
+      type,
+      category: category.name,
+      amount,
+      categoryId: category.id,
+      comment: originalText,
+      currency,
+    })
+      .then(async () => {
         await addSynonymIfNeeded(userId, category.id, originalText);
+        const cur = normalizeCurrency(currency) || 'RUB';
         await bot.sendMessage(chatId,
-          `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}₽ (${category.name}) добавлен.`
+          `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}${cur === 'RUB' ? '₽' : ` ${cur}`} (${category.name}) добавлен.`
         );
         resolve();
-      }
-    );
+      })
+      .catch(async (err) => {
+        console.error('Finance insert error:', err);
+        await bot.sendMessage(chatId, '❌ Ошибка при добавлении.');
+        resolve();
+      });
   });
 }
 
@@ -647,7 +701,7 @@ async function calcFinance(userId, start, end) {
     if (!budgets.length) { monthScores.push(100); continue; }
 
     const spend = await sqlAll(
-      `SELECT lower(category) category, SUM(amount) total
+      `SELECT lower(category) category, SUM(COALESCE(amount_rub, amount)) total
          FROM finances
         WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=?
         GROUP BY lower(category)`,
@@ -1130,7 +1184,7 @@ bot.on('message', async (msg) => {
   // 1a) Текстовый поиск категории (после нажатия «Ввести текстом»)
   if (userStates[chatId]?.step === 'fin_cat_text') {
     const state = userStates[chatId];
-    const { type, amount, categoryText } = state.data;
+    const { type, amount, categoryText, currency = 'RUB' } = state.data;
     const query = text.trim();
 
     if (!query) {
@@ -1147,7 +1201,7 @@ bot.on('message', async (msg) => {
       const exactMatch = allCats.find(c => c.name.toLowerCase().trim() === normalizedQuery);
       if (exactMatch) {
         delete userStates[chatId];
-        return saveFinalFinance(chatId, userId, type, amount, exactMatch, categoryText);
+        return saveFinalFinance(chatId, userId, type, amount, exactMatch, categoryText, currency);
       }
 
       const partialMatches = allCats.filter(c =>
@@ -1157,7 +1211,7 @@ bot.on('message', async (msg) => {
       if (partialMatches.length === 1) {
         // Одно совпадение — используем
         delete userStates[chatId];
-        return saveFinalFinance(chatId, userId, type, amount, partialMatches[0], categoryText);
+        return saveFinalFinance(chatId, userId, type, amount, partialMatches[0], categoryText, currency);
       }
 
       if (partialMatches.length > 1) {
@@ -1165,7 +1219,7 @@ bot.on('message', async (msg) => {
         const stateKey = `fin_pending_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         userStates[chatId] = {
           step: 'fin_pending',
-          data: { type, amount, categoryText, stateKey, pendingNewName: query }
+          data: { type, amount, categoryText, stateKey, pendingNewName: query, currency }
         };
 
         const keyboard = [];
@@ -1190,7 +1244,7 @@ bot.on('message', async (msg) => {
       const stateKey = `fin_pending_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       userStates[chatId] = {
         step: 'fin_pending',
-        data: { type, amount, categoryText, stateKey, pendingNewName: query }
+        data: { type, amount, categoryText, stateKey, pendingNewName: query, currency }
       };
 
       const keyboard = [
@@ -1209,7 +1263,7 @@ bot.on('message', async (msg) => {
   // 1b) Создание новой категории (после ввода названия)
   if (userStates[chatId]?.step === 'fin_cat_create') {
     const state = userStates[chatId];
-    const { type, amount, categoryText } = state.data;
+    const { type, amount, categoryText, currency = 'RUB' } = state.data;
     const categoryName = text.trim();
     
     if (!categoryName) {
@@ -1223,19 +1277,17 @@ bot.on('message', async (msg) => {
       
       try {
         const newCategory = await createCategory(userId, categoryName, type, categoryText);
-        db.run(
-          'INSERT INTO finances (user_id, type, category, amount, category_id, comment) VALUES (?, ?, ?, ?, ?, ?)',
-          [userId, type, newCategory.name, amount, newCategory.id, categoryText],
-          (err) => {
-            if (err) {
-              console.error('Finance insert error:', err);
-              return bot.sendMessage(chatId, '❌ Ошибка при добавлении.');
-            }
-            bot.sendMessage(chatId, 
-              `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}₽ добавлен.\n` +
-              `📁 Создана категория: "${newCategory.name}"`
-            );
-          }
+        await insertFinanceWithCurrency(userId, {
+          type,
+          category: newCategory.name,
+          amount,
+          categoryId: newCategory.id,
+          comment: categoryText,
+          currency,
+        });
+        bot.sendMessage(chatId,
+          `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}${currency === 'RUB' ? '₽' : ` ${currency}`} добавлен.\n` +
+          `📁 Создана категория: "${newCategory.name}"`
         );
       } catch (e) {
         console.error('Category creation error:', e);
@@ -1251,12 +1303,10 @@ bot.on('message', async (msg) => {
   }
 
   // 3) Финансы: +/-
-  if (/^[+-]\d+/.test(text)) {
-    const match = text.match(/^([+-])(\d+)\s+(.+)/);
-    if (match) {
-      const [, sign, amountStr, categoryText] = match;
-      const type = sign === '+' ? 'income' : 'expense';
-      const amount = parseFloat(amountStr);
+  if (/^[+-]\d/.test(text)) {
+    const parsedFinance = parseFinanceCommand(text);
+    if (parsedFinance) {
+      const { type, amount, currency, categoryText } = parsedFinance;
 
       return getUserId(chatId, async (userId) => {
         if (!userId) return bot.sendMessage(chatId, '❌ Вы не привязаны к пользователю в системе.');
@@ -1268,25 +1318,27 @@ bot.on('message', async (msg) => {
         if (foundCategory) {
           console.log(`✅ Категория найдена: ${foundCategory.name} (id=${foundCategory.id})`);
           // Категория найдена - сохраняем сразу
-          db.run(
-            'INSERT INTO finances (user_id, type, category, amount, category_id, comment) VALUES (?, ?, ?, ?, ?, ?)',
-            [userId, type, foundCategory.name, amount, foundCategory.id, categoryText],
-            async (err) => {
-              if (err) {
-                console.error('Finance insert error:', err);
-                return bot.sendMessage(chatId, '❌ Ошибка при добавлении.');
-              }
-              
-              // Добавляем текст в синонимы, если его там еще нет
-              await addSynonymIfNeeded(userId, foundCategory.id, categoryText);
-              
-              bot.sendMessage(chatId, `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}₽ (${foundCategory.name}) добавлен.`);
-            }
-          );
+          insertFinanceWithCurrency(userId, {
+            type,
+            category: foundCategory.name,
+            amount,
+            categoryId: foundCategory.id,
+            comment: categoryText,
+            currency,
+          }).then(async () => {
+            await addSynonymIfNeeded(userId, foundCategory.id, categoryText);
+            bot.sendMessage(
+              chatId,
+              `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}${currency === 'RUB' ? '₽' : ` ${currency}`} (${foundCategory.name}) добавлен.`
+            );
+          }).catch((err) => {
+            console.error('Finance insert error:', err);
+            bot.sendMessage(chatId, '❌ Ошибка при добавлении.');
+          });
         } else {
           console.log(`⚠️ Категория не найдена для "${categoryText}", показываю кнопки выбора`);
           // Категория не найдена - показываем кнопки для выбора
-          await showCategorySelection(chatId, userId, type, amount, categoryText);
+          await showCategorySelection(chatId, userId, type, amount, categoryText, currency);
         }
       });
     }
@@ -1413,7 +1465,7 @@ bot.onText(/^\/budget(?:\s+(\d{4})-(\d{2}))?$/, (msg, match) => {
 
     const sql = `
       SELECT b.category, b.amount AS budget,
-             IFNULL(SUM(f.amount), 0) AS spent
+             IFNULL(SUM(COALESCE(f.amount_rub, f.amount)), 0) AS spent
       FROM budgets b
       LEFT JOIN finances f
         ON f.user_id = b.user_id
@@ -1598,7 +1650,7 @@ bot.on('callback_query', async (query) => {
         return bot.answerCallbackQuery(query.id, { text: 'Сессия устарела. Попробуйте снова.', show_alert: true });
       }
       
-      const { type, amount, categoryText } = state.data;
+      const { type, amount, categoryText, currency = 'RUB' } = state.data;
       
       // Получаем информацию о категории
       db.get(
@@ -1610,31 +1662,29 @@ bot.on('callback_query', async (query) => {
           }
           
           // Сохраняем финансовую запись
-          db.run(
-            'INSERT INTO finances (user_id, type, category, amount, category_id, comment) VALUES (?, ?, ?, ?, ?, ?)',
-            [userId, type, cat.name, amount, categoryId, categoryText],
-            async (err) => {
-              if (err) {
-                console.error('Finance insert error:', err);
-                return bot.answerCallbackQuery(query.id, { text: 'Ошибка при сохранении', show_alert: true });
+          try {
+            await insertFinanceWithCurrency(userId, {
+              type,
+              category: cat.name,
+              amount,
+              categoryId,
+              comment: categoryText,
+              currency,
+            });
+            await addSynonymIfNeeded(userId, categoryId, categoryText);
+            delete userStates[chatId];
+            await bot.answerCallbackQuery(query.id, { text: '✅ Сохранено' });
+            await bot.editMessageText(
+              `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}${currency === 'RUB' ? '₽' : ` ${currency}`} (${cat.name}) добавлен.`,
+              {
+                chat_id: chatId,
+                message_id: query.message.message_id
               }
-              
-              // Добавляем текст в синонимы
-              await addSynonymIfNeeded(userId, categoryId, categoryText);
-              
-              // Удаляем состояние
-              delete userStates[chatId];
-              
-              await bot.answerCallbackQuery(query.id, { text: '✅ Сохранено' });
-              await bot.editMessageText(
-                `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}₽ (${cat.name}) добавлен.`,
-                {
-                  chat_id: chatId,
-                  message_id: query.message.message_id
-                }
-              );
-            }
-          );
+            );
+          } catch (err) {
+            console.error('Finance insert error:', err);
+            return bot.answerCallbackQuery(query.id, { text: 'Ошибка при сохранении', show_alert: true });
+          }
         }
       );
     });
@@ -1652,11 +1702,11 @@ bot.on('callback_query', async (query) => {
         return bot.answerCallbackQuery(query.id, { text: 'Сессия устарела. Попробуйте снова.', show_alert: true });
       }
 
-      const { type, amount, categoryText } = state.data;
+      const { type, amount, categoryText, currency = 'RUB' } = state.data;
 
       userStates[chatId] = {
         step: 'fin_cat_text',
-        data: { type, amount, categoryText }
+        data: { type, amount, categoryText, currency }
       };
 
       await bot.answerCallbackQuery(query.id, { text: 'Ок' });
@@ -1678,7 +1728,7 @@ bot.on('callback_query', async (query) => {
         return bot.answerCallbackQuery(query.id, { text: 'Сессия устарела. Попробуйте снова.', show_alert: true });
       }
       
-      const { type, amount, categoryText, pendingNewName } = state.data;
+      const { type, amount, categoryText, pendingNewName, currency = 'RUB' } = state.data;
 
       // Если имя уже введено через текстовый поиск — создаём сразу
       if (pendingNewName) {
@@ -1687,13 +1737,17 @@ bot.on('callback_query', async (query) => {
           const newCategory = await createCategory(userId, pendingNewName, type, categoryText);
           await bot.answerCallbackQuery(query.id, { text: '✅ Создана' });
           await bot.editMessageText(
-            `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}₽ добавлен.\n📁 Категория: "${newCategory.name}"`,
+            `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}${currency === 'RUB' ? '₽' : ` ${currency}`} добавлен.\n📁 Категория: "${newCategory.name}"`,
             { chat_id: chatId, message_id: query.message.message_id }
           );
-          db.run(
-            'INSERT INTO finances (user_id, type, category, amount, category_id, comment) VALUES (?, ?, ?, ?, ?, ?)',
-            [userId, type, newCategory.name, amount, newCategory.id, categoryText]
-          );
+          await insertFinanceWithCurrency(userId, {
+            type,
+            category: newCategory.name,
+            amount,
+            categoryId: newCategory.id,
+            comment: categoryText,
+            currency,
+          });
         } catch (e) {
           console.error('Category creation error:', e);
           await bot.answerCallbackQuery(query.id, { text: 'Ошибка при создании', show_alert: true });
@@ -1704,7 +1758,7 @@ bot.on('callback_query', async (query) => {
       // Иначе — просим ввести название
       userStates[chatId] = {
         step: 'fin_cat_create',
-        data: { type, amount, categoryText }
+        data: { type, amount, categoryText, currency }
       };
       
       await bot.answerCallbackQuery(query.id, { text: 'Ок' });
@@ -2118,7 +2172,7 @@ cron.schedule('0 8 * * *', async () => {
   const month = currentMonth();
   const sql = `
     SELECT b.user_id, b.category, b.amount AS budget,
-           IFNULL(SUM(f.amount), 0) AS spent
+           IFNULL(SUM(COALESCE(f.amount_rub, f.amount)), 0) AS spent
     FROM budgets b
     LEFT JOIN finances f
       ON f.user_id = b.user_id
@@ -2159,7 +2213,7 @@ cron.schedule('0 8 * * 1', async () => {
       try {
         const top3 = await new Promise((resolve, reject) => {
           db.all(
-            `SELECT category, SUM(amount) AS total
+            `SELECT category, SUM(COALESCE(amount_rub, amount)) AS total
              FROM finances
              WHERE user_id = ?
                AND type = 'expense'
@@ -2175,7 +2229,7 @@ cron.schedule('0 8 * * 1', async () => {
         const stats = await new Promise((resolve, reject) => {
           db.all(
             `SELECT b.category, b.amount AS budget,
-                    IFNULL(SUM(f.amount), 0) AS spent
+                    IFNULL(SUM(COALESCE(f.amount_rub, f.amount)), 0) AS spent
              FROM budgets b
              LEFT JOIN finances f
                ON f.user_id = b.user_id

@@ -1,4 +1,5 @@
 const db = require('../db/db');
+const { normalizeCurrency, normalizeDate, getRateToRubForDate } = require('../utils/fxService');
 
 // small helpers
 const all = (sql, p = []) => new Promise((res, rej) =>
@@ -7,6 +8,7 @@ const all = (sql, p = []) => new Promise((res, rej) =>
 const get = (sql, p = []) => new Promise((res, rej) =>
   db.get(sql, p, (e, r) => e ? rej(e) : res(r || null))
 );
+const amountRubExpr = `COALESCE(f.amount_rub, f.amount)`;
 
 function daysInMonth(yyyyMM) {
   const [y, m] = yyyyMM.split('-').map(Number);
@@ -20,7 +22,7 @@ exports.getAll = (req, res) => {
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
   db.all(
     `SELECT f.id, f.type, f.category, f.amount, date(f.date) AS date,
-            f.category_id, f.comment,
+            f.category_id, f.comment, f.currency, f.fx_rate_to_rub, f.original_amount, ${amountRubExpr} AS amount_rub,
             c.name AS category_name, c.slug AS category_slug
        FROM finances f
        LEFT JOIN categories c ON f.category_id = c.id
@@ -44,7 +46,7 @@ exports.getByPeriod = (req, res) => {
 
   db.all(
     `SELECT f.id, f.type, f.category, f.amount, date(f.date) AS date,
-            f.category_id, f.comment,
+            f.category_id, f.comment, f.currency, f.fx_rate_to_rub, f.original_amount, ${amountRubExpr} AS amount_rub,
             c.name AS category_name, c.slug AS category_slug
        FROM finances f
        LEFT JOIN categories c ON f.category_id = c.id
@@ -66,7 +68,7 @@ exports.getMonthlyStats = (req, res) => {
     `SELECT 
        strftime('%Y-%m', date) AS month,
        type,
-       SUM(CASE WHEN type='expense' THEN ABS(amount) ELSE amount END) AS total
+       SUM(CASE WHEN type='expense' THEN ABS(COALESCE(amount_rub, amount)) ELSE COALESCE(amount_rub, amount) END) AS total
      FROM finances
      WHERE user_id = ?
      GROUP BY month, type
@@ -131,11 +133,20 @@ exports.create = async (req, res) => {
       finalCategory = category;
     }
     
+    const originalAmount = Number(amount);
+    const opDate = normalizeDate(date);
+    const currency = normalizeCurrency(req.body.currency || 'RUB');
+    if (!currency) {
+      return res.status(400).json({ error: 'unsupported_currency' });
+    }
+    const fxRateToRub = await getRateToRubForDate(currency, opDate);
+    const amountRub = Number((originalAmount * fxRateToRub).toFixed(2));
+
     return new Promise((resolve, reject) => {
       db.run(
-        `INSERT INTO finances (user_id, type, category, amount, date, category_id, comment)
-         VALUES (?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?)`,
-        [req.userId, type, finalCategory, amount, date, finalCategoryId, finalComment],
+        `INSERT INTO finances (user_id, type, category, amount, date, category_id, comment, original_amount, currency, fx_rate_to_rub, amount_rub)
+         VALUES (?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?, ?)`,
+        [req.userId, type, finalCategory, originalAmount, opDate, finalCategoryId, finalComment, originalAmount, currency, fxRateToRub, amountRub],
         async function (err) {
           if (err) {
             console.error('finances.create db error:', err);
@@ -146,7 +157,7 @@ exports.create = async (req, res) => {
           try {
             const created = await get(
               `SELECT f.id, f.type, f.category, f.amount, date(f.date) AS date,
-                      f.category_id, f.comment,
+                      f.category_id, f.comment, f.currency, f.fx_rate_to_rub, f.original_amount, ${amountRubExpr} AS amount_rub,
                       c.name AS category_name, c.slug AS category_slug
                FROM finances f
                LEFT JOIN categories c ON f.category_id = c.id
@@ -192,7 +203,7 @@ exports.getRange = async (req, res) => {
     if (!start || !end) return res.status(400).json({ error: 'start_end_required' });
 
     const rows = await all(
-      `SELECT date(f.date) AS date, f.type, f.amount, f.category, f.id,
+      `SELECT date(f.date) AS date, f.type, f.amount, ${amountRubExpr} AS amount_rub, f.currency, f.fx_rate_to_rub, f.original_amount, f.category, f.id,
               f.category_id, f.comment,
               c.name AS category_name, c.slug AS category_slug
          FROM finances f
@@ -223,8 +234,8 @@ exports.getMonthOverview = async (req, res) => {
     // 1) Итоги по месяцу
     const sums = await get(
       `SELECT
-         IFNULL(SUM(CASE WHEN type='expense' THEN ABS(amount) END),0) AS expenses,
-         IFNULL(SUM(CASE WHEN type='income'  THEN amount       END),0) AS incomes
+         IFNULL(SUM(CASE WHEN type='expense' THEN ABS(COALESCE(amount_rub, amount)) END),0) AS expenses,
+         IFNULL(SUM(CASE WHEN type='income'  THEN COALESCE(amount_rub, amount) END),0) AS incomes
        FROM finances
        WHERE user_id=? AND strftime('%Y-%m', date)=?`,
       [req.userId, month]
@@ -238,7 +249,7 @@ exports.getMonthOverview = async (req, res) => {
     const daysPassed = isCurMonth ? today.getDate() : daysInMonth(month);
 
     const spentRow = await get(
-      `SELECT IFNULL(SUM(ABS(amount)),0) AS total
+      `SELECT IFNULL(SUM(ABS(COALESCE(amount_rub, amount))),0) AS total
          FROM finances
         WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=?`,
       [req.userId, month]
@@ -257,7 +268,7 @@ exports.getMonthOverview = async (req, res) => {
     let planSum = 0, spentSum = 0;
     if (budgets.length) {
       const spent = await all(
-        `SELECT LOWER(TRIM(category)) AS cat, SUM(ABS(amount)) AS total
+        `SELECT LOWER(TRIM(category)) AS cat, SUM(ABS(COALESCE(amount_rub, amount))) AS total
            FROM finances
           WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=?
           GROUP BY LOWER(TRIM(category))`,

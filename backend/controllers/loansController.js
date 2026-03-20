@@ -70,8 +70,12 @@ exports.payOneMonth = async (req,res)=>{
     [req.userId, id, d, pay, note||null]);
 
   // 2) создаём расход в finances
-  await run(`INSERT INTO finances (user_id, type, category, amount, date) VALUES (?,?,?,?,?)`,
-    [req.userId, 'expense', 'loan', pay, d]);
+  await run(
+    `INSERT INTO finances
+      (user_id, type, category, amount, date, original_amount, currency, fx_rate_to_rub, amount_rub)
+     VALUES (?,?,?,?,?,?,?,?,?)`,
+    [req.userId, 'expense', 'loan', pay, d, pay, 'RUB', 1, pay]
+  );
 
   // 3) уменьшаем months_left
   const newLeft = Math.max(0, (loan.months_left|0) - 1);
@@ -95,8 +99,12 @@ exports.prepayFull = async (req,res)=>{
   if (debt > 0) {
     await run(`INSERT INTO loan_payments (user_id,loan_id,date,amount,note) VALUES (?,?,?,?,?)`,
       [req.userId, id, d, debt, note||'prepay_full']);
-    await run(`INSERT INTO finances (user_id, type, category, amount, date) VALUES (?,?,?,?,?)`,
-      [req.userId, 'expense', 'loan', debt, d]);
+    await run(
+      `INSERT INTO finances
+        (user_id, type, category, amount, date, original_amount, currency, fx_rate_to_rub, amount_rub)
+       VALUES (?,?,?,?,?,?,?,?,?)`,
+      [req.userId, 'expense', 'loan', debt, d, debt, 'RUB', 1, debt]
+    );
   }
 
   await run(`UPDATE loans SET months_left=0, status='closed', updated_at=CURRENT_TIMESTAMP WHERE id=?`, [id]);
