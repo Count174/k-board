@@ -101,6 +101,53 @@ async function fetchLatestRate(baseCurrency, quoteCurrency = 'RUB') {
   return { rate: latestRate, date: latestData?.date || null };
 }
 
+async function fetchCbrRate(dateIso, baseCurrency, quoteCurrency = 'RUB') {
+  if (quoteCurrency !== 'RUB') {
+    throw new Error('cbr_quote_not_supported');
+  }
+  if (baseCurrency === 'RUB') return { rate: 1, date: dateIso };
+
+  const [y, m, d] = String(dateIso).split('-');
+  const histUrl = `https://www.cbr-xml-daily.ru/archive/${y}/${m}/${d}/daily_json.js`;
+  const latestUrl = 'https://www.cbr-xml-daily.ru/daily_json.js';
+
+  const parseCbr = (payload) => {
+    const item = payload?.Valute?.[baseCurrency];
+    if (!item) return null;
+    const nominal = Number(item.Nominal || 1);
+    const value = Number(item.Value);
+    if (!Number.isFinite(value) || value <= 0 || !Number.isFinite(nominal) || nominal <= 0) return null;
+    return {
+      rate: Number((value / nominal).toFixed(6)),
+      date: payload?.Date ? String(payload.Date).slice(0, 10) : null,
+    };
+  };
+
+  // 1) Исторический курс за дату операции
+  try {
+    const r = await fetch(histUrl);
+    if (r.ok) {
+      const data = await r.json().catch(() => ({}));
+      const parsed = parseCbr(data);
+      if (parsed) return parsed;
+    }
+  } catch (_) {
+    // noop
+  }
+
+  // 2) Fallback на актуальный курс
+  const latestResp = await fetch(latestUrl);
+  const latestData = await latestResp.json().catch(() => ({}));
+  if (!latestResp.ok) {
+    throw new Error(`cbr_http_${latestResp.status}`);
+  }
+  const parsedLatest = parseCbr(latestData);
+  if (!parsedLatest) {
+    throw new Error('cbr_rate_missing');
+  }
+  return parsedLatest;
+}
+
 async function fetchHistoricalRate(dateIso, baseCurrency, quoteCurrency = 'RUB') {
   const url = `https://api.frankfurter.app/${dateIso}?from=${encodeURIComponent(baseCurrency)}&to=${encodeURIComponent(quoteCurrency)}`;
   const resp = await fetch(url);
@@ -152,18 +199,29 @@ async function getRateToRubForDate(currency, dateLike) {
   if (cached?.rate != null) return Number(cached.rate);
 
   try {
-    return await fetchHistoricalRate(dateIso, cur, 'RUB');
+    const cbr = await fetchCbrRate(dateIso, cur, 'RUB');
+    await cacheRate(dateIso, cur, 'RUB', cbr.rate, 'cbr');
+    if (cbr.date && cbr.date !== dateIso) {
+      await cacheRate(cbr.date, cur, 'RUB', cbr.rate, 'cbr');
+    }
+    return Number(cbr.rate);
   } catch (e) {
-    const fallback = await dbGet(
-      `SELECT rate
-         FROM fx_rates
-        WHERE base_currency = ? AND quote_currency = 'RUB' AND rate_date <= ?
-     ORDER BY rate_date DESC
-        LIMIT 1`,
-      [cur, dateIso]
-    );
-    if (fallback?.rate != null) return Number(fallback.rate);
-    throw e;
+    try {
+      const alt = await fetchHistoricalRate(dateIso, cur, 'RUB');
+      await cacheRate(dateIso, cur, 'RUB', alt, 'frankfurter');
+      return Number(alt);
+    } catch (e2) {
+      const fallback = await dbGet(
+        `SELECT rate
+           FROM fx_rates
+          WHERE base_currency = ? AND quote_currency = 'RUB' AND rate_date <= ?
+       ORDER BY rate_date DESC
+          LIMIT 1`,
+        [cur, dateIso]
+      );
+      if (fallback?.rate != null) return Number(fallback.rate);
+      throw e2?.message ? e2 : e;
+    }
   }
 }
 
