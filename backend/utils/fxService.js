@@ -87,6 +87,20 @@ async function cacheRate(dateIso, baseCurrency, quoteCurrency, rate, source = 'f
   );
 }
 
+async function fetchLatestRate(baseCurrency, quoteCurrency = 'RUB') {
+  const latestUrl = `https://api.frankfurter.app/latest?from=${encodeURIComponent(baseCurrency)}&to=${encodeURIComponent(quoteCurrency)}`;
+  const latestResp = await fetch(latestUrl);
+  const latestData = await latestResp.json().catch(() => ({}));
+  if (!latestResp.ok) {
+    throw new Error(latestData?.message || latestData?.error || `fx_http_${latestResp.status}`);
+  }
+  const latestRate = Number(latestData?.rates?.[quoteCurrency]);
+  if (!Number.isFinite(latestRate) || latestRate <= 0) {
+    throw new Error('fx_rate_missing');
+  }
+  return { rate: latestRate, date: latestData?.date || null };
+}
+
 async function fetchHistoricalRate(dateIso, baseCurrency, quoteCurrency = 'RUB') {
   const url = `https://api.frankfurter.app/${dateIso}?from=${encodeURIComponent(baseCurrency)}&to=${encodeURIComponent(quoteCurrency)}`;
   const resp = await fetch(url);
@@ -96,23 +110,25 @@ async function fetchHistoricalRate(dateIso, baseCurrency, quoteCurrency = 'RUB')
     // У Frankfurter историческая дата иногда может быть недоступна (например, ещё нет публикации за день).
     // В этом случае пробуем latest как мягкий fallback.
     if (resp.status === 404 || msg.includes('not found')) {
-      const latestUrl = `https://api.frankfurter.app/latest?from=${encodeURIComponent(baseCurrency)}&to=${encodeURIComponent(quoteCurrency)}`;
-      const latestResp = await fetch(latestUrl);
-      const latestData = await latestResp.json().catch(() => ({}));
-      if (!latestResp.ok) {
-        throw new Error(latestData?.message || latestData?.error || `fx_http_${latestResp.status}`);
-      }
-      const latestRate = Number(latestData?.rates?.[quoteCurrency]);
-      if (!Number.isFinite(latestRate) || latestRate <= 0) {
-        throw new Error('fx_rate_missing');
-      }
-      const effectiveDate = latestData?.date || dateIso;
-      await cacheRate(dateIso, baseCurrency, quoteCurrency, latestRate, 'frankfurter-latest-fallback');
-      await cacheRate(effectiveDate, baseCurrency, quoteCurrency, latestRate, 'frankfurter-latest-fallback');
-      return latestRate;
+      const latest = await fetchLatestRate(baseCurrency, quoteCurrency);
+      const effectiveDate = latest.date || dateIso;
+      await cacheRate(dateIso, baseCurrency, quoteCurrency, latest.rate, 'frankfurter-latest-fallback');
+      await cacheRate(effectiveDate, baseCurrency, quoteCurrency, latest.rate, 'frankfurter-latest-fallback');
+      return latest.rate;
     }
     throw new Error(data?.message || data?.error || `fx_http_${resp.status}`);
   }
+
+  // Иногда сервис отвечает 200, но без rates с текстом "not found".
+  const softMsg = String(data?.message || data?.error || '').toLowerCase();
+  if ((!data?.rates || data?.rates?.[quoteCurrency] == null) && softMsg.includes('not found')) {
+    const latest = await fetchLatestRate(baseCurrency, quoteCurrency);
+    const effectiveDate = latest.date || dateIso;
+    await cacheRate(dateIso, baseCurrency, quoteCurrency, latest.rate, 'frankfurter-latest-fallback');
+    await cacheRate(effectiveDate, baseCurrency, quoteCurrency, latest.rate, 'frankfurter-latest-fallback');
+    return latest.rate;
+  }
+
   const rate = Number(data?.rates?.[quoteCurrency]);
   if (!Number.isFinite(rate) || rate <= 0) {
     throw new Error('fx_rate_missing');
