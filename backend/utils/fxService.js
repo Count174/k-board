@@ -22,6 +22,32 @@ const dbRun = (sql, params = []) =>
     });
   });
 
+let fxSchemaReady = false;
+let fxSchemaPromise = null;
+
+async function ensureFxSchema() {
+  if (fxSchemaReady) return;
+  if (!fxSchemaPromise) {
+    fxSchemaPromise = dbRun(
+      `CREATE TABLE IF NOT EXISTS fx_rates (
+        rate_date TEXT NOT NULL,
+        base_currency TEXT NOT NULL,
+        quote_currency TEXT NOT NULL,
+        rate REAL NOT NULL,
+        source TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (rate_date, base_currency, quote_currency)
+      )`
+    ).then(() => {
+      fxSchemaReady = true;
+    }).catch((e) => {
+      fxSchemaPromise = null;
+      throw e;
+    });
+  }
+  await fxSchemaPromise;
+}
+
 function normalizeCurrency(raw) {
   if (!raw) return 'RUB';
   const key = String(raw).trim().toLowerCase();
@@ -38,6 +64,7 @@ function normalizeDate(dateLike) {
 }
 
 async function getCachedRate(dateIso, baseCurrency, quoteCurrency = 'RUB') {
+  await ensureFxSchema();
   return dbGet(
     `SELECT rate
        FROM fx_rates
@@ -48,6 +75,7 @@ async function getCachedRate(dateIso, baseCurrency, quoteCurrency = 'RUB') {
 }
 
 async function cacheRate(dateIso, baseCurrency, quoteCurrency, rate, source = 'frankfurter') {
+  await ensureFxSchema();
   await dbRun(
     `INSERT INTO fx_rates (rate_date, base_currency, quote_currency, rate, source, updated_at)
      VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -64,6 +92,25 @@ async function fetchHistoricalRate(dateIso, baseCurrency, quoteCurrency = 'RUB')
   const resp = await fetch(url);
   const data = await resp.json().catch(() => ({}));
   if (!resp.ok) {
+    const msg = String(data?.message || data?.error || `fx_http_${resp.status}`).toLowerCase();
+    // У Frankfurter историческая дата иногда может быть недоступна (например, ещё нет публикации за день).
+    // В этом случае пробуем latest как мягкий fallback.
+    if (resp.status === 404 || msg.includes('not found')) {
+      const latestUrl = `https://api.frankfurter.app/latest?from=${encodeURIComponent(baseCurrency)}&to=${encodeURIComponent(quoteCurrency)}`;
+      const latestResp = await fetch(latestUrl);
+      const latestData = await latestResp.json().catch(() => ({}));
+      if (!latestResp.ok) {
+        throw new Error(latestData?.message || latestData?.error || `fx_http_${latestResp.status}`);
+      }
+      const latestRate = Number(latestData?.rates?.[quoteCurrency]);
+      if (!Number.isFinite(latestRate) || latestRate <= 0) {
+        throw new Error('fx_rate_missing');
+      }
+      const effectiveDate = latestData?.date || dateIso;
+      await cacheRate(dateIso, baseCurrency, quoteCurrency, latestRate, 'frankfurter-latest-fallback');
+      await cacheRate(effectiveDate, baseCurrency, quoteCurrency, latestRate, 'frankfurter-latest-fallback');
+      return latestRate;
+    }
     throw new Error(data?.message || data?.error || `fx_http_${resp.status}`);
   }
   const rate = Number(data?.rates?.[quoteCurrency]);
@@ -79,6 +126,7 @@ async function fetchHistoricalRate(dateIso, baseCurrency, quoteCurrency = 'RUB')
 }
 
 async function getRateToRubForDate(currency, dateLike) {
+  await ensureFxSchema();
   const cur = normalizeCurrency(currency);
   if (!cur) throw new Error('unsupported_currency');
   if (cur === 'RUB') return 1;
