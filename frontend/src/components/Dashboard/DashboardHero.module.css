@@ -118,6 +118,190 @@
   opacity: 0.9;
 }
 
+/* Расширение блока «Финансы»: топ категорий + темп */
+.financeExtra {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+@media (max-width: 720px) {
+  .financeExtra {
+    grid-template-columns: 1fr;
+  }
+}
+
+.financeExtraCard {
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  min-height: 120px;
+}
+
+.financeExtraTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9aa0b4;
+  margin-bottom: 10px;
+}
+
+.financeMuted {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #8b90a8;
+}
+
+.topCatList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.topCatRow {
+  margin: 0;
+}
+
+.topCatHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.topCatName {
+  color: #e5e7eb;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topCatAmount {
+  flex-shrink: 0;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.topCatPct {
+  font-weight: 600;
+  font-size: 11px;
+  color: #a5b4fc;
+  margin-left: 4px;
+}
+
+.topCatBarTrack {
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.topCatBarFill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #6366f1, #a78bfa);
+  min-width: 4px;
+  transition: width 0.25s ease;
+}
+
+.paceGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.paceK {
+  font-size: 11px;
+  color: #9aa0b4;
+  margin-bottom: 2px;
+}
+
+.paceV {
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.paceSub {
+  font-weight: 500;
+  font-size: 12px;
+  color: #9aa0b4;
+}
+
+.paceBudgetLine {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #c4c8e0;
+  margin-bottom: 6px;
+}
+
+.paceBarTrack {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: visible;
+}
+
+.paceBarFill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.9), rgba(167, 139, 250, 0.95));
+  min-width: 0;
+  transition: width 0.25s ease;
+}
+
+.paceBarMarker {
+  position: absolute;
+  left: 0;
+  top: -3px;
+  bottom: -3px;
+  width: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.45);
+  pointer-events: none;
+  z-index: 2;
+  transform: translateX(-50%);
+}
+
+.paceLegend {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #9aa0b4;
+}
+
+.paceLegend strong {
+  color: #e5e7eb;
+  font-weight: 700;
+}
+
+.paceHint {
+  color: #c4b5fd;
+  font-size: 11px;
+}
+
 .statsCol {
   display: grid;
   gap: 8px;

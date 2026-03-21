@@ -2,7 +2,19 @@ import { useEffect, useMemo, useState, useRef } from 'react';
 import dayjs from 'dayjs';
 import { get, post, remove } from '../../api/api';
 import styles from './DashboardHero.module.css';
-import { Wallet, Activity, LineChart, Dumbbell, Target, PiggyBank, TrendingDown, ClipboardList, Unlink } from 'lucide-react';
+import {
+  Wallet,
+  Activity,
+  LineChart,
+  Dumbbell,
+  Target,
+  PiggyBank,
+  TrendingDown,
+  ClipboardList,
+  Unlink,
+  PieChart,
+  Gauge,
+} from 'lucide-react';
 
 function money(v) {
   return new Intl.NumberFormat('ru-RU').format(Math.round(v || 0)) + ' ₽';
@@ -19,6 +31,44 @@ function formatDeltaPct(v) {
   if (!n) return '';
   const sign = n > 0 ? '+' : '−';
   return `${sign}${Math.abs(n)}%`;
+}
+
+/** Название категории из транзакции */
+function categoryLabel(tx) {
+  const n = (tx.category_name || '').trim();
+  if (n) return n;
+  const s = (tx.category_slug || '').trim();
+  if (s) return s;
+  const c = (tx.category || '').trim();
+  if (c) return c;
+  return 'Без категории';
+}
+
+function expenseRub(tx) {
+  if (tx.type !== 'expense') return 0;
+  return Math.abs(Number(tx.amount_rub ?? tx.amount) || 0);
+}
+
+/** Топ категорий и сумма всех расходов за период */
+function aggregateExpenseCategories(rows) {
+  const map = new Map();
+  let total = 0;
+  for (const t of rows || []) {
+    const v = expenseRub(t);
+    if (!v) continue;
+    total += v;
+    const key = categoryLabel(t);
+    map.set(key, (map.get(key) || 0) + v);
+  }
+  const top = [...map.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([name, amount]) => ({
+      name,
+      amount,
+      pctOfMonth: total > 0 ? Math.round((amount / total) * 100) : 0,
+    }));
+  return { top, totalExpense: total };
 }
 
 /** Крупное кольцо оценки + поповер с разбивкой */
@@ -317,6 +367,133 @@ function Stat({ icon: Icon, label, value, sub }) {
   );
 }
 
+function TopCategoriesBlock({ items }) {
+  if (!items?.length) {
+    return (
+      <div className={styles.financeExtraCard}>
+        <div className={styles.financeExtraTitle}>
+          <PieChart size={16} aria-hidden />
+          Топ категорий
+        </div>
+        <p className={styles.financeMuted}>Пока нет расходов за этот месяц</p>
+      </div>
+    );
+  }
+
+  const maxAmt = items[0]?.amount || 1;
+
+  return (
+    <div className={styles.financeExtraCard}>
+      <div className={styles.financeExtraTitle}>
+        <PieChart size={16} aria-hidden />
+        Топ категорий
+      </div>
+      <ul className={styles.topCatList}>
+        {items.map((row, i) => (
+          <li key={`${row.name}-${i}`} className={styles.topCatRow}>
+            <div className={styles.topCatHead}>
+              <span className={styles.topCatName} title={row.name}>
+                {i + 1}. {row.name}
+              </span>
+              <span className={styles.topCatAmount}>
+                {money(row.amount)} <span className={styles.topCatPct}>{row.pctOfMonth}%</span>
+              </span>
+            </div>
+            <div className={styles.topCatBarTrack}>
+              <div
+                className={styles.topCatBarFill}
+                style={{ width: `${Math.min(100, (row.amount / maxAmt) * 100)}%` }}
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function PaceBlock({ sumExp, pace }) {
+  if (!pace) return null;
+
+  const {
+    daysInMonth,
+    daysPassed,
+    daysLeft,
+    avgPerDay,
+    isCurrentMonth,
+    budgetTotal,
+    expectedByNow,
+    budgetPaceVsExpected,
+  } = pace;
+
+  const spentPctOfBudget = budgetTotal > 0 ? Math.min(100, (sumExp / budgetTotal) * 100) : 0;
+  const markerPct =
+    budgetTotal > 0 && expectedByNow != null
+      ? Math.min(100, (expectedByNow / budgetTotal) * 100)
+      : 0;
+
+  let paceHint = '';
+  if (budgetPaceVsExpected != null) {
+    if (budgetPaceVsExpected > 3) {
+      paceHint = `Темп выше равномерного плана на ${budgetPaceVsExpected}%`;
+    } else if (budgetPaceVsExpected < -3) {
+      paceHint = `Темп ниже равномерного плана на ${Math.abs(budgetPaceVsExpected)}%`;
+    } else {
+      paceHint = 'Близко к равномерному темпу';
+    }
+  }
+
+  return (
+    <div className={styles.financeExtraCard}>
+      <div className={styles.financeExtraTitle}>
+        <Gauge size={16} aria-hidden />
+        Темп трат
+      </div>
+
+      <div className={styles.paceGrid}>
+        <div>
+          <div className={styles.paceK}>Средний день</div>
+          <div className={styles.paceV}>{money(avgPerDay)}</div>
+        </div>
+        <div>
+          <div className={styles.paceK}>Месяц</div>
+          <div className={styles.paceV}>
+            {daysPassed} / {daysInMonth} дн.
+            {isCurrentMonth ? (
+              <span className={styles.paceSub}> · осталось {daysLeft}</span>
+            ) : null}
+          </div>
+        </div>
+      </div>
+
+      {budgetTotal > 0 && expectedByNow != null ? (
+        <>
+          <div className={styles.paceBudgetLine}>
+            <span>
+              План к сегодня <span className={styles.paceSub}>(равномерно)</span>
+            </span>
+            <span>{money(expectedByNow)}</span>
+          </div>
+          <div className={styles.paceBarTrack} aria-hidden>
+            <div className={styles.paceBarFill} style={{ width: `${spentPctOfBudget}%` }} />
+            <div className={styles.paceBarMarker} style={{ left: `${markerPct}%` }} title="Равномерный план к сегодня" />
+          </div>
+          <div className={styles.paceLegend}>
+            <span>
+              Потрачено <strong>{money(sumExp)}</strong> из {money(budgetTotal)}
+            </span>
+            {paceHint ? <span className={styles.paceHint}>{paceHint}</span> : null}
+          </div>
+        </>
+      ) : (
+        <p className={styles.financeMuted}>
+          Задайте бюджеты по категориям — покажем сравнение с равномерным темпом по месяцу.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function DashboardHero() {
   const [finance, setFinance] = useState(null);
   const [score, setScore] = useState(null);
@@ -328,14 +505,17 @@ export default function DashboardHero() {
     async function load() {
       const month = dayjs().format('YYYY-MM');
       const prevMonth = dayjs().subtract(1, 'month').format('YYYY-MM');
+      const start = dayjs().startOf('month').format('YYYY-MM-DD');
+      const end = dayjs().endOf('month').format('YYYY-MM-DD');
 
-      const [cur, prev, d7, goals, budgetStats, whoopStatus] = await Promise.all([
+      const [cur, prev, d7, goals, budgetStats, whoopStatus, rangeRaw] = await Promise.all([
         get(`finances/month-overview?month=${month}`),
         get(`finances/month-overview?month=${prevMonth}`),
         get(`analytics/score?start=${dayjs().subtract(6, 'day').format('YYYY-MM-DD')}&end=${dayjs().format('YYYY-MM-DD')}`),
         get('goals').catch(() => []),
         get(`budgets/stats?month=${month}`).catch(() => []),
         get('whoop/status').catch(() => ({})),
+        get(`finances/range?start=${start}&end=${end}`).catch(() => []),
       ]);
 
       const curExp = Math.round(cur?.expenses || 0);
@@ -348,6 +528,22 @@ export default function DashboardHero() {
       const expPct = prevExp > 0 ? (expAbs / prevExp) * 100 : null;
       const incPct = prevInc > 0 ? (incAbs / prevInc) * 100 : null;
 
+      const stats = Array.isArray(budgetStats) ? budgetStats : [];
+      const bSum = stats.reduce((a, x) => a + Number(x.budget || 0), 0);
+
+      const { top: topCategories } = aggregateExpenseCategories(rangeRaw);
+
+      const daysInMonth = dayjs(month + '-01').daysInMonth();
+      const isCurrentMonth = dayjs().format('YYYY-MM') === month;
+      const daysPassed = isCurrentMonth ? dayjs().date() : daysInMonth;
+      const daysLeft = Math.max(0, daysInMonth - daysPassed);
+      const avgPerDay = daysPassed > 0 ? curExp / daysPassed : 0;
+      const expectedByNow = bSum > 0 ? (bSum * daysPassed) / daysInMonth : null;
+      let budgetPaceVsExpected = null;
+      if (expectedByNow != null && expectedByNow > 0) {
+        budgetPaceVsExpected = Math.round(((curExp - expectedByNow) / expectedByNow) * 100);
+      }
+
       setFinance({
         sumExp: curExp,
         sumInc: curInc,
@@ -357,13 +553,22 @@ export default function DashboardHero() {
           exp: { abs: expAbs, pct: expPct != null ? Math.round(expPct) : null },
           inc: { abs: incAbs, pct: incPct != null ? Math.round(incPct) : null },
         },
+        topCategories,
+        pace: {
+          daysInMonth,
+          daysPassed,
+          daysLeft,
+          avgPerDay: Math.round(avgPerDay),
+          isCurrentMonth,
+          budgetTotal: bSum,
+          expectedByNow: expectedByNow != null ? Math.round(expectedByNow) : null,
+          budgetPaceVsExpected,
+        },
       });
 
       setScore(d7 || null);
       setGoalsCount(Array.isArray(goals) ? goals.length : 0);
 
-      const stats = Array.isArray(budgetStats) ? budgetStats : [];
-      const bSum = stats.reduce((a, x) => a + Number(x.budget || 0), 0);
       setBudgetTotal(bSum);
 
       setWhoop({
@@ -468,6 +673,11 @@ export default function DashboardHero() {
                 {finance.budgetPct == null ? '—' : `${Math.round(finance.budgetPct)}%`}
               </span>
             </div>
+          </div>
+
+          <div className={styles.financeExtra}>
+            <TopCategoriesBlock items={finance.topCategories} />
+            <PaceBlock sumExp={finance.sumExp} pace={finance.pace} />
           </div>
         </div>
 
