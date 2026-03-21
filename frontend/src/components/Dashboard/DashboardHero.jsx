@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useState, useRef } from 'react';
 import dayjs from 'dayjs';
-import { get } from '../../api/api';
+import { get, post, remove } from '../../api/api';
 import styles from './DashboardHero.module.css';
-import { Wallet, Activity, LineChart, Dumbbell } from 'lucide-react';
+import { Wallet, Activity, LineChart, Dumbbell, Target, PiggyBank, TrendingDown, ClipboardList, Unlink } from 'lucide-react';
 
 function money(v) {
   return new Intl.NumberFormat('ru-RU').format(Math.round(v || 0)) + ' ₽';
-}
-function clamp(n, a, b) {
-  return Math.max(a, Math.min(b, n));
 }
 function formatDeltaAbs(v) {
   const n = Math.round(v || 0);
@@ -24,219 +21,293 @@ function formatDeltaPct(v) {
   return `${sign}${Math.abs(n)}%`;
 }
 
-/** ====== Sparkline with tooltip (референс-стиль) ======
- * - сглаживание (Catmull-Rom → Bezier)
- * - glow
- * - tooltip по наведению на ближайшую точку (по X)
- * - адекватно при малом числе точек (апсемпл для “густоты”)
- */
-function Sparkline({ points = [], height = 110 }) {
-  const svgRef = useRef(null);
-  const [hover, setHover] = useState(null);
+/** Крупное кольцо оценки + поповер с разбивкой */
+function WeeklyScoreBlock() {
+  const [loading, setLoading] = useState(true);
+  const [avg, setAvg] = useState(null);
+  const [trend, setTrend] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef(null);
+  const popRef = useRef(null);
 
-  if (!points.length) return <div className={styles.sparkEmpty}>нет данных</div>;
+  useEffect(() => {
+    const end = dayjs().format('YYYY-MM-DD');
+    const start14 = dayjs().subtract(13, 'day').format('YYYY-MM-DD');
+    const start7 = dayjs().subtract(6, 'day').format('YYYY-MM-DD');
 
-  const base = points.map(p => Number(p.value) || 0);
-  const dates = points.map(p => p.date);
+    async function load() {
+      try {
+        const d14 = await get(`analytics/score?start=${start14}&end=${end}`);
+        if (d14) {
+          setAvg(d14.avg ?? null);
+          const days = d14.days || [];
+          const last7 = days.slice(-7);
+          const prev7 = days.slice(-14, -7);
+          if (last7.length && prev7.length) {
+            const a = last7.reduce((s, x) => s + x.total, 0) / last7.length;
+            const b = prev7.reduce((s, x) => s + x.total, 0) / prev7.length;
+            setTrend(Math.round(a - b));
+          } else {
+            setTrend(0);
+          }
+        }
 
-  // апсемпл чтобы линия была “живой”, но точки оставим только реальные
-  const targetN = Math.max(24, base.length);
-  const vals = [];
+        const d7 = await get(`analytics/score?start=${start7}&end=${end}`);
+        if (d7?.breakdown) {
+          const br = d7.breakdown;
+          setDetail({
+            health: Math.round(br.health?.score ?? 0),
+            finance: Math.round(br.finance?.score ?? 0),
+            consistency: Math.round(br.consistency?.score ?? 0),
+          });
+        }
+      } catch {
+        // ignore
+      } finally {
+        setLoading(false);
+      }
+    }
 
-  const dateAt = (idx) => {
-    const srcIdx = clamp(
-      Math.round((idx / (targetN - 1)) * (dates.length - 1)),
-      0,
-      dates.length - 1
+    load();
+  }, []);
+
+  useEffect(() => {
+    function onDocClick(e) {
+      if (
+        open &&
+        popRef.current &&
+        !popRef.current.contains(e.target) &&
+        btnRef.current &&
+        !btnRef.current.contains(e.target)
+      ) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  if (loading || avg == null) {
+    return (
+      <div className={styles.scoreBlock}>
+        <div className={styles.scoreSkeleton} />
+      </div>
     );
-    return dates[srcIdx];
-  };
-
-  if (base.length === 1) {
-    vals.push(base[0]);
-  } else {
-    const steps = targetN - 1;
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      const pos = t * (base.length - 1);
-      const i0 = Math.floor(pos);
-      const i1 = Math.min(base.length - 1, i0 + 1);
-      const frac = pos - i0;
-      vals.push(base[i0] + (base[i1] - base[i0]) * frac);
-    }
   }
 
-  const w = 1000;
-  const h = height;
-  const px = 18, py = 18;
-
-  const min = Math.min(...vals);
-  const max = Math.max(...vals);
-  const rng = Math.max(1, max - min);
-
-  const fx = (i) => {
-    const n = vals.length - 1 || 1;
-    return px + (i * (w - 2 * px)) / n;
-  };
-  const fy = (v) => {
-    const norm = (v - min) / rng;
-    return h - py - norm * (h - 2 * py);
-  };
-
-  function toBezier(arr) {
-    if (arr.length === 1) return '';
-    if (arr.length === 2) return `M ${fx(0)} ${fy(arr[0])} L ${fx(1)} ${fy(arr[1])}`;
-    const pts = arr.map((v, i) => ({ x: fx(i), y: fy(v) }));
-    let d = `M ${pts[0].x} ${pts[0].y}`;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[i - 1] || pts[i];
-      const p1 = pts[i];
-      const p2 = pts[i + 1];
-      const p3 = pts[i + 2] || p2;
-
-      const cp1x = p1.x + (p2.x - p0.x) / 6;
-      const cp1y = p1.y + (p2.y - p0.y) / 6;
-      const cp2x = p2.x - (p3.x - p1.x) / 6;
-      const cp2y = p2.y - (p3.y - p1.y) / 6;
-
-      d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`;
-    }
-    return d;
-  }
-
-  const pathD = toBezier(vals);
-  const dotsOnly = points.length <= 2;
-
-  const onMove = (e) => {
-    if (!svgRef.current) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const rel = (e.clientX - rect.left) / rect.width; // 0..1
-    const x = clamp(rel * w, 0, w);
-
-    let bestI = 0;
-    let bestDist = Infinity;
-    for (let i = 0; i < vals.length; i++) {
-      const dx = Math.abs(fx(i) - x);
-      if (dx < bestDist) { bestDist = dx; bestI = i; }
-    }
-
-    const v = vals[bestI];
-    setHover({
-      i: bestI,
-      x: fx(bestI),
-      y: fy(v),
-      value: v,
-      date: dateAt(bestI),
-    });
-  };
+  const pct = Math.max(0, Math.min(100, Math.round(avg)));
+  const radius = 40;
+  const circ = 2 * Math.PI * radius;
+  const dash = (pct / 100) * circ;
+  const stroke = pct >= 80 ? '#4ade80' : pct >= 60 ? '#facc15' : '#f87171';
+  const levelClass =
+    pct >= 80 ? styles.scoreGood : pct >= 60 ? styles.scoreMid : styles.scoreBad;
 
   return (
-    <div className={styles.sparkWrap}>
-      <div className={styles.sparkBody}>
-        <svg
-          ref={svgRef}
-          className={styles.spark}
-          viewBox={`0 0 ${w} ${h}`}
-          preserveAspectRatio="none"
-          onMouseMove={onMove}
-          onMouseLeave={() => setHover(null)}
-        >
-          <defs>
-            <linearGradient id="heroFillGrad" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="rgba(132,139,255,0.18)" />
-              <stop offset="100%" stopColor="rgba(132,139,255,0.00)" />
-            </linearGradient>
-            <filter id="heroGlow" x="-30%" y="-30%" width="160%" height="160%">
-              <feGaussianBlur stdDeviation="2.2" result="coloredBlur" />
-              <feMerge>
-                <feMergeNode in="coloredBlur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
-
-          {!dotsOnly && (
-            <path
-              d={`${pathD} L ${fx(vals.length - 1)} ${h - py} L ${fx(0)} ${h - py} Z`}
-              fill="url(#heroFillGrad)"
-              stroke="none"
-            />
-          )}
-
-          {!dotsOnly && (
-            <path
-              d={pathD}
+    <div className={styles.scoreBlock}>
+      <button
+        ref={btnRef}
+        type="button"
+        className={`${styles.scoreMain} ${levelClass}`}
+        onClick={() => setOpen(v => !v)}
+      >
+        <div className={styles.scoreRingLarge}>
+          <svg width="96" height="96" viewBox="0 0 96 96">
+            <circle
+              cx="48"
+              cy="48"
+              r={radius}
+              stroke="rgba(255,255,255,.18)"
+              strokeWidth="8"
               fill="none"
-              stroke="rgba(144,152,255,0.35)"
-              strokeWidth="7"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              filter="url(#heroGlow)"
             />
-          )}
-
-          {!dotsOnly && (
-            <path
-              d={pathD}
+            <circle
+              cx="48"
+              cy="48"
+              r={radius}
+              stroke={stroke}
+              strokeWidth="8"
               fill="none"
-              stroke="rgba(255,255,255,0.92)"
-              strokeWidth="2.6"
+              strokeDasharray={`${dash} ${circ - dash}`}
               strokeLinecap="round"
-              strokeLinejoin="round"
+              style={{ transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }}
             />
+          </svg>
+          <div className={styles.scoreNumberLarge}>{pct}</div>
+        </div>
+        <div className={styles.scoreTextCol}>
+          <div className={styles.scoreTitleLarge}>Оценка недели</div>
+          {trend != null && (
+            <div className={styles.scoreTrendLarge}>
+              к прошлой неделе:{' '}
+              {trend > 0 ? `↑ +${trend}` : trend < 0 ? `↓ ${trend}` : '— 0'}
+            </div>
           )}
+          <div className={styles.scoreHint}>Нажмите для разбивки</div>
+        </div>
+      </button>
 
-          {/* реальные точки (не все апсемпленные) */}
-          {points.map((p, idx) => {
-            const t = points.length === 1 ? 0 : idx / (points.length - 1);
-            const i = Math.round(t * (vals.length - 1));
-            return (
-              <circle
-                key={p.date}
-                cx={fx(i)}
-                cy={fy(vals[i])}
-                r="4.2"
-                fill="#fff"
-                fillOpacity="0.95"
-              />
-            );
-          })}
-
-          {hover && (
-            <>
-              <line
-                x1={hover.x}
-                x2={hover.x}
-                y1={py / 2}
-                y2={h - py / 2}
-                stroke="rgba(255,255,255,0.12)"
-              />
-              <circle cx={hover.x} cy={hover.y} r="6.2" fill="#fff" />
-            </>
-          )}
-        </svg>
-
-        {hover && (
-          <div
-            className={styles.sparkTooltip}
-            style={{
-              left: `${(hover.x / w) * 100}%`,
-              top: `${(hover.y / h) * 100}%`,
-            }}
-          >
-            <div className={styles.tipDate}>{dayjs(hover.date).format('DD.MM')}</div>
-            <div className={styles.tipVal}>{money(hover.value)}</div>
+      {open && detail && (
+        <div ref={popRef} className={styles.scorePopoverHero}>
+          <div className={styles.popTitleSmall}>За 7 дней</div>
+          <div className={styles.miniBars}>
+            <div className={styles.miniRow}>
+              <span>Здоровье</span>
+              <div className={styles.miniBar}>
+                <div className={styles.miniFill} style={{ width: `${detail.health}%` }} />
+              </div>
+              <span>{detail.health}%</span>
+            </div>
+            <div className={styles.miniRow}>
+              <span>Финансы</span>
+              <div className={styles.miniBar}>
+                <div className={styles.miniFill} style={{ width: `${detail.finance}%` }} />
+              </div>
+              <span>{detail.finance}%</span>
+            </div>
+            <div className={styles.miniRow}>
+              <span>Регулярность</span>
+              <div className={styles.miniBar}>
+                <div className={styles.miniFill} style={{ width: `${detail.consistency}%` }} />
+              </div>
+              <span>{detail.consistency}%</span>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
+}
+
+function WhoopBlock() {
+  const [loading, setLoading] = useState(true);
+  const [configured, setConfigured] = useState(false);
+  const [connected, setConnected] = useState(false);
+  const [recovery, setRecovery] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = async () => {
+    try {
+      const data = await get('whoop/status');
+      setConfigured(Boolean(data?.configured));
+      setConnected(Boolean(data?.connected));
+      setRecovery(data?.recovery || null);
+    } catch {
+      setConfigured(false);
+      setConnected(false);
+      setRecovery(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const onConnect = async () => {
+    try {
+      setBusy(true);
+      const resp = await post('whoop/connect');
+      if (resp?.url) window.location.href = resp.url;
+    } catch {
+      alert('Не удалось начать подключение WHOOP');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onDisconnect = async e => {
+    e.stopPropagation();
+    if (!window.confirm('Отключить WHOOP от аккаунта?')) return;
+    try {
+      setBusy(true);
+      await remove('whoop/disconnect');
+      await load();
+    } catch {
+      alert('Не удалось отключить WHOOP');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) return <div className={styles.whoopCard}><span className={styles.muted}>WHOOP…</span></div>;
+  if (!configured) return null;
+
+  if (!connected) {
+    return (
+      <button type="button" className={styles.whoopCardHero} onClick={onConnect} disabled={busy}>
+        <Activity size={22} />
+        <div>
+          <div className={styles.whoopTitleHero}>WHOOP</div>
+          <div className={styles.whoopMetaHero}>{busy ? 'Подключаем…' : 'Подключить трекер'}</div>
+        </div>
+      </button>
+    );
+  }
+
+  const score = recovery?.recoveryScore != null ? `${Math.round(recovery.recoveryScore)}%` : '—';
+  const rhr = recovery?.restingHeartRate != null ? recovery.restingHeartRate : '—';
+  const hrv = recovery?.hrvRmssd != null ? Math.round(recovery.hrvRmssd) : '—';
+
+  return (
+    <div className={styles.whoopCardHeroConnected}>
+      <Activity size={22} />
+      <div className={styles.whoopGrow}>
+        <div className={styles.whoopTitleHero}>Восстановление {score}</div>
+        <div className={styles.whoopMetaHero}>RHR {rhr} · HRV {hrv}</div>
+      </div>
+      <button type="button" className={styles.whoopUnlinkHero} onClick={onDisconnect} disabled={busy} title="Отключить WHOOP">
+        <Unlink size={16} />
+      </button>
+    </div>
+  );
+}
+
+function buildCtas({ finance, score, goalsCount, budgetTotal, whoopConfigured, whoopConnected }) {
+  const items = [];
+  const push = (icon, text, priority) => items.push({ icon, text, priority });
+
+  if (!budgetTotal) push(PiggyBank, 'Задайте бюджеты на месяц — так проще держать расходы под контролем', 1);
+  if (!goalsCount) push(Target, 'Обновите цели: зафиксируйте, к чему идёте в этом месяце', 2);
+
+  const br = score?.breakdown;
+  if (br) {
+    const fin = br.finance?.score ?? 0;
+    const w = br.health?.workouts;
+    const done = w?.done_days ?? w?.done ?? 0;
+    const tgt = w?.target_days ?? w?.planned ?? 0;
+    const cons = br.consistency?.score ?? 0;
+    const streak = br.consistency?.streak ?? 0;
+
+    if (fin < 45) push(ClipboardList, 'Чаще заносите расходы в боте — оценка финансов станет точнее', 3);
+    if (tgt > 0 && done < tgt) push(Dumbbell, `План тренировок: ${done}/${tgt} — добавьте сессии в неделю`, 4);
+    if (cons < 50 && streak < 3) push(Activity, 'Укрепите регулярность: отметки и лекарства без пропусков', 5);
+  }
+
+  if (finance?.delta?.exp?.pct != null && finance.delta.exp.pct > 5) {
+    push(TrendingDown, 'Расходы выросли к прошлому месяцу — проверьте категории и лимиты', 6);
+  }
+
+  if (whoopConfigured && !whoopConnected) {
+    push(Activity, 'Подключите WHOOP — сон и восстановление попадут в оценку недели', 7);
+  }
+
+  if (!items.length) {
+    push(Target, 'Отличная работа — продолжайте в том же духе', 0);
+  }
+
+  items.sort((a, b) => a.priority - b.priority);
+  return items.slice(0, 5);
 }
 
 function Stat({ icon: Icon, label, value, sub }) {
   return (
     <div className={styles.stat}>
-      <div className={styles.statIcon}><Icon size={16}/></div>
+      <div className={styles.statIcon}>
+        <Icon size={16} />
+      </div>
       <div className={styles.statContent}>
         <div className={styles.statLabel}>{label}</div>
         <div className={styles.statValue}>{value}</div>
@@ -249,15 +320,23 @@ function Stat({ icon: Icon, label, value, sub }) {
 export default function DashboardHero() {
   const [finance, setFinance] = useState(null);
   const [score, setScore] = useState(null);
+  const [goalsCount, setGoalsCount] = useState(0);
+  const [budgetTotal, setBudgetTotal] = useState(0);
+  const [whoop, setWhoop] = useState({ configured: false, connected: false });
 
   useEffect(() => {
     async function load() {
-      // 1) MoM overview — берём с бэка
       const month = dayjs().format('YYYY-MM');
       const prevMonth = dayjs().subtract(1, 'month').format('YYYY-MM');
 
-      const cur = await get(`finances/month-overview?month=${month}`);
-      const prev = await get(`finances/month-overview?month=${prevMonth}`);
+      const [cur, prev, d7, goals, budgetStats, whoopStatus] = await Promise.all([
+        get(`finances/month-overview?month=${month}`),
+        get(`finances/month-overview?month=${prevMonth}`),
+        get(`analytics/score?start=${dayjs().subtract(6, 'day').format('YYYY-MM-DD')}&end=${dayjs().format('YYYY-MM-DD')}`),
+        get('goals').catch(() => []),
+        get(`budgets/stats?month=${month}`).catch(() => []),
+        get('whoop/status').catch(() => ({})),
+      ]);
 
       const curExp = Math.round(cur?.expenses || 0);
       const curInc = Math.round(cur?.incomes || 0);
@@ -269,25 +348,6 @@ export default function DashboardHero() {
       const expPct = prevExp > 0 ? (expAbs / prevExp) * 100 : null;
       const incPct = prevInc > 0 ? (incAbs / prevInc) * 100 : null;
 
-      // 2) дневная серия на текущий месяц — чтобы график был понятный
-      const start = dayjs().startOf('month').format('YYYY-MM-DD');
-      const end = dayjs().endOf('month').format('YYYY-MM-DD');
-      const raw = await get(`finances/range?start=${start}&end=${end}`);
-
-      const byDay = new Map();
-      const dim = dayjs().daysInMonth();
-      for (let i = 0; i < dim; i++) {
-        const d = dayjs(start).add(i, 'day').format('YYYY-MM-DD');
-        byDay.set(d, 0);
-      }
-      for (const t of raw || []) {
-        const d = String(t.date || '').slice(0, 10);
-        if (!byDay.has(d)) continue;
-        if (t.type === 'expense') byDay.set(d, (byDay.get(d) || 0) + Math.abs(Number(t.amount) || 0));
-      }
-
-      const sparkPoints = Array.from(byDay.entries()).map(([date, value]) => ({ date, value }));
-
       setFinance({
         sumExp: curExp,
         sumInc: curInc,
@@ -297,37 +357,55 @@ export default function DashboardHero() {
           exp: { abs: expAbs, pct: expPct != null ? Math.round(expPct) : null },
           inc: { abs: incAbs, pct: incPct != null ? Math.round(incPct) : null },
         },
-        spark: sparkPoints,
       });
 
-      // 3) скоринг (7 дней)
-      const end7 = dayjs().format('YYYY-MM-DD');
-      const start7 = dayjs().subtract(6, 'day').format('YYYY-MM-DD');
-      const d7 = await get(`analytics/score?start=${start7}&end=${end7}`);
-      setScore(d7?.breakdown || null);
+      setScore(d7 || null);
+      setGoalsCount(Array.isArray(goals) ? goals.length : 0);
+
+      const stats = Array.isArray(budgetStats) ? budgetStats : [];
+      const bSum = stats.reduce((a, x) => a + Number(x.budget || 0), 0);
+      setBudgetTotal(bSum);
+
+      setWhoop({
+        configured: Boolean(whoopStatus?.configured),
+        connected: Boolean(whoopStatus?.connected),
+      });
     }
 
     load().catch(() => {});
   }, []);
 
   const sleepAvg = useMemo(() => {
-    const s = score?.health?.sleep?.avg_hours_per_day;
+    const s = score?.breakdown?.health?.sleep?.avg_hours_per_day;
     return s != null ? Number(s).toFixed(1) : '—';
   }, [score]);
 
   const workoutsLine = useMemo(() => {
-    const w = score?.health?.workouts;
+    const w = score?.breakdown?.health?.workouts;
     if (!w) return '—';
     const done = w.done_days ?? w.done ?? 0;
-    const tgt  = w.target_days ?? w.planned ?? 0;
+    const tgt = w.target_days ?? w.planned ?? 0;
     return `${done} / ${tgt}`;
   }, [score]);
 
   const consistency = useMemo(() => {
-    const c = score?.consistency?.score ?? 0;
-    const st = score?.consistency?.streak ?? 0;
+    const c = score?.breakdown?.consistency?.score ?? 0;
+    const st = score?.breakdown?.consistency?.streak ?? 0;
     return `${c}% · стрик ${st}`;
   }, [score]);
+
+  const ctas = useMemo(
+    () =>
+      buildCtas({
+        finance,
+        score,
+        goalsCount,
+        budgetTotal,
+        whoopConfigured: whoop.configured,
+        whoopConnected: whoop.connected,
+      }),
+    [finance, score, goalsCount, budgetTotal, whoop]
+  );
 
   if (!finance) return null;
 
@@ -335,53 +413,77 @@ export default function DashboardHero() {
   const incSub = `MoM: ${formatDeltaAbs(finance.delta.inc.abs)} ${formatDeltaPct(finance.delta.inc.pct)}`;
 
   return (
-    <section className={styles.hero}>
-      <div className={styles.leftCard}>
-        <div className={styles.cardHeader}>
-          <div className={styles.cardTitle}><Wallet size={18}/> Финансы — обзор</div>
-          <div className={styles.badge}>Текущий месяц</div>
+    <section className={styles.hero} aria-label="Главный обзор">
+      <div className={styles.topBand}>
+        <WeeklyScoreBlock />
+
+        <div className={styles.ctaColumn}>
+          <div className={styles.ctaTitle}>
+            <Target size={18} />
+            Что сделать сейчас
+          </div>
+          <ul className={styles.ctaList}>
+            {ctas.map((c, i) => (
+              <li key={i} className={styles.ctaItem}>
+                <c.icon size={16} className={styles.ctaIcon} aria-hidden />
+                <span>{c.text}</span>
+              </li>
+            ))}
+          </ul>
         </div>
 
-        <div className={styles.primaryRow}>
-          <div className={styles.primaryNumber}>
-            <span className={styles.label}>Расходы</span>
-            <span className={styles.value}>{money(finance.sumExp)}</span>
-            <span className={styles.sub}>{expSub}</span>
-          </div>
-
-          <div className={styles.primaryNumber}>
-            <span className={styles.label}>Доходы</span>
-            <span className={styles.value}>{money(finance.sumInc)}</span>
-            <span className={styles.sub}>{incSub}</span>
-          </div>
-
-          <div className={styles.primaryNumber}>
-            <span className={styles.label}>Прогноз</span>
-            <span className={styles.value}>{money(finance.forecast)}</span>
-          </div>
-
-          <div className={styles.primaryNumber}>
-            <span className={styles.label}>Бюджеты</span>
-            <span className={styles.value}>
-              {finance.budgetPct == null ? '—' : `${Math.round(finance.budgetPct)}%`}
-            </span>
-          </div>
-        </div>
-
-        {/* ПОНЯТНЫЙ график (дни месяца) + тултип */}
-        <Sparkline points={finance.spark} />
+        <WhoopBlock />
       </div>
 
-      <div className={styles.rightCard}>
-        <div className={styles.cardHeader}>
-          <div className={styles.cardTitle}><Activity size={18}/> Овервью здоровья</div>
-          <div className={styles.badgeAlt}>7 дней</div>
+      <div className={styles.bottomBand}>
+        <div className={styles.leftCard}>
+          <div className={styles.cardHeader}>
+            <div className={styles.cardTitle}>
+              <Wallet size={18} /> Финансы — обзор
+            </div>
+            <div className={styles.badge}>Текущий месяц</div>
+          </div>
+
+          <div className={styles.primaryRow}>
+            <div className={styles.primaryNumber}>
+              <span className={styles.label}>Расходы</span>
+              <span className={styles.value}>{money(finance.sumExp)}</span>
+              <span className={styles.sub}>{expSub}</span>
+            </div>
+
+            <div className={styles.primaryNumber}>
+              <span className={styles.label}>Доходы</span>
+              <span className={styles.value}>{money(finance.sumInc)}</span>
+              <span className={styles.sub}>{incSub}</span>
+            </div>
+
+            <div className={styles.primaryNumber}>
+              <span className={styles.label}>Прогноз</span>
+              <span className={styles.value}>{money(finance.forecast)}</span>
+            </div>
+
+            <div className={styles.primaryNumber}>
+              <span className={styles.label}>Бюджеты</span>
+              <span className={styles.value}>
+                {finance.budgetPct == null ? '—' : `${Math.round(finance.budgetPct)}%`}
+              </span>
+            </div>
+          </div>
         </div>
 
-        <div className={styles.statsCol}>
-          <Stat icon={LineChart} label="Сон" value={`${sleepAvg} ч/д`} sub="цель 7–8 ч"/>
-          <Stat icon={Dumbbell} label="Тренировки" value={workoutsLine} sub="из плановых"/>
-          <Stat icon={Activity} label="Регулярность" value={consistency} />
+        <div className={styles.rightCard}>
+          <div className={styles.cardHeader}>
+            <div className={styles.cardTitle}>
+              <Activity size={18} /> Овервью здоровья
+            </div>
+            <div className={styles.badgeAlt}>7 дней</div>
+          </div>
+
+          <div className={styles.statsCol}>
+            <Stat icon={LineChart} label="Сон" value={`${sleepAvg} ч/д`} sub="цель 7–8 ч" />
+            <Stat icon={Dumbbell} label="Тренировки" value={workoutsLine} sub="из плановых" />
+            <Stat icon={Activity} label="Регулярность" value={consistency} />
+          </div>
         </div>
       </div>
     </section>
