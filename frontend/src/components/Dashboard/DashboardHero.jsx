@@ -495,12 +495,15 @@ function PaceBlock({ sumExp, pace }) {
   );
 }
 
-function AccountsBalancesBlock({ accounts }) {
+function AccountsBalancesBlock({ accounts, totalRub }) {
   return (
     <div className={styles.financeExtraCard}>
       <div className={styles.financeExtraTitle}>
         <Landmark size={16} aria-hidden />
         Счета
+      </div>
+      <div className={styles.totalMoney}>
+        Всего денег: <strong>{money(totalRub || 0)}</strong>
       </div>
       {!accounts?.length ? (
         <p className={styles.financeMuted}>Пока нет счетов</p>
@@ -534,7 +537,7 @@ export default function DashboardHero() {
       const start = dayjs().startOf('month').format('YYYY-MM-DD');
       const end = dayjs().endOf('month').format('YYYY-MM-DD');
 
-      const [cur, prev, d7, goals, budgetStats, whoopStatus, rangeRaw, accounts] = await Promise.all([
+      const [cur, prev, d7, goals, budgetStats, whoopStatus, rangeRaw, accountsSummary] = await Promise.all([
         get(`finances/month-overview?month=${month}`),
         get(`finances/month-overview?month=${prevMonth}`),
         get(`analytics/score?start=${dayjs().subtract(6, 'day').format('YYYY-MM-DD')}&end=${dayjs().format('YYYY-MM-DD')}`),
@@ -542,7 +545,7 @@ export default function DashboardHero() {
         get(`budgets/stats?month=${month}`).catch(() => []),
         get('whoop/status').catch(() => ({})),
         get(`finances/range?start=${start}&end=${end}`).catch(() => []),
-        get('accounts').catch(() => []),
+        get('accounts/summary').catch(() => ({ accounts: [], total_rub: 0 })),
       ]);
 
       const curExp = Math.round(cur?.expenses || 0);
@@ -591,7 +594,8 @@ export default function DashboardHero() {
           expectedByNow: expectedByNow != null ? Math.round(expectedByNow) : null,
           budgetPaceVsExpected,
         },
-        accounts: Array.isArray(accounts) ? accounts : [],
+        accounts: Array.isArray(accountsSummary?.accounts) ? accountsSummary.accounts : [],
+        accountsTotalRub: Number(accountsSummary?.total_rub || 0),
       });
 
       setScore(d7 || null);
@@ -706,7 +710,7 @@ export default function DashboardHero() {
           <div className={styles.financeExtra}>
             <TopCategoriesBlock items={finance.topCategories} />
             <PaceBlock sumExp={finance.sumExp} pace={finance.pace} />
-            <AccountsBalancesBlock accounts={finance.accounts} />
+            <AccountsBalancesBlock accounts={finance.accounts} totalRub={finance.accountsTotalRub} />
           </div>
         </div>
 

@@ -79,6 +79,20 @@
   gap: 12px;
 }
 
+.editGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.editGrid input {
+  background: #2b2d37;
+  border: none;
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
 .name {
   font-weight: 700;
 }
