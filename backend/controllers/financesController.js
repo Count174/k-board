@@ -1,5 +1,12 @@
 const db = require('../db/db');
 const { normalizeCurrency, normalizeDate, getRateToRubForDate } = require('../utils/fxService');
+const {
+  getAccountById,
+  ensureDefaultAccountForUser,
+  computeAccountDelta,
+  applyAccountDelta,
+  run,
+} = require('../utils/accountsService');
 
 // small helpers
 const all = (sql, p = []) => new Promise((res, rej) =>
@@ -23,8 +30,10 @@ exports.getAll = (req, res) => {
   db.all(
     `SELECT f.id, f.type, f.category, f.amount, date(f.date) AS date,
             f.category_id, f.comment, f.currency, f.fx_rate_to_rub, f.original_amount, ${amountRubExpr} AS amount_rub,
+            f.account_id, a.name AS account_name, a.currency AS account_currency,
             c.name AS category_name, c.slug AS category_slug
        FROM finances f
+       LEFT JOIN accounts a ON a.id = f.account_id
        LEFT JOIN categories c ON f.category_id = c.id
       WHERE f.user_id = ?
       ORDER BY date(f.date) DESC, f.id DESC
@@ -47,8 +56,10 @@ exports.getByPeriod = (req, res) => {
   db.all(
     `SELECT f.id, f.type, f.category, f.amount, date(f.date) AS date,
             f.category_id, f.comment, f.currency, f.fx_rate_to_rub, f.original_amount, ${amountRubExpr} AS amount_rub,
+            f.account_id, a.name AS account_name, a.currency AS account_currency,
             c.name AS category_name, c.slug AS category_slug
        FROM finances f
+       LEFT JOIN accounts a ON a.id = f.account_id
        LEFT JOIN categories c ON f.category_id = c.id
       WHERE f.user_id = ?
         AND date(f.date) >= date(?)
@@ -90,7 +101,7 @@ exports.getMonthlyStats = (req, res) => {
 
 exports.create = async (req, res) => {
   try {
-    const { type, category, amount, date, category_id, comment } = req.body;
+    const { type, category, amount, date, category_id, comment, account_id } = req.body;
     
     if (!type || amount == null) {
       return res.status(400).json({ error: 'type_amount_required' });
@@ -141,16 +152,39 @@ exports.create = async (req, res) => {
     }
     const fxRateToRub = await getRateToRubForDate(currency, opDate);
     const amountRub = Number((originalAmount * fxRateToRub).toFixed(2));
+    let accountId = Number(account_id) || null;
+    if (!accountId) {
+      accountId = await ensureDefaultAccountForUser(req.userId);
+    }
+    const account = await getAccountById(req.userId, accountId);
+    if (!account) {
+      return res.status(400).json({ error: 'account_required' });
+    }
 
-    return new Promise((resolve, reject) => {
+    const accountDelta = await computeAccountDelta({
+      type,
+      amount: originalAmount,
+      txCurrency: currency,
+      accountCurrency: account.currency,
+      dateYmd: opDate,
+    });
+
+    return new Promise((resolve) => {
       db.run(
-        `INSERT INTO finances (user_id, type, category, amount, date, category_id, comment, original_amount, currency, fx_rate_to_rub, amount_rub)
-         VALUES (?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?, ?)`,
-        [req.userId, type, finalCategory, originalAmount, opDate, finalCategoryId, finalComment, originalAmount, currency, fxRateToRub, amountRub],
+        `INSERT INTO finances (user_id, type, category, amount, date, category_id, comment, original_amount, currency, fx_rate_to_rub, amount_rub, account_id)
+         VALUES (?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?, ?, ?)`,
+        [req.userId, type, finalCategory, originalAmount, opDate, finalCategoryId, finalComment, originalAmount, currency, fxRateToRub, amountRub, accountId],
         async function (err) {
           if (err) {
             console.error('finances.create db error:', err);
             return res.status(500).json({ error: 'failed_to_create_finance' });
+          }
+          try {
+            await applyAccountDelta(accountId, accountDelta);
+          } catch (balErr) {
+            console.error('finances.create balance update error:', balErr);
+            await run(`DELETE FROM finances WHERE id = ? AND user_id = ?`, [this.lastID, req.userId]).catch(() => {});
+            return res.status(500).json({ error: 'failed_to_update_account_balance' });
           }
           
           // Получаем созданную запись с категорией
@@ -158,8 +192,10 @@ exports.create = async (req, res) => {
             const created = await get(
               `SELECT f.id, f.type, f.category, f.amount, date(f.date) AS date,
                       f.category_id, f.comment, f.currency, f.fx_rate_to_rub, f.original_amount, ${amountRubExpr} AS amount_rub,
+                      f.account_id, a.name AS account_name, a.currency AS account_currency,
                       c.name AS category_name, c.slug AS category_slug
                FROM finances f
+               LEFT JOIN accounts a ON a.id = f.account_id
                LEFT JOIN categories c ON f.category_id = c.id
                WHERE f.id = ?`,
               [this.lastID]
@@ -179,16 +215,37 @@ exports.create = async (req, res) => {
   }
 };
 
-exports.remove = (req, res) => {
-  const { id } = req.params;
-  db.run(
-    `DELETE FROM finances WHERE id = ? AND user_id = ?`,
-    [id, req.userId],
-    function (err) {
-      if (err) return res.status(500).send(err);
-      res.status(204).send();
-    }
-  );
+exports.remove = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const row = await get(
+      `SELECT id, type, amount, original_amount, currency, date(date) AS op_date, account_id
+         FROM finances
+        WHERE id = ? AND user_id = ?`,
+      [id, req.userId]
+    );
+    if (!row) return res.status(404).json({ error: 'finance_not_found' });
+    if (!row.account_id) return res.status(400).json({ error: 'finance_account_missing' });
+
+    const account = await getAccountById(req.userId, row.account_id);
+    if (!account) return res.status(400).json({ error: 'account_not_found' });
+
+    const amountBase = Number(row.original_amount ?? row.amount ?? 0);
+    const reversal = await computeAccountDelta({
+      type: row.type === 'income' ? 'expense' : 'income',
+      amount: amountBase,
+      txCurrency: row.currency || account.currency,
+      accountCurrency: account.currency,
+      dateYmd: row.op_date || normalizeDate(),
+    });
+
+    await run(`DELETE FROM finances WHERE id = ? AND user_id = ?`, [id, req.userId]);
+    await applyAccountDelta(row.account_id, reversal);
+    return res.status(204).send();
+  } catch (e) {
+    console.error('finances.remove error:', e);
+    return res.status(500).json({ error: 'failed_to_delete_finance' });
+  }
 };
 
 /* ===================== ANALYTICS API ===================== */
@@ -205,8 +262,10 @@ exports.getRange = async (req, res) => {
     const rows = await all(
       `SELECT date(f.date) AS date, f.type, f.amount, ${amountRubExpr} AS amount_rub, f.currency, f.fx_rate_to_rub, f.original_amount, f.category, f.id,
               f.category_id, f.comment,
+              f.account_id, a.name AS account_name, a.currency AS account_currency,
               c.name AS category_name, c.slug AS category_slug
          FROM finances f
+         LEFT JOIN accounts a ON a.id = f.account_id
          LEFT JOIN categories c ON f.category_id = c.id
         WHERE f.user_id = ?
           AND date(f.date) >= date(?)

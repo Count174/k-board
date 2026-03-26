@@ -14,6 +14,7 @@ import {
   Unlink,
   PieChart,
   Gauge,
+  Landmark,
 } from 'lucide-react';
 
 function money(v) {
@@ -494,6 +495,31 @@ function PaceBlock({ sumExp, pace }) {
   );
 }
 
+function AccountsBalancesBlock({ accounts }) {
+  return (
+    <div className={styles.financeExtraCard}>
+      <div className={styles.financeExtraTitle}>
+        <Landmark size={16} aria-hidden />
+        Счета
+      </div>
+      {!accounts?.length ? (
+        <p className={styles.financeMuted}>Пока нет счетов</p>
+      ) : (
+        <ul className={styles.accountsList}>
+          {accounts.map((a) => (
+            <li key={a.id} className={styles.accountRow}>
+              <span className={styles.accountName}>{a.name}</span>
+              <span className={styles.accountBalance}>
+                {Number(a.balance || 0).toLocaleString('ru-RU')} {String(a.currency || 'RUB').toUpperCase()}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function DashboardHero() {
   const [finance, setFinance] = useState(null);
   const [score, setScore] = useState(null);
@@ -508,7 +534,7 @@ export default function DashboardHero() {
       const start = dayjs().startOf('month').format('YYYY-MM-DD');
       const end = dayjs().endOf('month').format('YYYY-MM-DD');
 
-      const [cur, prev, d7, goals, budgetStats, whoopStatus, rangeRaw] = await Promise.all([
+      const [cur, prev, d7, goals, budgetStats, whoopStatus, rangeRaw, accounts] = await Promise.all([
         get(`finances/month-overview?month=${month}`),
         get(`finances/month-overview?month=${prevMonth}`),
         get(`analytics/score?start=${dayjs().subtract(6, 'day').format('YYYY-MM-DD')}&end=${dayjs().format('YYYY-MM-DD')}`),
@@ -516,6 +542,7 @@ export default function DashboardHero() {
         get(`budgets/stats?month=${month}`).catch(() => []),
         get('whoop/status').catch(() => ({})),
         get(`finances/range?start=${start}&end=${end}`).catch(() => []),
+        get('accounts').catch(() => []),
       ]);
 
       const curExp = Math.round(cur?.expenses || 0);
@@ -564,6 +591,7 @@ export default function DashboardHero() {
           expectedByNow: expectedByNow != null ? Math.round(expectedByNow) : null,
           budgetPaceVsExpected,
         },
+        accounts: Array.isArray(accounts) ? accounts : [],
       });
 
       setScore(d7 || null);
@@ -678,6 +706,7 @@ export default function DashboardHero() {
           <div className={styles.financeExtra}>
             <TopCategoriesBlock items={finance.topCategories} />
             <PaceBlock sumExp={finance.sumExp} pace={finance.pace} />
+            <AccountsBalancesBlock accounts={finance.accounts} />
           </div>
         </div>
 

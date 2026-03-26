@@ -7,6 +7,7 @@ const router = express.Router();
 const authMiddleware = require('../middleware/authMiddleware');
 const { sendPasswordResetEmail, sendPasswordChangedEmail } = require('../utils/emailService');
 const { notifyNewUser } = require('../utils/ceoTelegram');
+const { ensureDefaultAccountForUser } = require('../utils/accountsService');
 
 // Регистрация
 router.post('/register', async (req, res) => {
@@ -27,8 +28,13 @@ router.post('/register', async (req, res) => {
       db.run(
         'INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)',
         [safeName, email, hash],
-        function (err2) {
+        async function (err2) {
           if (err2) return res.status(500).json({ error: 'Ошибка при регистрации' });
+          try {
+            await ensureDefaultAccountForUser(this.lastID);
+          } catch (accErr) {
+            console.error('register default account error:', accErr);
+          }
 
           notifyNewUser(safeName, email).catch(() => {});
 

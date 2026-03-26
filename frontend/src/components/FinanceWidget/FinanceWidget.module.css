@@ -173,6 +173,18 @@
   color: #aaa;
 }
 
+.accountHint{
+  background: rgba(79, 70, 229, 0.14);
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  color: #c7d2fe;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 13px;
+  min-width: 180px;
+  display: flex;
+  align-items: center;
+}
+
 .addTransaction button {
   background: #4f46e5;
   border: none;

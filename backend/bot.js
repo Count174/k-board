@@ -12,10 +12,19 @@ const cron = require('node-cron');
 const crypto = require('crypto');
 const { getLatestRecovery, getLatestSleep, getRecentWorkouts } = require('./utils/whoopService');
 const { normalizeCurrency, normalizeDate, getRateToRubForDate } = require('./utils/fxService');
+const {
+  ensureAccountsSchema,
+  ensureDefaultAccountForUser,
+  getUserAccounts,
+  getAccountById,
+  computeAccountDelta,
+  applyAccountDelta,
+} = require('./utils/accountsService');
 
 const token = process.env.BOT_TOKEN;
 const bot = new TelegramBot(token, { polling: true });
 console.log('🤖 Telegram Bot запущен');
+ensureAccountsSchema().catch((e) => console.error('bot ensureAccountsSchema error:', e));
 
 const userStates = {}; // состояния пошаговых сценариев
 
@@ -207,7 +216,7 @@ function getTopCategories(userId, type, limit = 8) {
 /**
  * Показать кнопки для выбора категории (топ-8 + «Ввести текстом»)
  */
-async function showCategorySelection(chatId, userId, type, amount, categoryText, currency = 'RUB') {
+async function showCategorySelection(chatId, userId, type, amount, categoryText, currency = 'RUB', accountId = null) {
   let categories = await getUserCategories(userId, type);
 
   if (categories.length === 0) {
@@ -232,7 +241,7 @@ async function showCategorySelection(chatId, userId, type, amount, categoryText,
   const stateKey = `fin_pending_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   userStates[chatId] = {
     step: 'fin_pending',
-    data: { type, amount, categoryText, stateKey, currency: normalizeCurrency(currency) || 'RUB' }
+    data: { type, amount, categoryText, stateKey, currency: normalizeCurrency(currency) || 'RUB', accountId }
   };
 
   const keyboard = [];
@@ -338,18 +347,66 @@ async function insertFinanceWithCurrency(userId, {
   comment = '',
   date = null,
   currency = 'RUB',
+  accountId = null,
 }) {
   const opDate = normalizeDate(date || ymd());
   const cur = normalizeCurrency(currency || 'RUB') || 'RUB';
   const fxRateToRub = await getRateToRubForDate(cur, opDate);
   const amountRub = Number((Number(amount) * fxRateToRub).toFixed(2));
+  let finalAccountId = Number(accountId) || null;
+  if (!finalAccountId) {
+    const seeded = await ensureDefaultAccountForUser(userId);
+    finalAccountId = seeded;
+  }
+  const account = await getAccountById(userId, finalAccountId);
+  if (!account) {
+    throw new Error('account_not_found');
+  }
+  const delta = await computeAccountDelta({
+    type,
+    amount: Number(amount),
+    txCurrency: cur,
+    accountCurrency: account.currency,
+    dateYmd: opDate,
+  });
 
-  return dbRun(
+  const inserted = await dbRun(
     `INSERT INTO finances
-      (user_id, type, category, amount, date, category_id, comment, original_amount, currency, fx_rate_to_rub, amount_rub)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [userId, type, category, Number(amount), opDate, categoryId, comment || '', Number(amount), cur, fxRateToRub, amountRub]
+      (user_id, type, category, amount, date, category_id, comment, original_amount, currency, fx_rate_to_rub, amount_rub, account_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [userId, type, category, Number(amount), opDate, categoryId, comment || '', Number(amount), cur, fxRateToRub, amountRub, finalAccountId]
   );
+  await applyAccountDelta(finalAccountId, delta);
+  return { lastID: inserted?.lastID, accountName: account.name, accountCurrency: account.currency };
+}
+
+async function pickAccountForFinance(chatId, userId, finPayload) {
+  const accounts = await getUserAccounts(userId);
+  if (!accounts.length) {
+    const id = await ensureDefaultAccountForUser(userId);
+    return { accountId: id, deferred: false };
+  }
+  if (accounts.length === 1) {
+    return { accountId: accounts[0].id, deferred: false };
+  }
+
+  const stateKey = `fin_acc_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  userStates[chatId] = {
+    step: 'fin_pick_account',
+    data: { ...finPayload, stateKey },
+  };
+  const keyboard = [];
+  for (const a of accounts) {
+    const bal = Number(a.balance || 0).toLocaleString('ru-RU');
+    const cur = String(a.currency || 'RUB').toUpperCase();
+    keyboard.push([
+      { text: `${a.name} · ${bal} ${cur}`, callback_data: `fin_acc:${a.id}:${stateKey}` },
+    ]);
+  }
+  await bot.sendMessage(chatId, 'Выбери счёт для операции:', {
+    reply_markup: { inline_keyboard: keyboard },
+  });
+  return { accountId: null, deferred: true };
 }
 
 function parseFinanceCommand(text) {
@@ -377,7 +434,7 @@ function parseFinanceCommand(text) {
   };
 }
 
-function saveFinalFinance(chatId, userId, type, amount, category, originalText, currency = 'RUB') {
+function saveFinalFinance(chatId, userId, type, amount, category, originalText, currency = 'RUB', accountId = null) {
   return new Promise((resolve) => {
     insertFinanceWithCurrency(userId, {
       type,
@@ -386,12 +443,13 @@ function saveFinalFinance(chatId, userId, type, amount, category, originalText, 
       categoryId: category.id,
       comment: originalText,
       currency,
+      accountId,
     })
-      .then(async () => {
+      .then(async (saved) => {
         await addSynonymIfNeeded(userId, category.id, originalText);
         const cur = normalizeCurrency(currency) || 'RUB';
         await bot.sendMessage(chatId,
-          `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}${cur === 'RUB' ? '₽' : ` ${cur}`} (${category.name}) добавлен.`
+          `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}${cur === 'RUB' ? '₽' : ` ${cur}`} (${category.name}) добавлен.\n💳 Счёт: ${saved?.accountName || '—'}`
         );
         resolve();
       })
@@ -1184,7 +1242,7 @@ bot.on('message', async (msg) => {
   // 1a) Текстовый поиск категории (после нажатия «Ввести текстом»)
   if (userStates[chatId]?.step === 'fin_cat_text') {
     const state = userStates[chatId];
-    const { type, amount, categoryText, currency = 'RUB' } = state.data;
+    const { type, amount, categoryText, currency = 'RUB', accountId = null } = state.data;
     const query = text.trim();
 
     if (!query) {
@@ -1201,7 +1259,7 @@ bot.on('message', async (msg) => {
       const exactMatch = allCats.find(c => c.name.toLowerCase().trim() === normalizedQuery);
       if (exactMatch) {
         delete userStates[chatId];
-        return saveFinalFinance(chatId, userId, type, amount, exactMatch, categoryText, currency);
+        return saveFinalFinance(chatId, userId, type, amount, exactMatch, categoryText, currency, accountId);
       }
 
       const partialMatches = allCats.filter(c =>
@@ -1211,7 +1269,7 @@ bot.on('message', async (msg) => {
       if (partialMatches.length === 1) {
         // Одно совпадение — используем
         delete userStates[chatId];
-        return saveFinalFinance(chatId, userId, type, amount, partialMatches[0], categoryText, currency);
+        return saveFinalFinance(chatId, userId, type, amount, partialMatches[0], categoryText, currency, accountId);
       }
 
       if (partialMatches.length > 1) {
@@ -1219,7 +1277,7 @@ bot.on('message', async (msg) => {
         const stateKey = `fin_pending_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         userStates[chatId] = {
           step: 'fin_pending',
-          data: { type, amount, categoryText, stateKey, pendingNewName: query, currency }
+          data: { type, amount, categoryText, stateKey, pendingNewName: query, currency, accountId }
         };
 
         const keyboard = [];
@@ -1244,7 +1302,7 @@ bot.on('message', async (msg) => {
       const stateKey = `fin_pending_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       userStates[chatId] = {
         step: 'fin_pending',
-        data: { type, amount, categoryText, stateKey, pendingNewName: query, currency }
+        data: { type, amount, categoryText, stateKey, pendingNewName: query, currency, accountId }
       };
 
       const keyboard = [
@@ -1263,7 +1321,7 @@ bot.on('message', async (msg) => {
   // 1b) Создание новой категории (после ввода названия)
   if (userStates[chatId]?.step === 'fin_cat_create') {
     const state = userStates[chatId];
-    const { type, amount, categoryText, currency = 'RUB' } = state.data;
+    const { type, amount, categoryText, currency = 'RUB', accountId = null } = state.data;
     const categoryName = text.trim();
     
     if (!categoryName) {
@@ -1284,6 +1342,7 @@ bot.on('message', async (msg) => {
           categoryId: newCategory.id,
           comment: categoryText,
           currency,
+          accountId,
         });
         bot.sendMessage(chatId,
           `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}${currency === 'RUB' ? '₽' : ` ${currency}`} добавлен.\n` +
@@ -1310,6 +1369,9 @@ bot.on('message', async (msg) => {
 
       return getUserId(chatId, async (userId) => {
         if (!userId) return bot.sendMessage(chatId, '❌ Вы не привязаны к пользователю в системе.');
+        const picked = await pickAccountForFinance(chatId, userId, { type, amount, currency, categoryText });
+        if (picked.deferred) return;
+        const accountId = picked.accountId;
 
         // Ищем категорию по тексту
         console.log(`🔍 Ищем категорию для: "${categoryText}" (user_id=${userId}, type=${type})`);
@@ -1325,11 +1387,12 @@ bot.on('message', async (msg) => {
             categoryId: foundCategory.id,
             comment: categoryText,
             currency,
-          }).then(async () => {
+            accountId,
+          }).then(async (saved) => {
             await addSynonymIfNeeded(userId, foundCategory.id, categoryText);
             bot.sendMessage(
               chatId,
-              `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}${currency === 'RUB' ? '₽' : ` ${currency}`} (${foundCategory.name}) добавлен.`
+              `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}${currency === 'RUB' ? '₽' : ` ${currency}`} (${foundCategory.name}) добавлен.\n💳 Счёт: ${saved?.accountName || '—'}`
             );
           }).catch((err) => {
             console.error('Finance insert error:', err);
@@ -1338,7 +1401,7 @@ bot.on('message', async (msg) => {
         } else {
           console.log(`⚠️ Категория не найдена для "${categoryText}", показываю кнопки выбора`);
           // Категория не найдена - показываем кнопки для выбора
-          await showCategorySelection(chatId, userId, type, amount, categoryText, currency);
+          await showCategorySelection(chatId, userId, type, amount, categoryText, currency, accountId);
         }
       });
     }
@@ -1637,6 +1700,53 @@ bot.on('callback_query', async (query) => {
   }
 
   // ---- finance category selection ----
+  if (key === 'fin_acc') {
+    const selectedAccountId = parseInt(parts[1], 10);
+    const stateKey = parts[2];
+    return getUserId(chatId, async (userId) => {
+      if (!userId) return bot.answerCallbackQuery(query.id, { text: 'Нет привязки.', show_alert: true });
+      const state = userStates[chatId];
+      if (!state || state.step !== 'fin_pick_account' || state.data.stateKey !== stateKey) {
+        return bot.answerCallbackQuery(query.id, { text: 'Сессия устарела. Попробуйте снова.', show_alert: true });
+      }
+      const { type, amount, categoryText, currency = 'RUB' } = state.data;
+      const account = await getAccountById(userId, selectedAccountId);
+      if (!account) {
+        return bot.answerCallbackQuery(query.id, { text: 'Счёт не найден', show_alert: true });
+      }
+      delete userStates[chatId];
+      const foundCategory = await findCategoryByText(userId, categoryText, type);
+      if (foundCategory) {
+        try {
+          const saved = await insertFinanceWithCurrency(userId, {
+            type,
+            category: foundCategory.name,
+            amount,
+            categoryId: foundCategory.id,
+            comment: categoryText,
+            currency,
+            accountId: selectedAccountId,
+          });
+          await addSynonymIfNeeded(userId, foundCategory.id, categoryText);
+          await bot.answerCallbackQuery(query.id, { text: '✅ Сохранено' });
+          return bot.editMessageText(
+            `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}${currency === 'RUB' ? '₽' : ` ${currency}`} (${foundCategory.name}) добавлен.\n💳 Счёт: ${saved?.accountName || account.name}`,
+            { chat_id: chatId, message_id: query.message.message_id }
+          );
+        } catch (e) {
+          console.error('Finance insert error:', e);
+          return bot.answerCallbackQuery(query.id, { text: 'Ошибка при сохранении', show_alert: true });
+        }
+      }
+      await bot.answerCallbackQuery(query.id, { text: `Счёт: ${account.name}` });
+      await showCategorySelection(chatId, userId, type, amount, categoryText, currency, selectedAccountId);
+      return bot.editMessageText(
+        `💳 Выбран счёт: ${account.name}. Теперь выбери категорию:`,
+        { chat_id: chatId, message_id: query.message.message_id }
+      ).catch(() => {});
+    });
+  }
+
   if (key === 'fin_cat') {
     const categoryId = parseInt(parts[1], 10);
     const stateKey = parts[2];
@@ -1650,7 +1760,7 @@ bot.on('callback_query', async (query) => {
         return bot.answerCallbackQuery(query.id, { text: 'Сессия устарела. Попробуйте снова.', show_alert: true });
       }
       
-      const { type, amount, categoryText, currency = 'RUB' } = state.data;
+      const { type, amount, categoryText, currency = 'RUB', accountId = null } = state.data;
       
       // Получаем информацию о категории
       db.get(
@@ -1663,19 +1773,20 @@ bot.on('callback_query', async (query) => {
           
           // Сохраняем финансовую запись
           try {
-            await insertFinanceWithCurrency(userId, {
+            const saved = await insertFinanceWithCurrency(userId, {
               type,
               category: cat.name,
               amount,
               categoryId,
               comment: categoryText,
               currency,
+              accountId,
             });
             await addSynonymIfNeeded(userId, categoryId, categoryText);
             delete userStates[chatId];
             await bot.answerCallbackQuery(query.id, { text: '✅ Сохранено' });
             await bot.editMessageText(
-              `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}${currency === 'RUB' ? '₽' : ` ${currency}`} (${cat.name}) добавлен.`,
+              `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}${currency === 'RUB' ? '₽' : ` ${currency}`} (${cat.name}) добавлен.\n💳 Счёт: ${saved?.accountName || '—'}`,
               {
                 chat_id: chatId,
                 message_id: query.message.message_id
@@ -1702,11 +1813,11 @@ bot.on('callback_query', async (query) => {
         return bot.answerCallbackQuery(query.id, { text: 'Сессия устарела. Попробуйте снова.', show_alert: true });
       }
 
-      const { type, amount, categoryText, currency = 'RUB' } = state.data;
+      const { type, amount, categoryText, currency = 'RUB', accountId = null } = state.data;
 
       userStates[chatId] = {
         step: 'fin_cat_text',
-        data: { type, amount, categoryText, currency }
+        data: { type, amount, categoryText, currency, accountId }
       };
 
       await bot.answerCallbackQuery(query.id, { text: 'Ок' });
@@ -1728,7 +1839,7 @@ bot.on('callback_query', async (query) => {
         return bot.answerCallbackQuery(query.id, { text: 'Сессия устарела. Попробуйте снова.', show_alert: true });
       }
       
-      const { type, amount, categoryText, pendingNewName, currency = 'RUB' } = state.data;
+      const { type, amount, categoryText, pendingNewName, currency = 'RUB', accountId = null } = state.data;
 
       // Если имя уже введено через текстовый поиск — создаём сразу
       if (pendingNewName) {
@@ -1747,6 +1858,7 @@ bot.on('callback_query', async (query) => {
             categoryId: newCategory.id,
             comment: categoryText,
             currency,
+            accountId,
           });
         } catch (e) {
           console.error('Category creation error:', e);
@@ -1758,7 +1870,7 @@ bot.on('callback_query', async (query) => {
       // Иначе — просим ввести название
       userStates[chatId] = {
         step: 'fin_cat_create',
-        data: { type, amount, categoryText, currency }
+        data: { type, amount, categoryText, currency, accountId }
       };
       
       await bot.answerCallbackQuery(query.id, { text: 'Ок' });

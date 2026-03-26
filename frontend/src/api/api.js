@@ -45,6 +45,22 @@ export async function post(endpoint, body) {
   return parseJsonOrEmpty(res);
 }
 
+export async function patch(endpoint, body) {
+  const res = await fetch(joinUrl(BASE_URL, endpoint), {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(body ?? {}),
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || 'Ошибка запроса');
+  }
+
+  return parseJsonOrEmpty(res);
+}
+
 export const remove = async (endpoint) => {
   const res = await fetch(joinUrl(BASE_URL, endpoint), {
     method: 'DELETE',

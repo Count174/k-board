@@ -26,6 +26,8 @@ const historyRoutes = require('./routes/history');
 const categoriesRoutes = require('./routes/categories');
 const ceoRoutes = require('./routes/ceo');
 const whoopRoutes = require('./routes/whoop');
+const accountsRoutes = require('./routes/accounts');
+const { bootstrapDefaultAccountsForAllUsers } = require('./utils/accountsService');
 
 app.set('trust proxy', 1); // доверие первому прокси (nginx)
 const allowedOrigins = new Set([
@@ -68,12 +70,17 @@ app.use('/api/history', historyRoutes);
 app.use('/api/categories', categoriesRoutes);
 app.use('/api/ceo', ceoRoutes);
 app.use('/api/whoop', whoopRoutes);
+app.use('/api/accounts', accountsRoutes);
 
 // Статика: favicon и изображения из корневой public
 app.get('/favicon.png', (req, res) => res.sendFile(path.join(publicPath, 'favicon.png')));
 app.use('/k-board/images', express.static(path.join(publicPath, 'images')));
 
 
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
-});
+bootstrapDefaultAccountsForAllUsers()
+  .catch((e) => console.error('accounts bootstrap failed:', e))
+  .finally(() => {
+    app.listen(PORT, () => {
+      console.log(`✅ Server running on port ${PORT}`);
+    });
+  });

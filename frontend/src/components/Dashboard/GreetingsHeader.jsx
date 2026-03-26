@@ -1,7 +1,7 @@
 // src/components/GreetingsHeader/GreetingsHeader.jsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import styles from './GreetingsHeader.module.css';
-import { User, Link2, LogOut, History, Heart, Key } from 'lucide-react';
+import { User, Link2, LogOut, History, Heart, Key, Settings } from 'lucide-react';
 import { post } from '../../api/api';
 import ChangePasswordModal from '../ChangePasswordModal';
 
@@ -101,6 +101,14 @@ function GreetingsHeader({ user, onConnectClick, onLogout }) {
               >
                 <History size={16} />
                 История пользователя
+              </button>
+
+              <button
+                onClick={() => { setDropdownOpen(false); window.location.href = '/settings'; }}
+                className={styles.dropItem}
+              >
+                <Settings size={16} />
+                Настройки
               </button>
 
               <button

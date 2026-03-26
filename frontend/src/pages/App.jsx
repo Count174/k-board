@@ -6,6 +6,7 @@ import UserHistoryPage from './HistoryPage';
 import ForgotPasswordPage from './ForgotPasswordPage';
 import ResetPasswordPage from './ResetPasswordPage';
 import HelicopterPage from './HelicopterPage';
+import SettingsPage from './SettingsPage';
 import '../styles/index.css';
 
 // Временный лендинг-заглушка (потом заменишь на реальный компонент)
@@ -75,6 +76,14 @@ export default function App() {
           element={
             <PrivateRoute>
               <UserHistoryPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <PrivateRoute>
+              <SettingsPage />
             </PrivateRoute>
           }
         />

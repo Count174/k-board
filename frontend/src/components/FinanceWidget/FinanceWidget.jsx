@@ -34,8 +34,9 @@ const FinanceWidget = () => {
   const [analyticsTx, setAnalyticsTx] = useState([]); // полный набор транзакций на период
   const [period, setPeriod] = useState("month");
   const [tab, setTab] = useState("transactions");
-  const [form, setForm] = useState({ type: "expense", category_id: "", comment: "", amount: "" });
+  const [form, setForm] = useState({ type: "expense", category_id: "", comment: "", amount: "", account_id: "" });
   const [categories, setCategories] = useState({ expense: [], income: [] });
+  const [accounts, setAccounts] = useState([]);
   const [showNewCategoryForm, setShowNewCategoryForm] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
 
@@ -130,8 +131,26 @@ const FinanceWidget = () => {
     }
   };
 
+  const fetchAccounts = async () => {
+    try {
+      const data = await get("/accounts");
+      const rows = Array.isArray(data) ? data : [];
+      setAccounts(rows);
+      setForm((prev) => {
+        if (prev.account_id) return prev;
+        if (rows.length === 1) return { ...prev, account_id: String(rows[0].id) };
+        const def = rows.find((a) => Number(a.is_default) === 1);
+        return def ? { ...prev, account_id: String(def.id) } : prev;
+      });
+    } catch (error) {
+      console.error("Ошибка при загрузке счетов:", error);
+      setAccounts([]);
+    }
+  };
+
   useEffect(() => {
     fetchCategories();
+    fetchAccounts();
   }, []);
 
   useEffect(() => {
@@ -146,15 +165,16 @@ const FinanceWidget = () => {
   }, [period, customApplied]);
 
   const handleAddTransaction = async () => {
-    if (!form.category_id || !form.amount) return;
+    if (!form.category_id || !form.amount || !form.account_id) return;
     try {
       await post("/finances", { 
         type: form.type,
         category_id: form.category_id,
         comment: form.comment || "",
-        amount: form.amount 
+        amount: form.amount,
+        account_id: Number(form.account_id),
       });
-      setForm({ type: "expense", category_id: "", comment: "", amount: "" });
+      setForm((prev) => ({ type: "expense", category_id: "", comment: "", amount: "", account_id: prev.account_id || "" }));
       setShowNewCategoryForm(false);
       setNewCategoryName("");
       setOffset(0);
@@ -377,13 +397,31 @@ const FinanceWidget = () => {
             <select
               value={form.type}
               onChange={(e) => {
-                setForm({ type: e.target.value, category_id: "", comment: "", amount: "" });
+                setForm({ type: e.target.value, category_id: "", comment: "", amount: "", account_id: form.account_id });
                 setShowNewCategoryForm(false);
               }}
             >
               <option value="income">Доход</option>
               <option value="expense">Расход</option>
             </select>
+            {accounts.length > 1 && (
+              <select
+                value={form.account_id}
+                onChange={(e) => setForm({ ...form, account_id: e.target.value })}
+              >
+                <option value="">Выберите счёт</option>
+                {accounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name} · {Number(a.balance || 0).toLocaleString("ru-RU")} {String(a.currency || "RUB").toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            )}
+            {accounts.length === 1 && (
+              <div className={styles.accountHint}>
+                Счёт: {accounts[0].name}
+              </div>
+            )}
             <select
               value={form.category_id}
               onChange={(e) => {
@@ -434,10 +472,15 @@ const FinanceWidget = () => {
               value={form.amount}
               onChange={(e) => setForm({ ...form, amount: e.target.value })}
             />
-            <button onClick={handleAddTransaction} disabled={!form.category_id || !form.amount}>
+            <button onClick={handleAddTransaction} disabled={!form.category_id || !form.amount || !form.account_id}>
               Добавить
             </button>
           </div>
+          {!accounts.length && (
+            <div className={styles.rangeHint}>
+              Создайте хотя бы один счёт в настройках, чтобы добавлять операции.
+            </div>
+          )}
 
           <ul className={styles.transactionsList}>
             {transactions.map((t) => (
@@ -446,6 +489,11 @@ const FinanceWidget = () => {
                   <span style={{ fontWeight: "bold" }}>
                     {t.category_name || t.category}
                   </span>
+                  {t.account_name && (
+                    <span style={{ fontSize: "0.85em", color: "#8990a8", marginLeft: "8px" }}>
+                      • {t.account_name}
+                    </span>
+                  )}
                   {t.comment && (
                     <span style={{ fontSize: "0.9em", color: "#666", marginLeft: "8px" }}>
                       ({t.comment})

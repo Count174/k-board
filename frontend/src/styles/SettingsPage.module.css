@@ -1,0 +1,127 @@
+.page {
+  min-height: 100vh;
+  background: #0d0d0d;
+  color: #fff;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.header button {
+  background: #2c2d35;
+  border: none;
+  color: #fff;
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+
+.card {
+  background: #1a1a1a;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.card h2 {
+  margin: 0 0 12px;
+}
+
+.form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.form input,
+.form select,
+.form button {
+  background: #2c2d35;
+  border: none;
+  color: #fff;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.form button {
+  background: #4f46e5;
+  cursor: pointer;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.item {
+  background: #22232b;
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.name {
+  font-weight: 700;
+}
+
+.meta {
+  font-size: 12px;
+  color: #9aa0b4;
+}
+
+.badge {
+  margin-left: 8px;
+  font-size: 11px;
+  color: #a5b4fc;
+}
+
+.right {
+  text-align: right;
+}
+
+.balance {
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.actions button {
+  background: #333541;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.actions .danger {
+  background: #7f1d1d;
+}
+
+.empty {
+  color: #9aa0b4;
+}
+
