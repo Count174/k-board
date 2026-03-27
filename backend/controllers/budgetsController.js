@@ -1,5 +1,13 @@
 const dayjs = require('dayjs');
-const { all, get, run, ensureBudgetsSchema, getEffectiveBudgets, getSpentByCategory } = require('../utils/budgetService');
+const {
+  all,
+  get,
+  run,
+  ensureBudgetsSchema,
+  getEffectiveBudgets,
+  getSpentByCategory,
+  RECURRING_MONTH,
+} = require('../utils/budgetService');
 
 // GET /api/budgets?month=YYYY-MM (month опционален: если не передали — вернём все)
 exports.getAll = async (req, res) => {
@@ -33,7 +41,7 @@ exports.upsert = async (req, res) => {
     const isRecurring = req.body.scope === 'recurring' ? 1 : 0;
     const budgetKind = req.body.budget_kind === 'total' ? 'total' : 'category';
     const normalizedCategory = budgetKind === 'total' ? '__total__' : category;
-    const targetMonth = isRecurring ? null : month;
+    const targetMonth = isRecurring ? RECURRING_MONTH : month;
     if (budgetKind === 'category' && !raw) {
       return res.status(400).json({ error: "category обязательна" });
     }
@@ -50,12 +58,12 @@ exports.upsert = async (req, res) => {
           AND budget_kind = ?
           AND LOWER(TRIM(category)) = LOWER(TRIM(?))
           AND (
-            (is_recurring = 1 AND (month IS NULL OR month = ''))
+            (is_recurring = 1 AND (month = ? OR month IS NULL OR month = ''))
             OR
             (is_recurring = 0 AND month = ?)
           )
         LIMIT 1`,
-      [req.userId, budgetKind, normalizedCategory, targetMonth]
+      [req.userId, budgetKind, normalizedCategory, RECURRING_MONTH, targetMonth]
     );
     if (row?.id) {
       await run(

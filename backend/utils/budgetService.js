@@ -1,4 +1,5 @@
 const db = require('../db/db');
+const RECURRING_MONTH = '__recurring__';
 
 const all = (sql, params = []) =>
   new Promise((resolve, reject) => {
@@ -38,6 +39,7 @@ async function ensureBudgetsSchema() {
   if (!(await tableExists('budgets'))) return;
   await addColumnIfMissing('budgets', 'is_recurring', 'is_recurring INTEGER NOT NULL DEFAULT 0');
   await addColumnIfMissing('budgets', 'budget_kind', `budget_kind TEXT NOT NULL DEFAULT 'category'`);
+  await run(`UPDATE budgets SET month = ? WHERE is_recurring = 1 AND (month IS NULL OR month = '')`, [RECURRING_MONTH]);
   await run(`CREATE INDEX IF NOT EXISTS idx_budgets_user_month_kind_cat ON budgets(user_id, month, budget_kind, category)`);
 }
 
@@ -53,8 +55,8 @@ async function getEffectiveBudgets(userId, month) {
   const recurring = await all(
     `SELECT id, category, amount, month, is_recurring, budget_kind
        FROM budgets
-      WHERE user_id = ? AND is_recurring = 1 AND (month IS NULL OR month = '')`,
-    [userId]
+      WHERE user_id = ? AND is_recurring = 1 AND (month = ? OR month IS NULL OR month = '')`,
+    [userId, RECURRING_MONTH]
   );
 
   const monthlyByKey = new Map();
@@ -112,5 +114,6 @@ module.exports = {
   ensureBudgetsSchema,
   getEffectiveBudgets,
   getSpentByCategory,
+  RECURRING_MONTH,
 };
 
