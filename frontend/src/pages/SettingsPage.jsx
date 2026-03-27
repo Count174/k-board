@@ -6,19 +6,33 @@ const CURRENCIES = ['RUB', 'USD', 'EUR', 'TRY', 'GBP', 'AED', 'KZT', 'GEL'];
 
 export default function SettingsPage() {
   const [accounts, setAccounts] = useState([]);
+  const [month, setMonth] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  });
   const [form, setForm] = useState({ name: '', bank_name: '', currency: 'RUB', balance: '' });
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({ name: '', bank_name: '', balance: '' });
+  const [budgetStats, setBudgetStats] = useState(null);
+  const [budgetSuggestions, setBudgetSuggestions] = useState([]);
+  const [budgetForm, setBudgetForm] = useState({ category: '', amount: '', scope: 'month' });
+  const [totalBudgetForm, setTotalBudgetForm] = useState({ amount: '', scope: 'month' });
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
-    const data = await get('accounts');
-    setAccounts(Array.isArray(data) ? data : []);
+    const [accData, stats, suggestions] = await Promise.all([
+      get('accounts'),
+      get(`budgets/stats?month=${month}`).catch(() => null),
+      get('budgets/suggestions').catch(() => []),
+    ]);
+    setAccounts(Array.isArray(accData) ? accData : []);
+    setBudgetStats(stats);
+    setBudgetSuggestions(Array.isArray(suggestions) ? suggestions : []);
   };
 
   useEffect(() => {
     load().catch(() => {});
-  }, []);
+  }, [month]);
 
   const onCreate = async () => {
     if (!form.name.trim()) return;
@@ -131,11 +145,146 @@ export default function SettingsPage() {
     }
   };
 
+  const onSaveCategoryBudget = async () => {
+    const category = String(budgetForm.category || '').trim().toLowerCase();
+    const amount = Number(budgetForm.amount);
+    if (!category) return alert('Укажи категорию');
+    if (!(amount > 0)) return alert('Сумма должна быть больше 0');
+    await post('budgets', {
+      budget_kind: 'category',
+      category,
+      amount,
+      month,
+      scope: budgetForm.scope,
+    });
+    setBudgetForm({ category: '', amount: '', scope: budgetForm.scope });
+    await load();
+  };
+
+  const onSaveTotalBudget = async () => {
+    const amount = Number(totalBudgetForm.amount);
+    if (!(amount > 0)) return alert('Сумма должна быть больше 0');
+    await post('budgets', {
+      budget_kind: 'total',
+      amount,
+      month,
+      scope: totalBudgetForm.scope,
+    });
+    setTotalBudgetForm({ ...totalBudgetForm, amount: '' });
+    await load();
+  };
+
+  const onDeleteBudget = async (id) => {
+    if (!id) return;
+    if (!window.confirm('Удалить бюджет?')) return;
+    await remove(`budgets/${id}`);
+    await load();
+  };
+
   return (
     <div className={styles.page}>
       <div className={styles.header}>
         <h1>Настройки · Счета</h1>
         <button onClick={() => (window.location.href = '/dashboard')}>Назад</button>
+      </div>
+
+      <div className={styles.card}>
+        <h2>Бюджеты</h2>
+        <div className={styles.budgetMonthRow}>
+          <label>Месяц</label>
+          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+        </div>
+
+        <div className={styles.budgetGrid}>
+          <div className={styles.budgetPane}>
+            <h3>Общий бюджет</h3>
+            <div className={styles.inlineForm}>
+              <input
+                type="number"
+                placeholder="Сумма на месяц"
+                value={totalBudgetForm.amount}
+                onChange={(e) => setTotalBudgetForm((s) => ({ ...s, amount: e.target.value }))}
+              />
+              <select
+                value={totalBudgetForm.scope}
+                onChange={(e) => setTotalBudgetForm((s) => ({ ...s, scope: e.target.value }))}
+              >
+                <option value="month">Только на этот месяц</option>
+                <option value="recurring">Постоянно</option>
+              </select>
+              <button onClick={onSaveTotalBudget}>Сохранить</button>
+            </div>
+            <div className={styles.budgetHint}>
+              {budgetStats?.totalBudget == null
+                ? 'Общий бюджет не задан'
+                : `Задан: ${Number(budgetStats.totalBudget).toLocaleString('ru-RU')} ₽ · распределено: ${Number(
+                    budgetStats.allocated || 0
+                  ).toLocaleString('ru-RU')} ₽ · остаток: ${Number(budgetStats.unallocated || 0).toLocaleString('ru-RU')} ₽`}
+            </div>
+          </div>
+
+          <div className={styles.budgetPane}>
+            <h3>Бюджет по категории</h3>
+            <div className={styles.inlineForm}>
+              <input
+                placeholder="Категория"
+                value={budgetForm.category}
+                onChange={(e) => setBudgetForm((s) => ({ ...s, category: e.target.value }))}
+              />
+              <input
+                type="number"
+                placeholder="Сумма"
+                value={budgetForm.amount}
+                onChange={(e) => setBudgetForm((s) => ({ ...s, amount: e.target.value }))}
+              />
+              <select
+                value={budgetForm.scope}
+                onChange={(e) => setBudgetForm((s) => ({ ...s, scope: e.target.value }))}
+              >
+                <option value="month">Только на этот месяц</option>
+                <option value="recurring">Постоянно</option>
+              </select>
+              <button onClick={onSaveCategoryBudget}>Добавить</button>
+            </div>
+            {!!budgetSuggestions.length && (
+              <div className={styles.suggestions}>
+                {budgetSuggestions.slice(0, 8).map((s) => (
+                  <button
+                    key={s.category}
+                    type="button"
+                    className={styles.suggestionChip}
+                    onClick={() => setBudgetForm((f) => ({ ...f, category: s.category }))}
+                  >
+                    {s.category}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className={styles.budgetList}>
+          {(budgetStats?.items || []).map((b) => (
+            <div key={`${b.id || 'other'}-${b.category}`} className={styles.budgetItem}>
+              <div>
+                <div className={styles.name}>
+                  {b.category}
+                  <span className={styles.badge}>{b.source === 'recurring' ? 'Постоянный' : 'На месяц'}</span>
+                </div>
+                <div className={styles.meta}>
+                  Лимит {Number(b.budget || 0).toLocaleString('ru-RU')} ₽ · Факт {Number(b.spent || 0).toLocaleString('ru-RU')} ₽ · Остаток{' '}
+                  {Number(b.remaining || 0).toLocaleString('ru-RU')} ₽
+                </div>
+              </div>
+              {!!b.id && (
+                <button className={styles.danger} onClick={() => onDeleteBudget(b.id)}>
+                  Удалить
+                </button>
+              )}
+            </div>
+          ))}
+          {!budgetStats?.items?.length && <div className={styles.empty}>Бюджеты пока не настроены</div>}
+        </div>
       </div>
 
       <div className={styles.card}>

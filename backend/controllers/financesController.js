@@ -7,6 +7,7 @@ const {
   applyAccountDelta,
   run,
 } = require('../utils/accountsService');
+const { getEffectiveBudgets } = require('../utils/budgetService');
 
 // small helpers
 const all = (sql, p = []) => new Promise((res, rej) =>
@@ -316,29 +317,26 @@ exports.getMonthOverview = async (req, res) => {
     const avgPerDay = daysPassed ? (Number(spentRow?.total || 0) / daysPassed) : 0;
     const forecast  = Math.round(avgPerDay * daysInMonth(month));
 
-    // 3) % использования бюджетов (по сумме лимитов)
-    const budgets = await all(
-      `SELECT LOWER(TRIM(category)) AS cat, amount
-         FROM budgets
-        WHERE user_id=? AND month=?`,
+    // 3) % использования бюджетов (учитываем постоянные и общий бюджет)
+    const { totalBudget, categories } = await getEffectiveBudgets(req.userId, month);
+    const spentByCat = await all(
+      `SELECT LOWER(TRIM(category)) AS cat, SUM(ABS(COALESCE(amount_rub, amount))) AS total
+         FROM finances
+        WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=?
+        GROUP BY LOWER(TRIM(category))`,
       [req.userId, month]
     );
-
-    let planSum = 0, spentSum = 0;
-    if (budgets.length) {
-      const spent = await all(
-        `SELECT LOWER(TRIM(category)) AS cat, SUM(ABS(COALESCE(amount_rub, amount))) AS total
-           FROM finances
-          WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=?
-          GROUP BY LOWER(TRIM(category))`,
-        [req.userId, month]
-      );
-      const mapSpent = Object.fromEntries(spent.map(r => [r.cat, Number(r.total)||0]));
-      for (const b of budgets) {
-        const plan = Number(b.amount) || 0;
+    const mapSpent = Object.fromEntries(spentByCat.map((r) => [r.cat, Number(r.total) || 0]));
+    const plannedCats = categories.reduce((s, c) => s + Number(c.amount || 0), 0);
+    const planSum = totalBudget ? Number(totalBudget.amount || 0) : plannedCats;
+    let spentSum = 0;
+    if (totalBudget) {
+      spentSum = Math.min(expenses, planSum);
+    } else {
+      for (const c of categories) {
+        const plan = Number(c.amount || 0);
         if (plan <= 0) continue;
-        planSum  += plan;
-        spentSum += Math.min(mapSpent[b.cat] || 0, plan);
+        spentSum += Math.min(mapSpent[c.category] || 0, plan);
       }
     }
     const budgetUsePct = planSum > 0 ? Number(((spentSum / planSum) * 100).toFixed(1)) : null;

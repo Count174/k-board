@@ -1,5 +1,6 @@
 const db = require('../db/db');
 const dayjs = require('dayjs');
+const { getEffectiveBudgets } = require('../utils/budgetService');
 
 // ---------- утилиты ----------
 const all = (sql, p = []) =>
@@ -167,17 +168,13 @@ async function calcMeds(userId, start, end) {
 
 // ---------- FINANCE ----------
 async function calcFinanceTighter(userId, start, end) {
-  const startMonth = dayjs(start).format('YYYY-MM');
-  const endMonth   = dayjs(end).format('YYYY-MM');
-
-  const budgets = await all(
-    `SELECT month, SUM(amount) total
-     FROM budgets
-     WHERE user_id=? AND month>=? AND month<=?
-     GROUP BY month`,
-    [userId, startMonth, endMonth]
-  );
-  const byMonthBudget = new Map(budgets.map(r => [r.month, Number(r.total) || 0]));
+  const months = Array.from(new Set(eachDate(start, end).map(d => d.slice(0, 7))));
+  const byMonthBudget = new Map();
+  for (const m of months) {
+    const eff = await getEffectiveBudgets(userId, m);
+    const catSum = eff.categories.reduce((s, c) => s + Number(c.amount || 0), 0);
+    byMonthBudget.set(m, Number(eff.totalBudget?.amount || catSum || 0));
+  }
 
   const expenses = await all(
     `SELECT date(date) d, SUM(COALESCE(amount_rub, amount)) spent
@@ -224,14 +221,12 @@ async function calcConsistency(userId, start, end) {
   const months = Array.from(new Set(days.map(d => d.slice(0,7))));
 
   // бюджеты по месяцам
-  const budgets = await all(
-    `SELECT month, SUM(amount) AS total
-       FROM budgets
-      WHERE user_id=? AND month IN (${months.map(()=>'?').join(',')})
-      GROUP BY month`,
-    [userId, ...months]
-  );
-  const budgetByMonth = new Map(budgets.map(r => [r.month, Number(r.total) || 0]));
+  const budgetByMonth = new Map();
+  for (const m of months) {
+    const eff = await getEffectiveBudgets(userId, m);
+    const catSum = eff.categories.reduce((s, c) => s + Number(c.amount || 0), 0);
+    budgetByMonth.set(m, Number(eff.totalBudget?.amount || catSum || 0));
+  }
 
   // расходы по дням
   const expRows = await all(

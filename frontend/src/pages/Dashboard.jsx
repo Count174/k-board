@@ -10,7 +10,6 @@ import HealthWidget from '../components/HealthWidget/HealthWidget';
 import MedicationsWidget from '../components/MedicationsWidget/MedicationsWidget';
 import GoalsWidget from '../components/GoalsWidget/GoalsWidget';
 import FinanceWidget from '../components/FinanceWidget/FinanceWidget';
-import BudgetWidget from '../components/BudgetWidget/BudgetWidget';
 import SavingsWidget from '../components/SavingsWidget/SavingsWidget';
 import LoansWidget from '../components/LoansWidget/LoansWidget';
 
@@ -52,7 +51,6 @@ export default function Dashboard() {
         <div className={styles.widgetsColumn}>
           <GoalsWidget />
           <FinanceWidget />
-          <BudgetWidget />
           <SavingsWidget />
           <LoansWidget />
         </div>
