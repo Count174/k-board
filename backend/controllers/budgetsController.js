@@ -166,6 +166,41 @@ exports.remove = async (req, res) => {
   }
 };
 
+exports.update = async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: 'invalid_budget_id' });
+  try {
+    await ensureBudgetsSchema();
+    const existing = await get(`SELECT * FROM budgets WHERE id = ? AND user_id = ?`, [id, req.userId]);
+    if (!existing) return res.status(404).json({ error: 'budget_not_found' });
+
+    const budgetKind = req.body.budget_kind === 'total' ? 'total' : (existing.budget_kind || 'category');
+    const rawCategory = req.body.category != null ? String(req.body.category).trim().replace(/\s+/g, ' ') : String(existing.category || '');
+    const normalizedCategory = budgetKind === 'total' ? '__total__' : rawCategory.toLowerCase();
+    const amount = req.body.amount != null ? Number(req.body.amount) : Number(existing.amount || 0);
+    const isRecurring = req.body.scope ? (req.body.scope === 'recurring' ? 1 : 0) : Number(existing.is_recurring || 0);
+    const month = req.body.month != null ? String(req.body.month) : String(existing.month || '');
+    const targetMonth = isRecurring ? RECURRING_MONTH : month;
+
+    if (budgetKind === 'category' && !normalizedCategory) {
+      return res.status(400).json({ error: 'category_required' });
+    }
+    if (!(amount > 0)) return res.status(400).json({ error: 'amount_must_be_positive' });
+    if (!isRecurring && !targetMonth) return res.status(400).json({ error: 'month_required' });
+
+    await run(
+      `UPDATE budgets
+          SET category = ?, amount = ?, month = ?, is_recurring = ?, budget_kind = ?, updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND user_id = ?`,
+      [normalizedCategory, amount, targetMonth, isRecurring, budgetKind, id, req.userId]
+    );
+    return res.json({ updated: true, id });
+  } catch (e) {
+    console.error('budgets.update error:', e);
+    return res.status(500).json({ error: 'budget_update_failed' });
+  }
+};
+
 exports.getSuggestions = async (req, res) => {
   try {
     const rows = await all(

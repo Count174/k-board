@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { get, post, patch, remove } from '../api/api';
+import Modal from '../components/Modal';
 import styles from '../styles/SettingsPage.module.css';
 
 const CURRENCIES = ['RUB', 'USD', 'EUR', 'TRY', 'GBP', 'AED', 'KZT', 'GEL'];
@@ -10,14 +11,21 @@ export default function SettingsPage() {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
-  const [form, setForm] = useState({ name: '', bank_name: '', currency: 'RUB', balance: '' });
-  const [editingId, setEditingId] = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', bank_name: '', balance: '' });
   const [budgetStats, setBudgetStats] = useState(null);
   const [budgetSuggestions, setBudgetSuggestions] = useState([]);
-  const [budgetForm, setBudgetForm] = useState({ category: '', amount: '', scope: 'month' });
-  const [totalBudgetForm, setTotalBudgetForm] = useState({ amount: '', scope: 'month' });
   const [busy, setBusy] = useState(false);
+  const [accountModal, setAccountModal] = useState({
+    open: false,
+    mode: 'create',
+    id: null,
+    draft: { name: '', bank_name: '', currency: 'RUB', balance: '' },
+  });
+  const [budgetModal, setBudgetModal] = useState({
+    open: false,
+    mode: 'create_category',
+    id: null,
+    draft: { budget_kind: 'category', category: '', amount: '', scope: 'month' },
+  });
 
   const load = async () => {
     const [accData, stats, suggestions] = await Promise.all([
@@ -34,17 +42,57 @@ export default function SettingsPage() {
     load().catch(() => {});
   }, [month]);
 
-  const onCreate = async () => {
-    if (!form.name.trim()) return;
+  const openCreateAccount = () => {
+    setAccountModal({
+      open: true,
+      mode: 'create',
+      id: null,
+      draft: { name: '', bank_name: '', currency: 'RUB', balance: '' },
+    });
+  };
+
+  const openEditAccount = (a) => {
+    setAccountModal({
+      open: true,
+      mode: 'edit',
+      id: a.id,
+      draft: {
+        name: a.name || '',
+        bank_name: a.bank_name || '',
+        currency: String(a.currency || 'RUB').toUpperCase(),
+        balance: String(Number(a.balance || 0)),
+      },
+    });
+  };
+
+  const closeAccountModal = () => {
+    setAccountModal((m) => ({ ...m, open: false }));
+  };
+
+  const saveAccountModal = async () => {
+    const draft = accountModal.draft;
+    const name = String(draft.name || '').trim();
+    const bankName = String(draft.bank_name || '').trim();
+    const balance = Number(draft.balance);
+    if (!name) return alert('Название счета обязательно.');
+    if (!Number.isFinite(balance)) return alert('Остаток должен быть числом.');
     try {
       setBusy(true);
-      await post('accounts', {
-        name: form.name.trim(),
-        bank_name: form.bank_name.trim() || null,
-        currency: form.currency,
-        balance: form.balance === '' ? 0 : Number(form.balance),
-      });
-      setForm({ name: '', bank_name: '', currency: 'RUB', balance: '' });
+      if (accountModal.mode === 'create') {
+        await post('accounts', {
+          name,
+          bank_name: bankName || null,
+          currency: draft.currency,
+          balance,
+        });
+      } else {
+        await patch(`accounts/${accountModal.id}`, {
+          name,
+          bank_name: bankName || null,
+          balance,
+        });
+      }
+      closeAccountModal();
       await load();
     } finally {
       setBusy(false);
@@ -103,39 +151,6 @@ export default function SettingsPage() {
     alert('Отменено: выберите 1 или 2.');
   };
 
-  const startEdit = (a) => {
-    setEditingId(a.id);
-    setEditForm({
-      name: a.name || '',
-      bank_name: a.bank_name || '',
-      balance: String(Number(a.balance || 0)),
-    });
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditForm({ name: '', bank_name: '', balance: '' });
-  };
-
-  const saveEdit = async (id) => {
-    const name = String(editForm.name || '').trim();
-    const bankName = String(editForm.bank_name || '').trim();
-    const balance = Number(editForm.balance);
-    if (!name) return alert('Название счета обязательно.');
-    if (!Number.isFinite(balance)) return alert('Остаток должен быть числом.');
-    try {
-      await patch(`accounts/${id}`, {
-        name,
-        bank_name: bankName || null,
-        balance,
-      });
-      cancelEdit();
-      await load();
-    } catch (e) {
-      alert('Не удалось сохранить изменения счёта.');
-    }
-  };
-
   const onSetDefault = async (id) => {
     try {
       await patch(`accounts/${id}`, { is_default: true });
@@ -145,32 +160,63 @@ export default function SettingsPage() {
     }
   };
 
-  const onSaveCategoryBudget = async () => {
-    const category = String(budgetForm.category || '').trim().toLowerCase();
-    const amount = Number(budgetForm.amount);
-    if (!category) return alert('Укажи категорию');
-    if (!(amount > 0)) return alert('Сумма должна быть больше 0');
-    await post('budgets', {
-      budget_kind: 'category',
-      category,
-      amount,
-      month,
-      scope: budgetForm.scope,
+  const openCreateTotalBudget = () => {
+    setBudgetModal({
+      open: true,
+      mode: 'create_total',
+      id: null,
+      draft: { budget_kind: 'total', category: '', amount: '', scope: 'month' },
     });
-    setBudgetForm({ category: '', amount: '', scope: budgetForm.scope });
-    await load();
   };
 
-  const onSaveTotalBudget = async () => {
-    const amount = Number(totalBudgetForm.amount);
+  const openCreateCategoryBudget = () => {
+    setBudgetModal({
+      open: true,
+      mode: 'create_category',
+      id: null,
+      draft: { budget_kind: 'category', category: '', amount: '', scope: 'month' },
+    });
+  };
+
+  const openEditBudget = (b) => {
+    if (!b?.id) return;
+    setBudgetModal({
+      open: true,
+      mode: 'edit',
+      id: b.id,
+      draft: {
+        budget_kind: b.category === '__total__' ? 'total' : 'category',
+        category: b.category || '',
+        amount: String(Number(b.budget || 0)),
+        scope: b.source === 'recurring' ? 'recurring' : 'month',
+      },
+    });
+  };
+
+  const closeBudgetModal = () => {
+    setBudgetModal((m) => ({ ...m, open: false }));
+  };
+
+  const saveBudgetModal = async () => {
+    const draft = budgetModal.draft;
+    const amount = Number(draft.amount);
     if (!(amount > 0)) return alert('Сумма должна быть больше 0');
-    await post('budgets', {
-      budget_kind: 'total',
+    if (draft.budget_kind === 'category' && !String(draft.category || '').trim()) {
+      return alert('Укажи категорию');
+    }
+    const payload = {
+      budget_kind: draft.budget_kind,
+      category: String(draft.category || '').trim().toLowerCase(),
       amount,
       month,
-      scope: totalBudgetForm.scope,
-    });
-    setTotalBudgetForm({ ...totalBudgetForm, amount: '' });
+      scope: draft.scope,
+    };
+    if (budgetModal.mode === 'edit' && budgetModal.id) {
+      await patch(`budgets/${budgetModal.id}`, payload);
+    } else {
+      await post('budgets', payload);
+    }
+    closeBudgetModal();
     await load();
   };
 
@@ -181,10 +227,17 @@ export default function SettingsPage() {
     await load();
   };
 
+  const totalBudgetText = useMemo(() => {
+    if (budgetStats?.totalBudget == null) return 'Общий бюджет не задан';
+    return `Задан: ${Number(budgetStats.totalBudget).toLocaleString('ru-RU')} ₽ · распределено: ${Number(
+      budgetStats.allocated || 0
+    ).toLocaleString('ru-RU')} ₽ · остаток: ${Number(budgetStats.unallocated || 0).toLocaleString('ru-RU')} ₽`;
+  }, [budgetStats]);
+
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <h1>Настройки · Счета</h1>
+        <h1>Настройки</h1>
         <button onClick={() => (window.location.href = '/dashboard')}>Назад</button>
       </div>
 
@@ -198,68 +251,14 @@ export default function SettingsPage() {
         <div className={styles.budgetGrid}>
           <div className={styles.budgetPane}>
             <h3>Общий бюджет</h3>
-            <div className={styles.inlineForm}>
-              <input
-                type="number"
-                placeholder="Сумма на месяц"
-                value={totalBudgetForm.amount}
-                onChange={(e) => setTotalBudgetForm((s) => ({ ...s, amount: e.target.value }))}
-              />
-              <select
-                value={totalBudgetForm.scope}
-                onChange={(e) => setTotalBudgetForm((s) => ({ ...s, scope: e.target.value }))}
-              >
-                <option value="month">Только на этот месяц</option>
-                <option value="recurring">Постоянно</option>
-              </select>
-              <button onClick={onSaveTotalBudget}>Сохранить</button>
-            </div>
-            <div className={styles.budgetHint}>
-              {budgetStats?.totalBudget == null
-                ? 'Общий бюджет не задан'
-                : `Задан: ${Number(budgetStats.totalBudget).toLocaleString('ru-RU')} ₽ · распределено: ${Number(
-                    budgetStats.allocated || 0
-                  ).toLocaleString('ru-RU')} ₽ · остаток: ${Number(budgetStats.unallocated || 0).toLocaleString('ru-RU')} ₽`}
-            </div>
+            <button className={styles.primaryBtn} onClick={openCreateTotalBudget}>Добавить / изменить</button>
+            <div className={styles.budgetHint}>{totalBudgetText}</div>
           </div>
 
           <div className={styles.budgetPane}>
             <h3>Бюджет по категории</h3>
-            <div className={styles.inlineForm}>
-              <input
-                placeholder="Категория"
-                value={budgetForm.category}
-                onChange={(e) => setBudgetForm((s) => ({ ...s, category: e.target.value }))}
-              />
-              <input
-                type="number"
-                placeholder="Сумма"
-                value={budgetForm.amount}
-                onChange={(e) => setBudgetForm((s) => ({ ...s, amount: e.target.value }))}
-              />
-              <select
-                value={budgetForm.scope}
-                onChange={(e) => setBudgetForm((s) => ({ ...s, scope: e.target.value }))}
-              >
-                <option value="month">Только на этот месяц</option>
-                <option value="recurring">Постоянно</option>
-              </select>
-              <button onClick={onSaveCategoryBudget}>Добавить</button>
-            </div>
-            {!!budgetSuggestions.length && (
-              <div className={styles.suggestions}>
-                {budgetSuggestions.slice(0, 8).map((s) => (
-                  <button
-                    key={s.category}
-                    type="button"
-                    className={styles.suggestionChip}
-                    onClick={() => setBudgetForm((f) => ({ ...f, category: s.category }))}
-                  >
-                    {s.category}
-                  </button>
-                ))}
-              </div>
-            )}
+            <button className={styles.primaryBtn} onClick={openCreateCategoryBudget}>Добавить категорию</button>
+            <div className={styles.budgetHint}>Рекомендуемые категории берутся из истории расходов</div>
           </div>
         </div>
 
@@ -277,9 +276,12 @@ export default function SettingsPage() {
                 </div>
               </div>
               {!!b.id && (
-                <button className={styles.danger} onClick={() => onDeleteBudget(b.id)}>
-                  Удалить
-                </button>
+                <div className={styles.actions}>
+                  <button onClick={() => openEditBudget(b)}>Редактировать</button>
+                  <button className={styles.danger} onClick={() => onDeleteBudget(b.id)}>
+                    Удалить
+                  </button>
+                </div>
               )}
             </div>
           ))}
@@ -288,21 +290,65 @@ export default function SettingsPage() {
       </div>
 
       <div className={styles.card}>
-        <h2>Добавить счёт</h2>
-        <div className={styles.form}>
+        <h2>Счета</h2>
+        <button className={styles.primaryBtn} onClick={openCreateAccount}>Добавить счет</button>
+        <ul className={styles.list}>
+          {accounts.map((a) => (
+            <li key={a.id} className={styles.item}>
+              <div>
+                <div className={styles.name}>
+                  {a.name} {Number(a.is_default) === 1 ? <span className={styles.badge}>Основной</span> : null}
+                </div>
+                <div className={styles.meta}>
+                  {a.bank_name || 'Без банка'} · {String(a.currency || 'RUB').toUpperCase()} · операций: {Number(a.transactions_count || 0)}
+                </div>
+              </div>
+              <div className={styles.right}>
+                <div className={styles.balance}>
+                  {Number(a.balance || 0).toLocaleString('ru-RU')} {String(a.currency || 'RUB').toUpperCase()}
+                </div>
+                <div className={styles.actions}>
+                  <button onClick={() => openEditAccount(a)}>Редактировать</button>
+                  {Number(a.is_default) !== 1 && (
+                    <button onClick={() => onSetDefault(a.id)}>Сделать основным</button>
+                  )}
+                  <button className={styles.danger} onClick={() => onDelete(a.id, a.name)}>
+                    Удалить
+                  </button>
+                </div>
+              </div>
+            </li>
+          ))}
+          {!accounts.length && <li className={styles.empty}>Счета не найдены</li>}
+        </ul>
+      </div>
+
+      <Modal
+        open={accountModal.open}
+        onClose={closeAccountModal}
+        title={accountModal.mode === 'create' ? 'Добавить счёт' : 'Редактировать счёт'}
+      >
+        <div className={styles.modalForm}>
           <input
             placeholder="Название счёта"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            value={accountModal.draft.name}
+            onChange={(e) =>
+              setAccountModal((m) => ({ ...m, draft: { ...m.draft, name: e.target.value } }))
+            }
           />
           <input
             placeholder="Банк (опционально)"
-            value={form.bank_name}
-            onChange={(e) => setForm({ ...form, bank_name: e.target.value })}
+            value={accountModal.draft.bank_name}
+            onChange={(e) =>
+              setAccountModal((m) => ({ ...m, draft: { ...m.draft, bank_name: e.target.value } }))
+            }
           />
           <select
-            value={form.currency}
-            onChange={(e) => setForm({ ...form, currency: e.target.value })}
+            value={accountModal.draft.currency}
+            disabled={accountModal.mode === 'edit'}
+            onChange={(e) =>
+              setAccountModal((m) => ({ ...m, draft: { ...m.draft, currency: e.target.value } }))
+            }
           >
             {CURRENCIES.map((c) => (
               <option key={c} value={c}>
@@ -313,79 +359,84 @@ export default function SettingsPage() {
           <input
             type="number"
             placeholder="Остаток"
-            value={form.balance}
-            onChange={(e) => setForm({ ...form, balance: e.target.value })}
+            value={accountModal.draft.balance}
+            onChange={(e) =>
+              setAccountModal((m) => ({ ...m, draft: { ...m.draft, balance: e.target.value } }))
+            }
           />
-          <button disabled={busy || !form.name.trim()} onClick={onCreate}>
-            Добавить
-          </button>
+          <div className={styles.modalActions}>
+            <button className={styles.secondaryBtn} onClick={closeAccountModal}>Отмена</button>
+            <button className={styles.primaryBtn} disabled={busy} onClick={saveAccountModal}>
+              {accountModal.mode === 'create' ? 'Добавить' : 'Сохранить'}
+            </button>
+          </div>
         </div>
-      </div>
+      </Modal>
 
-      <div className={styles.card}>
-        <h2>Мои счета</h2>
-        <ul className={styles.list}>
-          {accounts.map((a) => (
-            <li key={a.id} className={styles.item}>
-              <div>
-                {editingId === a.id ? (
-                  <div className={styles.editGrid}>
-                    <input
-                      value={editForm.name}
-                      onChange={(e) => setEditForm((s) => ({ ...s, name: e.target.value }))}
-                      placeholder="Название счета"
-                    />
-                    <input
-                      value={editForm.bank_name}
-                      onChange={(e) => setEditForm((s) => ({ ...s, bank_name: e.target.value }))}
-                      placeholder="Банк"
-                    />
-                    <input
-                      type="number"
-                      value={editForm.balance}
-                      onChange={(e) => setEditForm((s) => ({ ...s, balance: e.target.value }))}
-                      placeholder="Остаток"
-                    />
-                  </div>
-                ) : (
-                  <>
-                    <div className={styles.name}>
-                      {a.name} {Number(a.is_default) === 1 ? <span className={styles.badge}>Основной</span> : null}
-                    </div>
-                    <div className={styles.meta}>
-                      {a.bank_name || 'Без банка'} · {String(a.currency || 'RUB').toUpperCase()} · операций: {Number(a.transactions_count || 0)}
-                    </div>
-                  </>
-                )}
-              </div>
-              <div className={styles.right}>
-                <div className={styles.balance}>
-                  {Number(a.balance || 0).toLocaleString('ru-RU')} {String(a.currency || 'RUB').toUpperCase()}
-                </div>
-                <div className={styles.actions}>
-                  {editingId === a.id ? (
-                    <>
-                      <button onClick={() => saveEdit(a.id)}>Сохранить</button>
-                      <button onClick={cancelEdit}>Отмена</button>
-                    </>
-                  ) : (
-                    <>
-                      <button onClick={() => startEdit(a)}>Редактировать</button>
-                      {Number(a.is_default) !== 1 && (
-                        <button onClick={() => onSetDefault(a.id)}>Сделать основным</button>
-                      )}
-                      <button className={styles.danger} onClick={() => onDelete(a.id, a.name)}>
-                        Удалить
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </li>
-          ))}
-          {!accounts.length && <li className={styles.empty}>Счета не найдены</li>}
-        </ul>
-      </div>
+      <Modal
+        open={budgetModal.open}
+        onClose={closeBudgetModal}
+        title={
+          budgetModal.mode === 'edit'
+            ? 'Редактировать бюджет'
+            : budgetModal.mode === 'create_total'
+              ? 'Общий бюджет'
+              : 'Бюджет по категории'
+        }
+      >
+        <div className={styles.modalForm}>
+          {budgetModal.draft.budget_kind === 'category' && (
+            <input
+              placeholder="Категория"
+              value={budgetModal.draft.category}
+              onChange={(e) =>
+                setBudgetModal((m) => ({ ...m, draft: { ...m.draft, category: e.target.value } }))
+              }
+            />
+          )}
+          <input
+            type="number"
+            placeholder="Сумма"
+            value={budgetModal.draft.amount}
+            onChange={(e) =>
+              setBudgetModal((m) => ({ ...m, draft: { ...m.draft, amount: e.target.value } }))
+            }
+          />
+          <select
+            value={budgetModal.draft.scope}
+            onChange={(e) =>
+              setBudgetModal((m) => ({ ...m, draft: { ...m.draft, scope: e.target.value } }))
+            }
+          >
+            <option value="month">Только на этот месяц</option>
+            <option value="recurring">Постоянно</option>
+          </select>
+
+          {budgetModal.draft.budget_kind === 'category' && !!budgetSuggestions.length && (
+            <div className={styles.suggestions}>
+              {budgetSuggestions.slice(0, 8).map((s) => (
+                <button
+                  key={s.category}
+                  type="button"
+                  className={styles.suggestionChip}
+                  onClick={() =>
+                    setBudgetModal((m) => ({ ...m, draft: { ...m.draft, category: s.category } }))
+                  }
+                >
+                  {s.category}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className={styles.modalActions}>
+            <button className={styles.secondaryBtn} onClick={closeBudgetModal}>Отмена</button>
+            <button className={styles.primaryBtn} onClick={saveBudgetModal}>
+              {budgetModal.mode === 'edit' ? 'Сохранить' : 'Добавить'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

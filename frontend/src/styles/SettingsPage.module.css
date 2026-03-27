@@ -76,6 +76,9 @@
   background: #22232b;
   border-radius: 12px;
   padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .inlineForm {
@@ -101,6 +104,24 @@
 
 .inlineForm button {
   background: #4f46e5;
+  border: none;
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.primaryBtn {
+  background: #4f46e5;
+  border: none;
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.secondaryBtn {
+  background: #2c2d35;
   border: none;
   color: #fff;
   border-radius: 8px;
@@ -227,6 +248,7 @@
   display: flex;
   gap: 8px;
   margin-top: 6px;
+  flex-wrap: wrap;
 }
 
 .actions button {
@@ -244,5 +266,26 @@
 
 .empty {
   color: #9aa0b4;
+}
+
+.modalForm {
+  display: grid;
+  gap: 10px;
+}
+
+.modalForm input,
+.modalForm select {
+  background: #2b2d37;
+  border: none;
+  color: #fff;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
 }
 
