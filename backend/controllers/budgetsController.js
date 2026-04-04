@@ -9,6 +9,9 @@ const {
   RECURRING_MONTH,
 } = require('../utils/budgetService');
 
+/** Sentinel для постоянных бюджетов при NOT NULL на month; дублируем строку на случай сбоя импорта. */
+const RECURRING_TOKEN = RECURRING_MONTH != null && RECURRING_MONTH !== '' ? RECURRING_MONTH : '__recurring__';
+
 // GET /api/budgets?month=YYYY-MM (month опционален: если не передали — вернём все)
 exports.getAll = async (req, res) => {
   try {
@@ -41,7 +44,10 @@ exports.upsert = async (req, res) => {
     const isRecurring = req.body.scope === 'recurring' ? 1 : 0;
     const budgetKind = req.body.budget_kind === 'total' ? 'total' : 'category';
     const normalizedCategory = budgetKind === 'total' ? '__total__' : category;
-    const targetMonth = isRecurring ? RECURRING_MONTH : month;
+    let targetMonth = isRecurring ? RECURRING_TOKEN : month;
+    if (isRecurring && (targetMonth == null || targetMonth === '')) {
+      targetMonth = RECURRING_TOKEN;
+    }
     if (budgetKind === 'category' && !raw) {
       return res.status(400).json({ error: "category обязательна" });
     }
@@ -63,7 +69,7 @@ exports.upsert = async (req, res) => {
             (is_recurring = 0 AND month = ?)
           )
         LIMIT 1`,
-      [req.userId, budgetKind, normalizedCategory, RECURRING_MONTH, targetMonth]
+      [req.userId, budgetKind, normalizedCategory, RECURRING_TOKEN, targetMonth]
     );
     if (row?.id) {
       await run(
@@ -180,7 +186,10 @@ exports.update = async (req, res) => {
     const amount = req.body.amount != null ? Number(req.body.amount) : Number(existing.amount || 0);
     const isRecurring = req.body.scope ? (req.body.scope === 'recurring' ? 1 : 0) : Number(existing.is_recurring || 0);
     const month = req.body.month != null ? String(req.body.month) : String(existing.month || '');
-    const targetMonth = isRecurring ? RECURRING_MONTH : month;
+    let targetMonth = isRecurring ? RECURRING_TOKEN : month;
+    if (isRecurring && (targetMonth == null || targetMonth === '')) {
+      targetMonth = RECURRING_TOKEN;
+    }
 
     if (budgetKind === 'category' && !normalizedCategory) {
       return res.status(400).json({ error: 'category_required' });
