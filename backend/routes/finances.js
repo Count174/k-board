@@ -6,6 +6,7 @@ const authMiddleware = require('../middleware/authMiddleware');
 // базовые
 router.get('/', authMiddleware, controller.getAll);
 router.post('/', authMiddleware, controller.create);
+router.post('/bulk', authMiddleware, controller.createBulk);
 router.delete('/:id', authMiddleware, controller.remove);
 router.get('/period', authMiddleware, controller.getByPeriod);
 router.get('/monthly', authMiddleware, controller.getMonthlyStats);

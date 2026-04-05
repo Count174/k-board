@@ -29,12 +29,91 @@ const formatTxAmount = (t) => {
   return `${original.toLocaleString("ru-RU")} ${currencySymbol(cur)} (${money(rub)})`;
 };
 
+function normalizeBulkType(raw) {
+  const s = String(raw || "")
+    .trim()
+    .toLowerCase();
+  if (s === "расход" || s === "expense" || s === "r") return "expense";
+  if (s === "доход" || s === "income" || s === "d") return "income";
+  return null;
+}
+
+/** Одна строка: дата TAB тип TAB сумма TAB категория (id или название) TAB комментарий (опц.). Разделитель также может быть «;». */
+function parseFinanceBulkLines(raw, accountId) {
+  const lines = raw
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith("#"));
+  const items = [];
+  const errors = [];
+
+  lines.forEach((line, i) => {
+    const lineNo = i + 1;
+    let parts;
+    if (line.includes("\t")) parts = line.split("\t").map((p) => p.trim());
+    else if (line.includes(";")) parts = line.split(";").map((p) => p.trim());
+    else {
+      errors.push({ line: lineNo, reason: "Используй табуляцию или «;» между полями" });
+      return;
+    }
+    if (parts.length < 4) {
+      errors.push({ line: lineNo, reason: "Нужно минимум 4 поля: дата, тип, сумма, категория" });
+      return;
+    }
+    const date = parts[0];
+    const type = normalizeBulkType(parts[1]);
+    const amountStr = parts[2].replace(/\s/g, "").replace(",", ".");
+    const catPart = parts[3];
+    const comment = parts.slice(4).join(" ").trim();
+
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      errors.push({ line: lineNo, reason: "Дата в формате ГГГГ-ММ-ДД" });
+      return;
+    }
+    if (!type) {
+      errors.push({ line: lineNo, reason: "Тип: expense или income (или расход / доход)" });
+      return;
+    }
+    const amount = Number(amountStr);
+    if (Number.isNaN(amount) || amount <= 0) {
+      errors.push({ line: lineNo, reason: "Некорректная сумма" });
+      return;
+    }
+
+    const row = {
+      type,
+      amount,
+      date,
+      comment,
+      account_id: Number(accountId),
+    };
+    if (/^\d+$/.test(catPart)) {
+      row.category_id = Number(catPart);
+    } else {
+      row.category = catPart;
+    }
+    items.push(row);
+  });
+
+  return { items, errors };
+}
+
 const FinanceWidget = () => {
   const [transactions, setTransactions] = useState([]);
   const [analyticsTx, setAnalyticsTx] = useState([]); // полный набор транзакций на период
   const [period, setPeriod] = useState("month");
   const [tab, setTab] = useState("transactions");
-  const [form, setForm] = useState({ type: "expense", category_id: "", comment: "", amount: "", account_id: "" });
+  const [form, setForm] = useState({
+    type: "expense",
+    category_id: "",
+    comment: "",
+    amount: "",
+    account_id: "",
+    date: dayjs().format("YYYY-MM-DD"),
+  });
+  const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkText, setBulkText] = useState("");
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [categories, setCategories] = useState({ expense: [], income: [] });
   const [accounts, setAccounts] = useState([]);
   const [showNewCategoryForm, setShowNewCategoryForm] = useState(false);
@@ -167,14 +246,22 @@ const FinanceWidget = () => {
   const handleAddTransaction = async () => {
     if (!form.category_id || !form.amount || !form.account_id) return;
     try {
-      await post("/finances", { 
+      await post("/finances", {
         type: form.type,
         category_id: form.category_id,
         comment: form.comment || "",
         amount: form.amount,
         account_id: Number(form.account_id),
+        date: form.date,
       });
-      setForm((prev) => ({ type: "expense", category_id: "", comment: "", amount: "", account_id: prev.account_id || "" }));
+      setForm((prev) => ({
+        type: "expense",
+        category_id: "",
+        comment: "",
+        amount: "",
+        account_id: prev.account_id || "",
+        date: dayjs().format("YYYY-MM-DD"),
+      }));
       setShowNewCategoryForm(false);
       setNewCategoryName("");
       setOffset(0);
@@ -185,6 +272,42 @@ const FinanceWidget = () => {
       fetchAnalyticsTransactions(period);
     } catch (error) {
       console.error("Ошибка при добавлении транзакции:", error);
+    }
+  };
+
+  const handleBulkSubmit = async () => {
+    if (!form.account_id || !bulkText.trim()) return;
+    const { items, errors } = parseFinanceBulkLines(bulkText, form.account_id);
+    if (errors.length) {
+      const first = errors[0];
+      alert(`Строка ${first.line}: ${first.reason}`);
+      return;
+    }
+    if (!items.length) {
+      alert("Нет строк для импорта");
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      await post("/finances/bulk", { items });
+      setBulkText("");
+      setOffset(0);
+      setHasMore(true);
+      fetchTransactions(false, period);
+      fetchAnalyticsTransactions(period);
+    } catch (e) {
+      const msg = e?.message || String(e);
+      let detail = msg;
+      try {
+        const j = JSON.parse(msg);
+        if (j.index != null) detail = `Строка ${Number(j.index) + 1}: ${j.error || j.message || msg}`;
+      } catch {
+        /* ignore */
+      }
+      console.error("bulk import error:", e);
+      alert(`Не удалось импортировать: ${detail}`);
+    } finally {
+      setBulkBusy(false);
     }
   };
 
@@ -394,10 +517,25 @@ const FinanceWidget = () => {
 
           <h3 className={styles.subtitle}>Добавить операцию</h3>
           <div className={styles.addTransaction}>
+            <div className={styles.dateField}>
+              <span className={styles.dateLabel}>Дата</span>
+              <input
+                type="date"
+                value={form.date}
+                onChange={(e) => setForm({ ...form, date: e.target.value })}
+              />
+            </div>
             <select
               value={form.type}
               onChange={(e) => {
-                setForm({ type: e.target.value, category_id: "", comment: "", amount: "", account_id: form.account_id });
+                setForm({
+                  type: e.target.value,
+                  category_id: "",
+                  comment: "",
+                  amount: "",
+                  account_id: form.account_id,
+                  date: form.date,
+                });
                 setShowNewCategoryForm(false);
               }}
             >
@@ -476,6 +614,44 @@ const FinanceWidget = () => {
               Добавить
             </button>
           </div>
+
+          <div className={styles.bulkToggleRow}>
+            <button
+              type="button"
+              className={styles.bulkToggle}
+              onClick={() => setBulkOpen((o) => !o)}
+            >
+              {bulkOpen ? "▼ Скрыть массовый ввод" : "▶ Массовый ввод"}
+            </button>
+          </div>
+          {bulkOpen && (
+            <div className={styles.bulkPanel}>
+              <p className={styles.bulkHint}>
+                По одной строке на операцию. Поля через <strong>табуляцию</strong> или <strong>«;»</strong>:{" "}
+                <code>дата</code> → <code>тип</code> → <code>сумма</code> → <code>категория</code> → комментарий (по
+                желанию). Тип: <code>expense</code>/<code>income</code> или <code>расход</code>/<code>доход</code>.
+                Категория — числовой id или название (как в списке). Счёт — тот же, что выбран в форме выше.
+              </p>
+              <textarea
+                className={styles.bulkTextarea}
+                value={bulkText}
+                onChange={(e) => setBulkText(e.target.value)}
+                placeholder={`2026-03-15\texpense\t1500\tПродукты\tмагазин\n2026-03-16\tincome\t80000\t12\tзарплата`}
+                spellCheck={false}
+              />
+              <div className={styles.bulkActions}>
+                <button
+                  type="button"
+                  className={styles.bulkSubmit}
+                  onClick={handleBulkSubmit}
+                  disabled={bulkBusy || !form.account_id || !bulkText.trim()}
+                >
+                  {bulkBusy ? "Импорт…" : "Добавить все"}
+                </button>
+              </div>
+            </div>
+          )}
+
           {!accounts.length && (
             <div className={styles.rangeHint}>
               Создайте хотя бы один счёт в настройках, чтобы добавлять операции.
@@ -486,6 +662,9 @@ const FinanceWidget = () => {
             {transactions.map((t) => (
               <li key={t.id} className={styles.transaction}>
                 <div>
+                  {t.date && (
+                    <span className={styles.txDate}>{dayjs(t.date).format("DD.MM.YY")}</span>
+                  )}
                   <span style={{ fontWeight: "bold" }}>
                     {t.category_name || t.category}
                   </span>

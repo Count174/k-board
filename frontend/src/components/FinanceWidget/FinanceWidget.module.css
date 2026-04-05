@@ -199,6 +199,130 @@
   background: #4338ca;
 }
 
+.addTransaction button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.dateField {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 8px 12px;
+  min-width: 160px;
+}
+
+.dateLabel {
+  font-size: 12px;
+  color: #9aa0b4;
+  white-space: nowrap;
+}
+
+.dateField input[type="date"] {
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  outline: none;
+  flex: 1;
+  min-width: 0;
+}
+
+.bulkToggleRow {
+  margin-bottom: 12px;
+}
+
+.bulkToggle {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #c7d2fe;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.bulkToggle:hover {
+  background: rgba(79, 70, 229, 0.12);
+}
+
+.bulkPanel {
+  background: #2c2d35;
+  border-radius: 14px;
+  padding: 14px;
+  margin-bottom: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.bulkHint {
+  font-size: 12px;
+  color: #9aa0b4;
+  line-height: 1.45;
+  margin: 0 0 10px;
+}
+
+.bulkHint code {
+  font-size: 11px;
+  background: rgba(0, 0, 0, 0.25);
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: #e2e8f0;
+}
+
+.bulkTextarea {
+  width: 100%;
+  min-height: 140px;
+  box-sizing: border-box;
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  color: #f5f5f5;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 12px;
+  resize: vertical;
+}
+
+.bulkTextarea::placeholder {
+  color: #6b7280;
+}
+
+.bulkActions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.bulkSubmit {
+  background: #4f46e5;
+  border: none;
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.bulkSubmit:hover:not(:disabled) {
+  background: #4338ca;
+}
+
+.bulkSubmit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.txDate {
+  font-size: 12px;
+  color: #6b7280;
+  margin-right: 8px;
+  min-width: 72px;
+}
+
 .transactionsList {
   list-style: none;
   padding: 0;

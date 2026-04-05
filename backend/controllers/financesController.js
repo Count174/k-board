@@ -23,6 +23,119 @@ function daysInMonth(yyyyMM) {
   return new Date(y, m, 0).getDate();
 }
 
+const BULK_MAX_ITEMS = 150;
+
+/**
+ * Одна операция: та же логика, что раньше в create (категория, FX, счёт, баланс).
+ * @returns {Promise<object>} созданная строка с JOIN категории/счёта
+ */
+async function insertFinanceRecord(userId, body) {
+  const { type, category, amount, date, category_id, comment, account_id } = body;
+
+  if (!type || amount == null) {
+    const e = new Error('type_amount_required');
+    e.code = 'type_amount_required';
+    throw e;
+  }
+
+  let finalCategoryId = category_id || null;
+  let finalCategory = category || '';
+  let finalComment = comment || '';
+
+  if (!finalCategoryId && category) {
+    const normalizedText = category.toLowerCase().trim();
+    const found = await get(
+      `SELECT c.id FROM categories c
+       WHERE c.user_id = ? AND c.type = ?
+       AND (
+         LOWER(c.name) = ? OR
+         EXISTS (
+           SELECT 1 FROM json_each(c.synonyms) s
+           WHERE LOWER(s.value) = ?
+         )
+       )
+       LIMIT 1`,
+      [userId, type, normalizedText, normalizedText]
+    );
+
+    if (found) {
+      finalCategoryId = found.id;
+    } else {
+      finalCategory = category;
+    }
+  }
+
+  const originalAmount = Number(amount);
+  if (Number.isNaN(originalAmount)) {
+    const e = new Error('invalid_amount');
+    e.code = 'invalid_amount';
+    throw e;
+  }
+
+  const opDate = normalizeDate(date);
+  const currency = normalizeCurrency(body.currency || 'RUB');
+  if (!currency) {
+    const e = new Error('unsupported_currency');
+    e.code = 'unsupported_currency';
+    throw e;
+  }
+  const fxRateToRub = await getRateToRubForDate(currency, opDate);
+  const amountRub = Number((originalAmount * fxRateToRub).toFixed(2));
+  let accountId = Number(account_id) || null;
+  if (!accountId) {
+    accountId = await ensureDefaultAccountForUser(userId);
+  }
+  const account = await getAccountById(userId, accountId);
+  if (!account) {
+    const e = new Error('account_required');
+    e.code = 'account_required';
+    throw e;
+  }
+
+  const accountDelta = await computeAccountDelta({
+    type,
+    amount: originalAmount,
+    txCurrency: currency,
+    accountCurrency: account.currency,
+    dateYmd: opDate,
+  });
+
+  const ins = await run(
+    `INSERT INTO finances (user_id, type, category, amount, date, category_id, comment, original_amount, currency, fx_rate_to_rub, amount_rub, account_id)
+     VALUES (?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?, ?, ?)`,
+    [userId, type, finalCategory, originalAmount, opDate, finalCategoryId, finalComment, originalAmount, currency, fxRateToRub, amountRub, accountId]
+  );
+
+  try {
+    await applyAccountDelta(accountId, accountDelta);
+  } catch (balErr) {
+    await run(`DELETE FROM finances WHERE id = ? AND user_id = ?`, [ins.lastID, userId]);
+    throw balErr;
+  }
+
+  const created = await get(
+    `SELECT f.id, f.type, f.category, f.amount, date(f.date) AS date,
+            f.category_id, f.comment, f.currency, f.fx_rate_to_rub, f.original_amount, ${amountRubExpr} AS amount_rub,
+            f.account_id, a.name AS account_name, a.currency AS account_currency,
+            c.name AS category_name, c.slug AS category_slug
+     FROM finances f
+     LEFT JOIN accounts a ON a.id = f.account_id
+     LEFT JOIN categories c ON f.category_id = c.id
+     WHERE f.id = ?`,
+    [ins.lastID]
+  );
+
+  return created || { id: ins.lastID };
+}
+
+function mapInsertErrorToHttp(err) {
+  const code = err.code || err.message;
+  if (code === 'type_amount_required' || code === 'invalid_amount' || code === 'unsupported_currency' || code === 'account_required') {
+    return { status: 400, body: { error: code } };
+  }
+  return { status: 500, body: { error: 'failed_to_create_finance' } };
+}
+
 /* ===================== BASIC CRUD ===================== */
 
 exports.getAll = (req, res) => {
@@ -102,117 +215,55 @@ exports.getMonthlyStats = (req, res) => {
 
 exports.create = async (req, res) => {
   try {
-    const { type, category, amount, date, category_id, comment, account_id } = req.body;
-    
-    if (!type || amount == null) {
-      return res.status(400).json({ error: 'type_amount_required' });
-    }
-    
-    // Если передан category_id, используем его, иначе ищем по category (для обратной совместимости)
-    let finalCategoryId = category_id || null;
-    let finalCategory = category || '';
-    let finalComment = comment || '';
-    
-    // Если category_id не передан, но есть category (текст), сохраняем его как comment
-    // и пытаемся найти категорию по тексту
-    if (!finalCategoryId && category) {
-      finalComment = category;
-      
-      // Пытаемся найти категорию по тексту
-      const normalizedText = category.toLowerCase().trim();
-      const found = await get(
-        `SELECT c.id FROM categories c
-         WHERE c.user_id = ? AND c.type = ?
-         AND (
-           LOWER(c.name) = ? OR
-           EXISTS (
-             SELECT 1 FROM json_each(c.synonyms) s
-             WHERE LOWER(s.value) = ?
-           )
-         )
-         LIMIT 1`,
-        [req.userId, type, normalizedText, normalizedText]
-      );
-      
-      if (found) {
-        finalCategoryId = found.id;
-      }
-    }
-    
-    // Если category_id все еще null, используем старую логику (сохраняем category как текст)
-    // Это для обратной совместимости
-    if (!finalCategoryId && category) {
-      finalCategory = category;
-    }
-    
-    const originalAmount = Number(amount);
-    const opDate = normalizeDate(date);
-    const currency = normalizeCurrency(req.body.currency || 'RUB');
-    if (!currency) {
-      return res.status(400).json({ error: 'unsupported_currency' });
-    }
-    const fxRateToRub = await getRateToRubForDate(currency, opDate);
-    const amountRub = Number((originalAmount * fxRateToRub).toFixed(2));
-    let accountId = Number(account_id) || null;
-    if (!accountId) {
-      accountId = await ensureDefaultAccountForUser(req.userId);
-    }
-    const account = await getAccountById(req.userId, accountId);
-    if (!account) {
-      return res.status(400).json({ error: 'account_required' });
-    }
-
-    const accountDelta = await computeAccountDelta({
-      type,
-      amount: originalAmount,
-      txCurrency: currency,
-      accountCurrency: account.currency,
-      dateYmd: opDate,
-    });
-
-    return new Promise((resolve) => {
-      db.run(
-        `INSERT INTO finances (user_id, type, category, amount, date, category_id, comment, original_amount, currency, fx_rate_to_rub, amount_rub, account_id)
-         VALUES (?, ?, ?, ?, COALESCE(?, CURRENT_TIMESTAMP), ?, ?, ?, ?, ?, ?, ?)`,
-        [req.userId, type, finalCategory, originalAmount, opDate, finalCategoryId, finalComment, originalAmount, currency, fxRateToRub, amountRub, accountId],
-        async function (err) {
-          if (err) {
-            console.error('finances.create db error:', err);
-            return res.status(500).json({ error: 'failed_to_create_finance' });
-          }
-          try {
-            await applyAccountDelta(accountId, accountDelta);
-          } catch (balErr) {
-            console.error('finances.create balance update error:', balErr);
-            await run(`DELETE FROM finances WHERE id = ? AND user_id = ?`, [this.lastID, req.userId]).catch(() => {});
-            return res.status(500).json({ error: 'failed_to_update_account_balance' });
-          }
-          
-          // Получаем созданную запись с категорией
-          try {
-            const created = await get(
-              `SELECT f.id, f.type, f.category, f.amount, date(f.date) AS date,
-                      f.category_id, f.comment, f.currency, f.fx_rate_to_rub, f.original_amount, ${amountRubExpr} AS amount_rub,
-                      f.account_id, a.name AS account_name, a.currency AS account_currency,
-                      c.name AS category_name, c.slug AS category_slug
-               FROM finances f
-               LEFT JOIN accounts a ON a.id = f.account_id
-               LEFT JOIN categories c ON f.category_id = c.id
-               WHERE f.id = ?`,
-              [this.lastID]
-            );
-            
-            res.status(201).json(created || { id: this.lastID });
-          } catch (e) {
-            console.error('finances.create fetch error:', e);
-            res.status(201).json({ id: this.lastID });
-          }
-        }
-      );
-    });
+    const created = await insertFinanceRecord(req.userId, req.body);
+    res.status(201).json(created);
   } catch (e) {
     console.error('finances.create error:', e);
-    res.status(500).json({ error: 'failed_to_create_finance' });
+    const { status, body } = mapInsertErrorToHttp(e);
+    if (status === 500) {
+      return res.status(500).json({ error: 'failed_to_create_finance' });
+    }
+    res.status(status).json(body);
+  }
+};
+
+/**
+ * POST /api/finances/bulk
+ * body: { items: [ { type, amount, date?, category_id?, category?, comment?, account_id?, currency? }, ... ] }
+ * Либо все записи применяются, либо откат (транзакция).
+ */
+exports.createBulk = async (req, res) => {
+  const items = req.body.items;
+  if (!Array.isArray(items) || items.length === 0) {
+    return res.status(400).json({ error: 'items_required' });
+  }
+  if (items.length > BULK_MAX_ITEMS) {
+    return res.status(400).json({ error: 'too_many_items', max: BULK_MAX_ITEMS });
+  }
+
+  try {
+    await run('BEGIN IMMEDIATE');
+    const created = [];
+    for (let i = 0; i < items.length; i++) {
+      try {
+        const row = await insertFinanceRecord(req.userId, items[i]);
+        created.push(row);
+      } catch (e) {
+        await run('ROLLBACK');
+        const { status, body } = mapInsertErrorToHttp(e);
+        return res.status(status).json({
+          ...body,
+          index: i,
+          message: e.message || String(e),
+        });
+      }
+    }
+    await run('COMMIT');
+    res.status(201).json({ created, count: created.length });
+  } catch (e) {
+    await run('ROLLBACK').catch(() => {});
+    console.error('finances.createBulk error:', e);
+    res.status(500).json({ error: 'bulk_failed' });
   }
 };
 
