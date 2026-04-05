@@ -1,0 +1,176 @@
+.lead {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: #9aa0b4;
+}
+
+.tableWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+
+.headRow {
+  display: grid;
+  grid-template-columns: 36px minmax(132px, 1fr) 108px minmax(88px, 0.8fr) minmax(140px, 1.1fr) minmax(160px, 1.3fr) minmax(100px, 1fr) 36px;
+  gap: 8px;
+  align-items: end;
+  padding: 0 4px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  min-width: 860px;
+}
+
+.colLabel {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #7c8298;
+}
+
+.colNum {
+  width: 36px;
+}
+
+.colActions {
+  width: 36px;
+  text-align: center;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 36px minmax(132px, 1fr) 108px minmax(88px, 0.8fr) minmax(140px, 1.1fr) minmax(160px, 1.3fr) minmax(100px, 1fr) 36px;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 4px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  min-width: 860px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(79, 70, 229, 0.35);
+  color: #e0e7ff;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.field input,
+.field select {
+  width: 100%;
+  box-sizing: border-box;
+  background: #2c2d35;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #f5f5f5;
+  padding: 10px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  outline: none;
+}
+
+.field input::placeholder {
+  color: #6b7280;
+}
+
+.field input[type="date"] {
+  min-height: 40px;
+}
+
+.rowRemove {
+  background: transparent;
+  border: none;
+  color: #9aa0b4;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.rowRemove:hover:not(:disabled) {
+  color: #f87171;
+  background: rgba(248, 113, 113, 0.12);
+}
+
+.rowRemove:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.toolbar {
+  margin-top: 14px;
+}
+
+.btnSecondary {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e5e7eb;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btnSecondary:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.btnSecondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.btnGhost {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #c7d2fe;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.btnGhost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.btnPrimary {
+  background: #4f46e5;
+  border: none;
+  color: #fff;
+  padding: 12px 22px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btnPrimary:hover:not(:disabled) {
+  background: #4338ca;
+}
+
+.btnPrimary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
