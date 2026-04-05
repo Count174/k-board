@@ -33,6 +33,8 @@ app.set('trust proxy', 1); // доверие первому прокси (nginx)
 const allowedOrigins = new Set([
   'https://oubaitori.ru',
   'https://www.oubaitori.ru',
+  'https://o-board.ru',
+  'https://www.o-board.ru',
   'https://k-board.whoiskirya.ru', // временно, пока редиректы/миграция
 ]);
 
