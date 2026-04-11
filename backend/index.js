@@ -1,6 +1,6 @@
 require('dotenv').config();
 const cors = require('cors');
-const { initTelegramBot, processWebhookUpdate } = require('./bot');
+const { initTelegramBot, processWebhookUpdate } = require('./bot/index.js');
 const PORT = 3002;
 const path = require('path');
 const cookieParser = require('cookie-parser');
