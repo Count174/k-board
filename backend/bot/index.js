@@ -32,7 +32,8 @@ async function initTelegramBot() {
 
   const url = `${base}${path.startsWith('/') ? path : `/${path}`}`;
   try {
-    await bot.setWebhook(url, {
+    // В node-telegram-bot-api метод называется setWebHook (H заглавная), не setWebhook
+    await bot.setWebHook(url, {
       allowed_updates: ['message', 'callback_query', 'edited_message'],
     });
     let info = null;
