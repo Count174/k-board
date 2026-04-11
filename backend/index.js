@@ -1,5 +1,6 @@
 require('dotenv').config();
 const cors = require('cors');
+const { initTelegramBot, processWebhookUpdate } = require('./bot');
 const PORT = 3002;
 const path = require('path');
 const cookieParser = require('cookie-parser');
@@ -54,13 +55,24 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// Telegram Bot API (webhook) — до остальных /api, тело = JSON update
+app.post('/api/telegram/bot-webhook', (req, res) => {
+  try {
+    processWebhookUpdate(req.body);
+    res.sendStatus(200);
+  } catch (e) {
+    console.error('telegram webhook handler error:', e);
+    res.sendStatus(500);
+  }
+});
+
 // API маршруты — должны быть раньше статики и SPA
 app.use('/api/finances', financesRoutes);
 app.use('/api/todos', todosRoutes);
 app.use('/api/goals', goalsRoutes);
 app.use('/api/health', healthRoutes);
 app.use('/api/nutrition', nutritionRoutes);
-app.use('/api/telegram', telegramRoutes);
+app.use('/api/telegram', telegramRoutes); // generate-token и др. (не путать с bot-webhook выше)
 app.use('/api/auth', authRoutes);
 app.use('/api/medications', medicationsRoutes);
 app.use('/api/budgets', budgetsRoutes);
@@ -82,7 +94,12 @@ app.use('/k-board/images', express.static(path.join(publicPath, 'images')));
 bootstrapDefaultAccountsForAllUsers()
   .catch((e) => console.error('accounts bootstrap failed:', e))
   .finally(() => {
-    app.listen(PORT, () => {
+    app.listen(PORT, async () => {
       console.log(`✅ Server running on port ${PORT}`);
+      try {
+        await initTelegramBot();
+      } catch (e) {
+        console.error('Telegram initTelegramBot error:', e?.message || e);
+      }
     });
   });
