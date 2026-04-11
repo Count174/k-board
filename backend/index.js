@@ -1,6 +1,6 @@
 require('dotenv').config();
 const cors = require('cors');
-const { initTelegramBot, processWebhookUpdate } = require('./bot/index.js');
+const { initTelegramBot, processWebhookUpdate, getBot } = require('./bot/index.js');
 const PORT = 3002;
 const path = require('path');
 const cookieParser = require('cookie-parser');
@@ -64,6 +64,17 @@ app.post('/api/telegram/bot-webhook', (req, res) => {
     console.error('telegram webhook handler error:', e);
     res.sendStatus(500);
   }
+});
+
+/** Проверка без обращения к api.telegram.org: бот загружен в память процесса */
+app.get('/api/telegram/bot-ready', (req, res) => {
+  const b = getBot();
+  res.json({
+    ok: Boolean(b),
+    hint: b
+      ? 'Процесс знает BOT_TOKEN. Если сообщения из Telegram не приходят — проверь, что setWebhook выполнен (см. логи старта или scripts/setTelegramWebhook.cjs).'
+      : 'Бот не инициализирован — проверь BOT_TOKEN в .env',
+  });
 });
 
 // API маршруты — должны быть раньше статики и SPA
