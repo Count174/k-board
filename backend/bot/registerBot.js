@@ -366,8 +366,19 @@ async function pickAccountForFinance(chatId, userId, finPayload) {
   return { accountId: null, deferred: true };
 }
 
+/** Приводит типографские минусы к ASCII (часто с мобильных клавиатур). */
+function normalizeFinanceInputLine(text) {
+  return String(text || '')
+    .replace(/\u2212/g, '-') // MINUS SIGN
+    .replace(/\u2013/g, '-')
+    .replace(/\u2014/g, '-')
+    .trim();
+}
+
 function parseFinanceCommand(text) {
-  const m = String(text || '').trim().match(/^([+-])(\d+(?:[.,]\d+)?)\s+(.+)$/);
+  const raw = normalizeFinanceInputLine(text);
+  // Сумма, опциональные пробелы, остаток строки — категория/комментарий (минимум 1 символ)
+  const m = raw.match(/^([+-])(\d+(?:[.,]\d+)?)\s*(.+)$/s);
   if (!m) return null;
   const sign = m[1];
   const amount = Number(m[2].replace(',', '.'));
@@ -1319,49 +1330,55 @@ bot.on('message', async (msg) => {
   }
 
   // 3) Финансы: +/-
-  if (/^[+-]\d/.test(text)) {
-    const parsedFinance = parseFinanceCommand(text);
-    if (parsedFinance) {
-      const { type, amount, currency, categoryText } = parsedFinance;
+  const finLine = normalizeFinanceInputLine(text);
+  if (/^[+-]\d/.test(finLine)) {
+    const parsedFinance = parseFinanceCommand(finLine);
+    if (!parsedFinance) {
+      console.warn('telegram finance: не удалось разобрать строку:', JSON.stringify(text));
+      return bot.sendMessage(
+        chatId,
+        'Не разобрал формат. Нужно: знак ±, сумма, затем текст (категория или комментарий).\nПример: `-500 кофе` или `+80000 зарплата`'
+      );
+    }
+    const { type, amount, currency, categoryText } = parsedFinance;
 
-      return getUserId(chatId, async (userId) => {
-        if (!userId) return bot.sendMessage(chatId, '❌ Вы не привязаны к пользователю в системе.');
-        const picked = await pickAccountForFinance(chatId, userId, { type, amount, currency, categoryText });
-        if (picked.deferred) return;
-        const accountId = picked.accountId;
+    return getUserId(chatId, async (userId) => {
+      if (!userId) return bot.sendMessage(chatId, '❌ Вы не привязаны к пользователю в системе.');
+      const picked = await pickAccountForFinance(chatId, userId, { type, amount, currency, categoryText });
+      if (picked.deferred) return;
+      const accountId = picked.accountId;
 
-        // Ищем категорию по тексту
-        console.log(`🔍 Ищем категорию для: "${categoryText}" (user_id=${userId}, type=${type})`);
-        const foundCategory = await findCategoryByText(userId, categoryText, type);
-        
-        if (foundCategory) {
-          console.log(`✅ Категория найдена: ${foundCategory.name} (id=${foundCategory.id})`);
-          // Категория найдена - сохраняем сразу
-          insertFinanceWithCurrency(userId, {
-            type,
-            category: foundCategory.name,
-            amount,
-            categoryId: foundCategory.id,
-            comment: categoryText,
-            currency,
-            accountId,
-          }).then(async (saved) => {
+      // Ищем категорию по тексту
+      console.log(`🔍 Ищем категорию для: "${categoryText}" (user_id=${userId}, type=${type})`);
+      const foundCategory = await findCategoryByText(userId, categoryText, type);
+
+      if (foundCategory) {
+        console.log(`✅ Категория найдена: ${foundCategory.name} (id=${foundCategory.id})`);
+        insertFinanceWithCurrency(userId, {
+          type,
+          category: foundCategory.name,
+          amount,
+          categoryId: foundCategory.id,
+          comment: categoryText,
+          currency,
+          accountId,
+        })
+          .then(async (saved) => {
             await addSynonymIfNeeded(userId, foundCategory.id, categoryText);
             bot.sendMessage(
               chatId,
               `✅ ${type === 'income' ? 'Доход' : 'Расход'} ${amount}${currency === 'RUB' ? '₽' : ` ${currency}`} (${foundCategory.name}) добавлен.\n💳 Счёт: ${saved?.accountName || '—'}`
             );
-          }).catch((err) => {
+          })
+          .catch((err) => {
             console.error('Finance insert error:', err);
             bot.sendMessage(chatId, '❌ Ошибка при добавлении.');
           });
-        } else {
-          console.log(`⚠️ Категория не найдена для "${categoryText}", показываю кнопки выбора`);
-          // Категория не найдена - показываем кнопки для выбора
-          await showCategorySelection(chatId, userId, type, amount, categoryText, currency, accountId);
-        }
-      });
-    }
+      } else {
+        console.log(`⚠️ Категория не найдена для "${categoryText}", показываю кнопки выбора`);
+        await showCategorySelection(chatId, userId, type, amount, categoryText, currency, accountId);
+      }
+    });
   }
 
   // 3) /todo
