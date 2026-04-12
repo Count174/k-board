@@ -5,11 +5,26 @@
  *   BOT_TOKEN — обязателен
  *   TELEGRAM_WEBHOOK_BASE_URL — публичный origin, напр. https://o-board.ru (без слэша в конце)
  *   TELEGRAM_WEBHOOK_PATH — по умолчанию /api/telegram/bot-webhook
+ *   TELEGRAM_SKIP_SETWEBHOOK_ON_START=1 — не вызывать setWebHook при старте (РФ VPS: исходящий трафик к api.telegram.org часто режут)
+ *   TELEGRAM_HTTPS_PROXY — HTTP(S) прокси для исходящих вызовов к api.telegram.org (sendMessage и т.д.), напр. http://127.0.0.1:7890
+ *   TELEGRAM_BOT_ENABLED=0 — не инициализировать бота (см. index.js; второй инстанс без бота)
  */
 const TelegramBot = require('node-telegram-bot-api');
 const registerTelegramBot = require('./registerBot');
 
 let bot = null;
+
+function isOutboundTelegramBlocked(err) {
+  const code = err?.code || err?.cause?.code || err?.error?.code;
+  const msg = String(err?.message || err?.error?.message || err || '');
+  return (
+    code === 'ETIMEDOUT' ||
+    code === 'ECONNRESET' ||
+    code === 'ECONNREFUSED' ||
+    code === 'ENOTFOUND' ||
+    /ETIMEDOUT|ECONNRESET|ENETUNREACH/i.test(msg)
+  );
+}
 
 async function initTelegramBot() {
   const token = process.env.BOT_TOKEN;
@@ -18,7 +33,17 @@ async function initTelegramBot() {
     return;
   }
 
-  bot = new TelegramBot(token, { polling: false });
+  const botOpts = { polling: false };
+  const proxy =
+    process.env.TELEGRAM_HTTPS_PROXY ||
+    process.env.TELEGRAM_PROXY ||
+    process.env.HTTPS_PROXY ||
+    process.env.HTTP_PROXY;
+  if (proxy) {
+    botOpts.request = { proxy };
+    console.log('[telegram] исходящие запросы к API через прокси (TELEGRAM_HTTPS_PROXY / HTTPS_PROXY)');
+  }
+  bot = new TelegramBot(token, botOpts);
   registerTelegramBot(bot);
 
   const base = (process.env.TELEGRAM_WEBHOOK_BASE_URL || '').replace(/\/$/, '');
@@ -31,8 +56,18 @@ async function initTelegramBot() {
   }
 
   const url = `${base}${path.startsWith('/') ? path : `/${path}`}`;
+
+  if (process.env.TELEGRAM_SKIP_SETWEBHOOK_ON_START === '1') {
+    console.log(
+      'ℹ️ Telegram: пропуск setWebHook при старте (TELEGRAM_SKIP_SETWEBHOOK_ON_START=1). URL для ручной регистрации:',
+      url
+    );
+    console.log('   Один раз с ноута/VPN: cd backend && node scripts/setTelegramWebhook.cjs');
+    return;
+  }
+
   try {
-    // В node-telegram-bot-api метод называется setWebHook (H заглавная), не setWebhook
+    // В node-telegram-bot-api метод называется setWebHook (H заглавная)
     await bot.setWebHook(url, {
       allowed_updates: ['message', 'callback_query', 'edited_message'],
     });
@@ -48,18 +83,22 @@ async function initTelegramBot() {
     }
     console.log('🤖 Telegram webhook зарегистрирован:', url, 'pending_updates:', info?.pending_update_count);
     if (info && !info.url) {
-      console.error(
-        '⚠️ В ответе getWebHookInfo url пустой — возможно, setWebhook не дошёл до Telegram (исходящий доступ к api.telegram.org с VPS заблокирован). Запусти с ноута/VPN: node backend/scripts/setTelegramWebhook.cjs'
+      console.warn(
+        '⚠️ getWebHookInfo: url пустой — один раз зарегистрируй вебхук: node backend/scripts/setTelegramWebhook.cjs'
       );
     }
   } catch (e) {
-    console.error(
-      '❌ setWebhook / getWebHookInfo не удались (часто из‑за блокировки api.telegram.org с РФ):',
-      e?.message || e
-    );
-    console.error(
-      '→ Зарегистрируй вебхук вручную с компьютера, где открывается Telegram API: node backend/scripts/setTelegramWebhook.cjs'
-    );
+    if (isOutboundTelegramBlocked(e)) {
+      console.warn(
+        'ℹ️ Telegram: с этого сервера нет исходящего доступа к api.telegram.org (типично для РФ). Бот всё равно может работать:'
+      );
+      console.warn('   1) Один раз с ноута/VPN выполни: cd backend && node scripts/setTelegramWebhook.cjs');
+      console.warn('   2) Либо добавь в .env TELEGRAM_SKIP_SETWEBHOOK_ON_START=1 чтобы не пытаться при каждом рестарте');
+      console.warn('   Целевой URL вебхука:', url);
+      return;
+    }
+    console.error('❌ Telegram setWebHook:', e?.message || e);
+    console.error('→ Ручная регистрация: node backend/scripts/setTelegramWebhook.cjs');
   }
 }
 

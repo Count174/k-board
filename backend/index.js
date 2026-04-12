@@ -2,6 +2,10 @@ require('dotenv').config();
 const cors = require('cors');
 const { initTelegramBot, processWebhookUpdate, getBot } = require('./bot/index.js');
 const PORT = 3002;
+
+/** 0 / false — не поднимать бота на этом инстансе (например API остался в РФ, бот переехал на другой VPS с той же кодовой базой и БД). */
+const telegramBotEnabled =
+  process.env.TELEGRAM_BOT_ENABLED !== '0' && String(process.env.TELEGRAM_BOT_ENABLED).toLowerCase() !== 'false';
 const path = require('path');
 const cookieParser = require('cookie-parser');
 const express = require('express');
@@ -28,6 +32,7 @@ const categoriesRoutes = require('./routes/categories');
 const ceoRoutes = require('./routes/ceo');
 const whoopRoutes = require('./routes/whoop');
 const accountsRoutes = require('./routes/accounts');
+const movingRoutes = require('./routes/moving');
 const { bootstrapDefaultAccountsForAllUsers } = require('./utils/accountsService');
 
 app.set('trust proxy', 1); // доверие первому прокси (nginx)
@@ -56,26 +61,35 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // Telegram Bot API (webhook) — до остальных /api, тело = JSON update
-app.post('/api/telegram/bot-webhook', (req, res) => {
-  try {
-    processWebhookUpdate(req.body);
-    res.sendStatus(200);
-  } catch (e) {
-    console.error('telegram webhook handler error:', e);
-    res.sendStatus(500);
-  }
-});
-
-/** Проверка без обращения к api.telegram.org: бот загружен в память процесса */
-app.get('/api/telegram/bot-ready', (req, res) => {
-  const b = getBot();
-  res.json({
-    ok: Boolean(b),
-    hint: b
-      ? 'Процесс знает BOT_TOKEN. Если сообщения из Telegram не приходят — проверь, что setWebhook выполнен (см. логи старта или scripts/setTelegramWebhook.cjs).'
-      : 'Бот не инициализирован — проверь BOT_TOKEN в .env',
+if (telegramBotEnabled) {
+  app.post('/api/telegram/bot-webhook', (req, res) => {
+    try {
+      processWebhookUpdate(req.body);
+      res.sendStatus(200);
+    } catch (e) {
+      console.error('telegram webhook handler error:', e);
+      res.sendStatus(500);
+    }
   });
-});
+
+  /** Проверка без обращения к api.telegram.org: бот загружен в память процесса */
+  app.get('/api/telegram/bot-ready', (req, res) => {
+    const b = getBot();
+    res.json({
+      ok: Boolean(b),
+      hint: b
+        ? 'Процесс знает BOT_TOKEN. На РФ VPS исходящий доступ к api.telegram.org часто заблокирован — setWebHook при старте может не пройти; вебхук один раз регистрируют с ноута: backend/scripts/setTelegramWebhook.cjs'
+        : 'Бот не инициализирован — проверь BOT_TOKEN в .env',
+    });
+  });
+} else {
+  app.post('/api/telegram/bot-webhook', (req, res) => {
+    res.status(503).json({ ok: false, error: 'telegram bot disabled on this host (TELEGRAM_BOT_ENABLED=0)' });
+  });
+  app.get('/api/telegram/bot-ready', (req, res) => {
+    res.json({ ok: false, hint: 'TELEGRAM_BOT_ENABLED=0 — бот на этом хосте отключён' });
+  });
+}
 
 // API маршруты — должны быть раньше статики и SPA
 app.use('/api/finances', financesRoutes);
@@ -96,6 +110,7 @@ app.use('/api/categories', categoriesRoutes);
 app.use('/api/ceo', ceoRoutes);
 app.use('/api/whoop', whoopRoutes);
 app.use('/api/accounts', accountsRoutes);
+app.use('/api/moving', movingRoutes);
 
 // Статика: favicon и изображения из корневой public
 app.get('/favicon.png', (req, res) => res.sendFile(path.join(publicPath, 'favicon.png')));
@@ -107,6 +122,10 @@ bootstrapDefaultAccountsForAllUsers()
   .finally(() => {
     app.listen(PORT, async () => {
       console.log(`✅ Server running on port ${PORT}`);
+      if (!telegramBotEnabled) {
+        console.log('ℹ️ Telegram-бот отключён (TELEGRAM_BOT_ENABLED=0)');
+        return;
+      }
       try {
         await initTelegramBot();
       } catch (e) {

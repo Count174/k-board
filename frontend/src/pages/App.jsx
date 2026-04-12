@@ -6,6 +6,7 @@ import UserHistoryPage from './HistoryPage';
 import ForgotPasswordPage from './ForgotPasswordPage';
 import ResetPasswordPage from './ResetPasswordPage';
 import HelicopterPage from './HelicopterPage';
+import MovingPage from './MovingPage';
 import SettingsPage from './SettingsPage';
 import '../styles/index.css';
 
@@ -60,6 +61,9 @@ export default function App() {
 
         {/* CEO Dashboard — доступ по секретному токену */}
         <Route path="/helicopter" element={<HelicopterPage />} />
+
+        {/* Переезд — отдельная пара логин/пароль из .env (не основная БД) */}
+        <Route path="/moving" element={<MovingPage />} />
 
         {/* Приватные страницы */}
         <Route

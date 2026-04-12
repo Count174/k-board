@@ -1,6 +1,17 @@
 const https = require('https');
+const createHttpsProxyAgent = require('https-proxy-agent');
 
 const BOT_API = 'https://api.telegram.org';
+
+function telegramApiAgent() {
+  const p =
+    process.env.TELEGRAM_HTTPS_PROXY ||
+    process.env.TELEGRAM_PROXY ||
+    process.env.HTTPS_PROXY ||
+    process.env.HTTP_PROXY;
+  if (p) return createHttpsProxyAgent(p);
+  return undefined;
+}
 
 /**
  * Отправить сообщение в чат CEO через отдельного бота.
@@ -19,10 +30,16 @@ function sendMessage(text) {
   });
 
   const url = new URL(`${BOT_API}/bot${token}/sendMessage`);
+  const agent = telegramApiAgent();
   return new Promise((resolve) => {
     const req = https.request(
       url,
-      { method: 'POST', headers: { 'Content-Type': 'application/json' }, timeout: 5000 },
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        timeout: 5000,
+        ...(agent ? { agent } : {}),
+      },
       (res) => {
         let data = '';
         res.on('data', (chunk) => (data += chunk));
