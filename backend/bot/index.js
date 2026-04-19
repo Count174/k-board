@@ -8,11 +8,13 @@
  *   TELEGRAM_SKIP_SETWEBHOOK_ON_START=1 — не вызывать setWebHook при старте (РФ VPS: исходящий трафик к api.telegram.org часто режут)
  *   TELEGRAM_HTTPS_PROXY — HTTP(S) прокси для исходящих вызовов к api.telegram.org (sendMessage и т.д.), напр. http://127.0.0.1:7890
  *   TELEGRAM_BOT_ENABLED=0 — не инициализировать бота (см. index.js; второй инстанс без бота)
+ *   TELEGRAM_USE_POLLING=1 — long polling (getUpdates), без вебхука; если Telegram не достучится до HTTPS — основной рабочий режим
  */
 const TelegramBot = require('node-telegram-bot-api');
 const registerTelegramBot = require('./registerBot');
 
 let bot = null;
+let telegramMode = 'webhook'; // 'webhook' | 'polling'
 
 /** Иначе отклонённые промисы sendMessage (400 chat not found на тестовом curl и т.п.) дают unhandledRejection */
 function wrapSendMessageErrors(telegramBot) {
@@ -35,6 +37,12 @@ function isOutboundTelegramBlocked(err) {
   );
 }
 
+function usePollingEnv() {
+  return (
+    process.env.TELEGRAM_USE_POLLING === '1' || String(process.env.TELEGRAM_USE_POLLING).toLowerCase() === 'true'
+  );
+}
+
 async function initTelegramBot() {
   const token = process.env.BOT_TOKEN;
   if (!token) {
@@ -42,6 +50,7 @@ async function initTelegramBot() {
     return;
   }
 
+  const usePolling = usePollingEnv();
   const botOpts = { polling: false };
   const proxy =
     process.env.TELEGRAM_HTTPS_PROXY ||
@@ -56,6 +65,26 @@ async function initTelegramBot() {
   wrapSendMessageErrors(bot);
   registerTelegramBot(bot);
 
+  if (usePolling) {
+    telegramMode = 'polling';
+    try {
+      await bot.deleteWebHook({ drop_pending_updates: false });
+    } catch (e) {
+      console.warn('[telegram] deleteWebHook:', e?.message || e);
+    }
+    try {
+      bot.on('polling_error', (err) => console.error('[telegram] polling_error:', err?.message || err));
+      bot.startPolling();
+      console.log(
+        '🤖 Telegram: long polling (TELEGRAM_USE_POLLING=1) — вебхук снят, апдейты через getUpdates. Публичный URL для Telegram не нужен.'
+      );
+    } catch (e) {
+      console.error('[telegram] startPolling failed:', e?.message || e);
+    }
+    return;
+  }
+
+  telegramMode = 'webhook';
   const base = (process.env.TELEGRAM_WEBHOOK_BASE_URL || '').replace(/\/$/, '');
   const path = process.env.TELEGRAM_WEBHOOK_PATH || '/api/telegram/bot-webhook';
   if (!base) {
@@ -131,4 +160,8 @@ function getBot() {
   return bot;
 }
 
-module.exports = { initTelegramBot, processWebhookUpdate, getBot };
+function getTelegramMode() {
+  return telegramMode;
+}
+
+module.exports = { initTelegramBot, processWebhookUpdate, getBot, getTelegramMode };

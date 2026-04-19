@@ -4,12 +4,16 @@ const fs = require('fs');
 require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const cors = require('cors');
-const { initTelegramBot, processWebhookUpdate, getBot } = require('./bot/index.js');
+const { initTelegramBot, processWebhookUpdate, getBot, getTelegramMode } = require('./bot/index.js');
 const PORT = 3002;
 
 /** 0 / false — не поднимать бота на этом инстансе (например API остался в РФ, бот переехал на другой VPS с той же кодовой базой и БД). */
 const telegramBotEnabled =
   process.env.TELEGRAM_BOT_ENABLED !== '0' && String(process.env.TELEGRAM_BOT_ENABLED).toLowerCase() !== 'false';
+
+/** Long polling: входящие апдейты без HTTPS-вебхука (удобно при сбоях доставки Telegram → твой домен). */
+const useTelegramPolling =
+  process.env.TELEGRAM_USE_POLLING === '1' || String(process.env.TELEGRAM_USE_POLLING).toLowerCase() === 'true';
 const cookieParser = require('cookie-parser');
 const express = require('express');
 const app = express();
@@ -44,8 +48,8 @@ app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Telegram Bot API (webhook) — до CORS: запросы от серверов Telegram без Origin
-if (telegramBotEnabled) {
+// Telegram: вебхук (POST) только в режиме webhook; при TELEGRAM_USE_POLLING=1 апдейты через getUpdates
+if (telegramBotEnabled && !useTelegramPolling) {
   app.post('/api/telegram/bot-webhook', (req, res) => {
     try {
       console.log('[telegram] webhook POST, content-length=', req.headers['content-length'] || '—');
@@ -56,15 +60,28 @@ if (telegramBotEnabled) {
       res.sendStatus(500);
     }
   });
+}
+if (telegramBotEnabled && useTelegramPolling) {
+  app.post('/api/telegram/bot-webhook', (req, res) => {
+    res.status(410).json({
+      ok: false,
+      error: 'Используется TELEGRAM_USE_POLLING=1 — вебхук отключён, этот URL не обрабатывается.',
+    });
+  });
+}
 
+if (telegramBotEnabled) {
   /** Проверка без обращения к api.telegram.org: бот загружен в память процесса */
   app.get('/api/telegram/bot-ready', (req, res) => {
     const b = getBot();
     const envPath = path.join(__dirname, '.env');
     res.json({
       ok: Boolean(b),
+      mode: getTelegramMode(),
       hint: b
-        ? 'Процесс знает BOT_TOKEN. На РФ VPS исходящий доступ к api.telegram.org часто заблокирован — setWebHook при старте может не пройти; вебхук один раз регистрируют с ноута: backend/scripts/setTelegramWebhook.cjs'
+        ? useTelegramPolling
+          ? 'Режим long polling (TELEGRAM_USE_POLLING=1). Вебхук не используется.'
+          : 'Процесс знает BOT_TOKEN. На РФ VPS исходящий доступ к api.telegram.org часто заблокирован — setWebHook при старте может не пройти; вебхук один раз регистрируют с ноута: backend/scripts/setTelegramWebhook.cjs'
         : 'Бот не инициализирован — проверь BOT_TOKEN в .env',
       diagnostics: {
         cwd: process.cwd(),
@@ -72,6 +89,7 @@ if (telegramBotEnabled) {
         envFileExists: fs.existsSync(envPath),
         botTokenPresent: Boolean(process.env.BOT_TOKEN),
         webhookBaseUrl: process.env.TELEGRAM_WEBHOOK_BASE_URL || null,
+        usePolling: useTelegramPolling,
       },
     });
   });
