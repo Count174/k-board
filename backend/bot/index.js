@@ -14,6 +14,15 @@ const registerTelegramBot = require('./registerBot');
 
 let bot = null;
 
+/** Иначе отклонённые промисы sendMessage (400 chat not found на тестовом curl и т.п.) дают unhandledRejection */
+function wrapSendMessageErrors(telegramBot) {
+  const orig = telegramBot.sendMessage.bind(telegramBot);
+  telegramBot.sendMessage = (chatId, text, form) =>
+    orig(chatId, text, form).catch((err) => {
+      console.error('[telegram] sendMessage:', err.message || err);
+    });
+}
+
 function isOutboundTelegramBlocked(err) {
   const code = err?.code || err?.cause?.code || err?.error?.code;
   const msg = String(err?.message || err?.error?.message || err || '');
@@ -44,6 +53,7 @@ async function initTelegramBot() {
     console.log('[telegram] исходящие запросы к API через прокси (TELEGRAM_HTTPS_PROXY / HTTPS_PROXY)');
   }
   bot = new TelegramBot(token, botOpts);
+  wrapSendMessageErrors(bot);
   registerTelegramBot(bot);
 
   const base = (process.env.TELEGRAM_WEBHOOK_BASE_URL || '').replace(/\/$/, '');
