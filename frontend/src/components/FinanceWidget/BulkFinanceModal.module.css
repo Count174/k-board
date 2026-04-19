@@ -174,3 +174,70 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.tab {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: #9aa0b4;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: #e8eaf4;
+}
+
+.tabActive {
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(79, 70, 229, 0.5);
+  background: rgba(79, 70, 229, 0.25);
+  color: #e8eaf4;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.bankPanel {
+  font-size: 13px;
+  line-height: 1.5;
+  color: #9aa0b4;
+}
+
+.bankPanel label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: #7c8298;
+}
+
+.bankRow {
+  margin-bottom: 14px;
+}
+
+.bankRow select,
+.bankRow input[type="file"] {
+  width: 100%;
+  max-width: 360px;
+}
+
+.bankHint {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.bankHint code {
+  font-size: 11px;
+  color: #c4c8dc;
+}

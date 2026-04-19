@@ -45,6 +45,22 @@ export async function post(endpoint, body) {
   return parseJsonOrEmpty(res);
 }
 
+/** multipart/form-data (напр. загрузка xlsx) */
+export async function postForm(endpoint, formData) {
+  const res = await fetch(joinUrl(BASE_URL, endpoint), {
+    method: 'POST',
+    credentials: 'include',
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(text || 'Ошибка запроса');
+  }
+
+  return parseJsonOrEmpty(res);
+}
+
 export async function patch(endpoint, body) {
   const res = await fetch(joinUrl(BASE_URL, endpoint), {
     method: 'PATCH',

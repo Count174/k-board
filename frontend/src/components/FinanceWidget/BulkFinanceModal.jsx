@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import dayjs from "dayjs";
 import Modal from "../Modal";
-import { post } from "../../api/api";
+import { post, postForm } from "../../api/api";
 import styles from "./BulkFinanceModal.module.css";
 
 function newRowId() {
@@ -67,8 +67,11 @@ export default function BulkFinanceModal({
   defaultAccountId,
   onSuccess,
 }) {
+  const [tab, setTab] = useState("manual"); // manual | xlsx
   const [rows, setRows] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [xlsxAccountId, setXlsxAccountId] = useState("");
+  const [xlsxFile, setXlsxFile] = useState(null);
 
   const resetRows = useCallback(() => {
     const acc = defaultAccountId ? String(defaultAccountId) : "";
@@ -76,8 +79,13 @@ export default function BulkFinanceModal({
   }, [defaultAccountId]);
 
   useEffect(() => {
-    if (open) resetRows();
-  }, [open, resetRows]);
+    if (open) {
+      resetRows();
+      setTab("manual");
+      setXlsxFile(null);
+      setXlsxAccountId(defaultAccountId ? String(defaultAccountId) : "");
+    }
+  }, [open, resetRows, defaultAccountId]);
 
   const updateRow = (id, patch) => {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -121,10 +129,109 @@ export default function BulkFinanceModal({
     }
   };
 
+  const handleXlsxImport = async () => {
+    if (!xlsxFile) {
+      alert("Выберите файл .xlsx");
+      return;
+    }
+    if (!xlsxAccountId) {
+      alert("Выберите счёт для операций из выписки");
+      return;
+    }
+    setBusy(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", xlsxFile);
+      fd.append("account_id", xlsxAccountId);
+      const data = await postForm("/finances/import-xlsx", fd);
+      const sk = data.skipped_count != null ? ` Пропущено строк: ${data.skipped_count}.` : "";
+      alert(`Импортировано операций: ${data.count ?? 0}.${sk}`);
+      onSuccess?.();
+      onClose?.();
+    } catch (e) {
+      const msg = e?.message || String(e);
+      let detail = msg;
+      try {
+        const j = JSON.parse(msg);
+        detail = j.hint || j.messages?.join?.(" ") || j.error || msg;
+        if (j.skipped_count != null) detail += ` (пропущено при разборе: ${j.skipped_count})`;
+      } catch {
+        /* ignore */
+      }
+      console.error("import xlsx:", e);
+      alert(`Импорт не удался: ${detail}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const catOptions = (type) => categories[type] || [];
 
   return (
     <Modal open={open} onClose={busy ? undefined : onClose} title="Массовое добавление операций" wide>
+      <div className={styles.tabs}>
+        <button
+          type="button"
+          className={tab === "manual" ? styles.tabActive : styles.tab}
+          onClick={() => setTab("manual")}
+          disabled={busy}
+        >
+          Вручную
+        </button>
+        <button
+          type="button"
+          className={tab === "xlsx" ? styles.tabActive : styles.tab}
+          onClick={() => setTab("xlsx")}
+          disabled={busy}
+        >
+          Выписка .xlsx (Тинькофф)
+        </button>
+      </div>
+
+      {tab === "xlsx" ? (
+        <div className={styles.bankPanel}>
+          <p className={styles.bankHint}>
+            Экспорт операций из Тинькофф (Excel). Импортируются только строки со статусом <code>OK</code>. Пропускаются:{" "}
+            <code>FAILED</code>, переводы между своими счетами. Категории банка сопоставляются с твоими: такси и местный
+            транспорт → <strong>Транспорт</strong>, фастфуд и рестораны → <strong>еда вне дома</strong>; остальные — по
+            названию категории из выписки (как в приложении). До {500} операций за раз.
+          </p>
+          <div className={styles.bankRow}>
+            <label>Счёт для всех операций из файла</label>
+            <select value={xlsxAccountId} onChange={(e) => setXlsxAccountId(e.target.value)} disabled={busy}>
+              <option value="">Выберите счёт</option>
+              {accounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className={styles.bankRow}>
+            <label>Файл .xlsx</label>
+            <input
+              type="file"
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              onChange={(e) => setXlsxFile(e.target.files?.[0] || null)}
+              disabled={busy}
+            />
+          </div>
+          <div className={styles.footer}>
+            <button type="button" className={styles.btnGhost} onClick={onClose} disabled={busy}>
+              Отмена
+            </button>
+            <button
+              type="button"
+              className={styles.btnPrimary}
+              onClick={handleXlsxImport}
+              disabled={busy || !accounts.length}
+            >
+              {busy ? "Импорт…" : "Импортировать выписку"}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <>
       <p className={styles.lead}>
         Заполните строки: дата, тип, сумма, счёт, категория. Комментарий по желанию. Пустые строки при сохранении
         игнорируются.
@@ -225,6 +332,8 @@ export default function BulkFinanceModal({
           {busy ? "Сохранение…" : "Добавить операции"}
         </button>
       </div>
+        </>
+      )}
     </Modal>
   );
 }

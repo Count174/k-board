@@ -8,6 +8,8 @@ const {
   run,
 } = require('../utils/accountsService');
 const { getEffectiveBudgets } = require('../utils/budgetService');
+const XLSX = require('xlsx');
+const { buildImportItems } = require('../utils/tinkoffStatement');
 
 // small helpers
 const all = (sql, p = []) => new Promise((res, rej) =>
@@ -24,6 +26,7 @@ function daysInMonth(yyyyMM) {
 }
 
 const BULK_MAX_ITEMS = 150;
+const BANK_XLSX_MAX_ROWS = 500;
 
 /**
  * Одна операция: та же логика, что раньше в create (категория, FX, счёт, баланс).
@@ -264,6 +267,82 @@ exports.createBulk = async (req, res) => {
     await run('ROLLBACK').catch(() => {});
     console.error('finances.createBulk error:', e);
     res.status(500).json({ error: 'bulk_failed' });
+  }
+};
+
+/**
+ * POST /api/finances/import-xlsx
+ * multipart: file (.xlsx), account_id
+ * Выписка Тинькофф: пропуск FAILED, переводы между своими счетами; маппинг категорий см. utils/tinkoffStatement.js
+ */
+exports.importXlsx = async (req, res) => {
+  if (!req.file || !req.file.buffer) {
+    return res.status(400).json({ error: 'file_required' });
+  }
+  const accountId = Number(req.body.account_id);
+  if (!Number.isFinite(accountId) || accountId <= 0) {
+    return res.status(400).json({ error: 'account_id_required' });
+  }
+
+  const account = await getAccountById(req.userId, accountId);
+  if (!account) {
+    return res.status(400).json({ error: 'account_not_found' });
+  }
+
+  let workbook;
+  try {
+    workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: false });
+  } catch (e) {
+    console.error('importXlsx read:', e);
+    return res.status(400).json({ error: 'invalid_xlsx', message: e.message || String(e) });
+  }
+
+  const sheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+  const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
+
+  const { items: rawItems, skipped, errors } = buildImportItems(matrix);
+  if (errors.length) {
+    return res.status(400).json({ error: 'parse_failed', messages: errors });
+  }
+  if (!rawItems.length) {
+    return res.status(400).json({ error: 'no_rows_to_import', skipped, hint: 'Проверь, что есть строки со статусом OK и ненулевой суммой.' });
+  }
+  if (rawItems.length > BANK_XLSX_MAX_ROWS) {
+    return res.status(400).json({ error: 'too_many_rows', max: BANK_XLSX_MAX_ROWS, count: rawItems.length });
+  }
+
+  const items = rawItems.map((it) => ({ ...it, account_id: accountId }));
+
+  try {
+    await run('BEGIN IMMEDIATE');
+    const created = [];
+    for (let i = 0; i < items.length; i++) {
+      try {
+        const row = await insertFinanceRecord(req.userId, items[i]);
+        created.push(row);
+      } catch (e) {
+        await run('ROLLBACK');
+        const { status, body } = mapInsertErrorToHttp(e);
+        return res.status(status).json({
+          ...body,
+          index: i,
+          message: e.message || String(e),
+          imported_before_error: i,
+        });
+      }
+    }
+    await run('COMMIT');
+    res.status(201).json({
+      created,
+      count: created.length,
+      skipped,
+      skipped_count: skipped.length,
+    });
+  } catch (e) {
+    await run('ROLLBACK').catch(() => {});
+    console.error('finances.importXlsx error:', e);
+    res.status(500).json({ error: 'import_failed' });
   }
 };
 
