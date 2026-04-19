@@ -45,7 +45,8 @@ async function main() {
   if (await addColumnIfMissing('budgets', 'budget_kind', `budget_kind TEXT NOT NULL DEFAULT 'category'`)) {
     added.push('budget_kind');
   }
-  if (await addColumnIfMissing('budgets', 'updated_at', 'updated_at TEXT DEFAULT CURRENT_TIMESTAMP')) {
+  // SQLite ADD COLUMN не принимает DEFAULT CURRENT_TIMESTAMP — только константы.
+  if (await addColumnIfMissing('budgets', 'updated_at', 'updated_at TEXT')) {
     added.push('updated_at');
   }
 
