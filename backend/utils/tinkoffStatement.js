@@ -35,14 +35,32 @@ function normHeader(s) {
     .replace(/\s+/g, ' ');
 }
 
-/** Парсинг суммы вида "-3 209,16" или "238,63" */
+/**
+ * Парсинг суммы из выписки / Excel.
+ * Поддерживает: «173 963,00» и «-3 209,16» (RU), а также «173,963.00» (US/как отдаёт xlsx при raw: false).
+ */
 function parseAmountRu(val) {
   if (val == null || val === '') return NaN;
-  if (typeof val === 'number') return val;
-  const t = String(val)
+  if (typeof val === 'number' && Number.isFinite(val)) return val;
+  let t = String(val)
     .trim()
     .replace(/\s/g, '')
-    .replace(',', '.');
+    .replace(/\u00a0/g, '');
+
+  const lastComma = t.lastIndexOf(',');
+  const lastDot = t.lastIndexOf('.');
+
+  if (lastDot > lastComma && lastDot !== -1) {
+    // Десятичная точка (1,234.56): запятые — тысячи
+    t = t.replace(/,/g, '');
+  } else if (lastComma > lastDot && lastComma !== -1) {
+    // Десятичная запятая (1.234,56 или 173963,16): точки — тысячи
+    t = t.replace(/\./g, '').replace(',', '.');
+  } else if (lastComma !== -1 && lastDot === -1) {
+    // Только запятая — десятичный разделитель
+    t = t.replace(',', '.');
+  }
+
   const n = Number(t);
   return Number.isFinite(n) ? n : NaN;
 }
