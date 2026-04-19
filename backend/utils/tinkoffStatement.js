@@ -99,6 +99,40 @@ function pickCategoryColumnIndex(headerRow) {
 }
 
 /**
+ * «Сумма операции» — не путать с «Сумма операции с округлением»: обе содержат подстроку «сумма операции»,
+ * последняя в файле перезаписывала idx.amount; в xlsx ячейка «с округлением» часто пустая → сумма не парсилась.
+ */
+function pickAmountOperationIndex(headerRow) {
+  const norms = headerRow.map((c) => normHeader(c));
+  for (let i = 0; i < norms.length; i++) {
+    if (norms[i] === 'сумма операции') return i;
+  }
+  for (let i = 0; i < norms.length; i++) {
+    const h = norms[i];
+    if (h.includes('сумма операции') && !h.includes('округлен')) return i;
+  }
+  for (let i = 0; i < norms.length; i++) {
+    if (norms[i].includes('сумма операции')) return i;
+  }
+  return null;
+}
+
+function pickAmountPaymentIndex(headerRow) {
+  const norms = headerRow.map((c) => normHeader(c));
+  for (let i = 0; i < norms.length; i++) {
+    if (norms[i] === 'сумма платежа') return i;
+  }
+  for (let i = 0; i < norms.length; i++) {
+    const h = norms[i];
+    if (h.includes('сумма платежа') && !h.includes('округлен')) return i;
+  }
+  for (let i = 0; i < norms.length; i++) {
+    if (norms[i].includes('сумма платежа')) return i;
+  }
+  return null;
+}
+
+/**
  * Строит индекс колонок по заголовкам
  */
 function mapColumns(headerRow) {
@@ -107,15 +141,14 @@ function mapColumns(headerRow) {
     const h = normHeader(cell);
     if (h.includes('дата операции')) idx.dateOp = i;
     if (h === 'статус' || h.includes('статус')) idx.status = i;
-    if (h.includes('сумма операции')) idx.amount = i;
-    // Обе колонки часто есть в выписке; «сумма платежа» нужна, если «сумма операции» в строке пустая (напр. зарплата).
-    if (h.includes('сумма платежа')) idx.amountPay = i;
     if (h.includes('валюта операции')) idx.currency = i;
     if (!idx.currency && h.includes('валюта платежа')) idx.currencyPay = i;
     // Только первая колонка описания (иначе «Комментарий к описанию» и т.п. перезаписывали бы).
     if (idx.description == null && h.includes('описание')) idx.description = i;
   });
   idx.category = pickCategoryColumnIndex(headerRow);
+  idx.amount = pickAmountOperationIndex(headerRow);
+  idx.amountPay = pickAmountPaymentIndex(headerRow);
   if (idx.amount == null) idx.amount = idx.amountPay;
   if (idx.currency == null) idx.currency = idx.currencyPay;
   return idx;
@@ -216,4 +249,6 @@ module.exports = {
   findHeaderRow,
   mapColumns,
   pickCategoryColumnIndex,
+  pickAmountOperationIndex,
+  pickAmountPaymentIndex,
 };
