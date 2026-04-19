@@ -365,3 +365,155 @@
   margin-bottom: 10px;
   color:#fff;
 }
+
+.modalGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.modalField,
+.modalFieldWide {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modalFieldWide {
+  grid-column: 1 / -1;
+}
+
+.modalField label,
+.modalFieldWide label {
+  font-size: 12px;
+  color: #9aa0b4;
+}
+
+.modalField input,
+.modalField input[type="date"],
+.modalField select,
+.modalFieldWide input,
+.modalFieldWide select {
+  width: 100%;
+  box-sizing: border-box;
+  background: #2c2d35;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-radius: 10px;
+  min-height: 42px;
+  padding: 10px 12px;
+  outline: none;
+}
+
+.inlineRow {
+  display: flex;
+  gap: 8px;
+}
+
+.inlineRow button {
+  background: #3b82f6;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 0 14px;
+  cursor: pointer;
+}
+
+.modalActions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.modalActions button {
+  background: #4f46e5;
+  border: none;
+  color: white;
+  padding: 10px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.secondaryBtn {
+  background: transparent !important;
+  border: 1px solid rgba(255,255,255,0.18) !important;
+  color: #cbd5e1 !important;
+}
+
+.analyticsKpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.kpiCard {
+  background: #2c2d35;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.kpiLabel {
+  font-size: 12px;
+  color: #9aa0b4;
+}
+
+.kpiValue {
+  margin-top: 6px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.kpiSub {
+  margin-top: 6px;
+  font-size: 12px;
+  color: #a9afc4;
+}
+
+.pieWrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+}
+
+.legendList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  color: #c4c8dc;
+}
+
+.legendList li {
+  padding: 4px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.legendDot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+@media (max-width: 1100px) {
+  .analyticsKpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .pieWrap {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .modalGrid {
+    grid-template-columns: 1fr;
+  }
+  .analyticsKpis {
+    grid-template-columns: 1fr;
+  }
+}

@@ -18,6 +18,7 @@ router.post('/bulk', authMiddleware, controller.createBulk);
 router.post('/import-xlsx', authMiddleware, uploadXlsxMiddleware, controller.importXlsx);
 router.delete('/:id', authMiddleware, controller.remove);
 router.get('/period', authMiddleware, controller.getByPeriod);
+router.get('/summary', authMiddleware, controller.getSummary);
 router.get('/monthly', authMiddleware, controller.getMonthlyStats);
 
 // аналитика для новых виджетов

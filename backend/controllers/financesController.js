@@ -257,6 +257,39 @@ exports.getByPeriod = (req, res) => {
   );
 };
 
+/**
+ * GET /api/finances/summary?start=YYYY-MM-DD&end=YYYY-MM-DD
+ * Быстрая сводка за период без загрузки списка операций.
+ */
+exports.getSummary = async (req, res) => {
+  try {
+    const { start, end } = req.query;
+    if (!start || !end) return res.status(400).json({ error: 'start_end_required' });
+
+    const row = await get(
+      `SELECT
+          IFNULL(SUM(CASE WHEN f.type='income' THEN COALESCE(f.amount_rub, f.amount) ELSE 0 END), 0) AS incomes,
+          IFNULL(SUM(CASE WHEN f.type='expense' THEN ABS(COALESCE(f.amount_rub, f.amount)) ELSE 0 END), 0) AS expenses
+         FROM finances f
+        WHERE f.user_id = ?
+          AND date(f.date) >= date(?)
+          AND date(f.date) <= date(?)`,
+      [req.userId, start, end]
+    );
+
+    const incomes = Number(row?.incomes || 0);
+    const expenses = Number(row?.expenses || 0);
+    return res.json({
+      incomes,
+      expenses,
+      balance: Number((incomes - expenses).toFixed(2)),
+    });
+  } catch (e) {
+    console.error('finances.getSummary error:', e);
+    return res.status(500).json({ error: 'summary_failed' });
+  }
+};
+
 exports.getMonthlyStats = (req, res) => {
   db.all(
     `SELECT 

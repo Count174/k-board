@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from "react";
 import styles from "./FinanceWidget.module.css";
 import BulkFinanceModal from "./BulkFinanceModal";
 import { get, post } from "../../api/api";
+import Modal from "../Modal";
 import {
   LineChart,
   Line,
@@ -13,10 +14,14 @@ import {
   Bar,
   Legend,
   ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
 } from "recharts";
 import dayjs from "dayjs";
 
 const PAGE = 20;
+const EXPENSE_COLORS = ["#f87171", "#fb7185", "#f97316", "#f59e0b", "#ef4444", "#dc2626"];
 
 const money = (v) => `${Number(v || 0).toLocaleString("ru-RU")} ₽`;
 const currencySymbol = (c) => ({ RUB: "₽", EUR: "€", USD: "$", TRY: "₺" }[String(c || "").toUpperCase()] || String(c || "").toUpperCase());
@@ -43,6 +48,7 @@ const FinanceWidget = () => {
     account_id: "",
     date: dayjs().format("YYYY-MM-DD"),
   });
+  const [singleModalOpen, setSingleModalOpen] = useState(false);
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
   const [categories, setCategories] = useState({ expense: [], income: [] });
   const [accounts, setAccounts] = useState([]);
@@ -60,6 +66,9 @@ const FinanceWidget = () => {
   // фильтры категорий (для аналитики)
   const [expenseCategory, setExpenseCategory] = useState("all");
   const [incomeCategory, setIncomeCategory] = useState("all");
+  const [summary, setSummary] = useState({ incomes: 0, expenses: 0, balance: 0 });
+  const [summaryPrev, setSummaryPrev] = useState({ incomes: 0, expenses: 0, balance: 0 });
+  const [budgetSnapshot, setBudgetSnapshot] = useState(null);
 
   const getPeriodDates = (selectedPeriod) => {
     const today = dayjs().startOf("day");
@@ -92,6 +101,17 @@ const FinanceWidget = () => {
     }
   };
 
+  const getPrevPeriodDates = (selectedPeriod) => {
+    const { start, end } = getPeriodDates(selectedPeriod);
+    const s = dayjs(start);
+    const e = dayjs(end);
+    const days = Math.max(1, e.diff(s, "day") + 1);
+    return {
+      start: s.subtract(days, "day").format("YYYY-MM-DD"),
+      end: s.subtract(1, "day").format("YYYY-MM-DD"),
+    };
+  };
+
   const fetchTransactions = async (append = false, selectedPeriod = period) => {
     try {
       const { start, end } = getPeriodDates(selectedPeriod);
@@ -121,6 +141,46 @@ const FinanceWidget = () => {
     } catch (e) {
       console.error("Analytics TX load error:", e);
       setAnalyticsTx([]);
+    }
+  };
+
+  const fetchSummary = async (selectedPeriod = period) => {
+    const { start, end } = getPeriodDates(selectedPeriod);
+    const prev = getPrevPeriodDates(selectedPeriod);
+    try {
+      const [cur, prevData] = await Promise.all([
+        get(`/finances/summary?start=${start}&end=${end}`),
+        get(`/finances/summary?start=${prev.start}&end=${prev.end}`),
+      ]);
+      setSummary({
+        incomes: Number(cur?.incomes || 0),
+        expenses: Number(cur?.expenses || 0),
+        balance: Number(cur?.balance || 0),
+      });
+      setSummaryPrev({
+        incomes: Number(prevData?.incomes || 0),
+        expenses: Number(prevData?.expenses || 0),
+        balance: Number(prevData?.balance || 0),
+      });
+    } catch (e) {
+      console.error("Summary load error:", e);
+      setSummary({ incomes: 0, expenses: 0, balance: 0 });
+      setSummaryPrev({ incomes: 0, expenses: 0, balance: 0 });
+    }
+  };
+
+  const fetchBudgetSnapshot = async (selectedPeriod = period) => {
+    const { start, end } = getPeriodDates(selectedPeriod);
+    if (dayjs(start).format("YYYY-MM") !== dayjs(end).format("YYYY-MM")) {
+      setBudgetSnapshot(null);
+      return;
+    }
+    try {
+      const month = dayjs(start).format("YYYY-MM");
+      const data = await get(`budgets/stats?month=${month}`);
+      setBudgetSnapshot(data || null);
+    } catch {
+      setBudgetSnapshot(null);
     }
   };
 
@@ -171,6 +231,8 @@ const FinanceWidget = () => {
 
     fetchTransactions(false, period);
     fetchAnalyticsTransactions(period);
+    fetchSummary(period);
+    fetchBudgetSnapshot(period);
   }, [period, customApplied]);
 
   const handleAddTransaction = async () => {
@@ -194,12 +256,15 @@ const FinanceWidget = () => {
       }));
       setShowNewCategoryForm(false);
       setNewCategoryName("");
+      setSingleModalOpen(false);
       setOffset(0);
       setHasMore(true);
 
       // обновим текущий таб и аналитику
       fetchTransactions(false, period);
       fetchAnalyticsTransactions(period);
+      fetchSummary(period);
+      fetchBudgetSnapshot(period);
     } catch (error) {
       console.error("Ошибка при добавлении транзакции:", error);
     }
@@ -210,6 +275,8 @@ const FinanceWidget = () => {
     setHasMore(true);
     fetchTransactions(false, period);
     fetchAnalyticsTransactions(period);
+    fetchSummary(period);
+    fetchBudgetSnapshot(period);
   };
 
   const handleCreateCategory = async () => {
@@ -234,18 +301,11 @@ const FinanceWidget = () => {
     }
   };
 
-  // ====== SUMMARIES for Transactions tab ======
-  const income = useMemo(() => {
-    return transactions
-      .filter((t) => t.type === "income")
-      .reduce((acc, t) => acc + amountInRub(t), 0);
-  }, [transactions]);
-
-  const expense = useMemo(() => {
-    return transactions
-      .filter((t) => t.type === "expense")
-      .reduce((acc, t) => acc + Math.abs(amountInRub(t)), 0);
-  }, [transactions]);
+  // ====== SUMMARIES ======
+  const income = summary.incomes;
+  const expense = summary.expenses;
+  const balance = summary.balance;
+  const savingsRate = income > 0 ? Number(((income - expense) / income * 100).toFixed(1)) : null;
 
   // ====== категории для селектов (из analyticsTx) ======
   const expenseCategories = useMemo(() => {
@@ -323,6 +383,32 @@ const FinanceWidget = () => {
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 10);
   }, [analyticsTx, incomeCategory]);
+
+  const expensePie = useMemo(() => {
+    const total = topExpenses.reduce((s, r) => s + Number(r.amount || 0), 0);
+    if (!total) return [];
+    const top = topExpenses.slice(0, 5).map((r) => ({
+      name: r.category,
+      value: Number(r.amount || 0),
+      share: Number((((Number(r.amount || 0)) / total) * 100).toFixed(1)),
+    }));
+    const restAmount = topExpenses.slice(5).reduce((s, r) => s + Number(r.amount || 0), 0);
+    if (restAmount > 0) {
+      top.push({
+        name: "Прочее",
+        value: restAmount,
+        share: Number(((restAmount / total) * 100).toFixed(1)),
+      });
+    }
+    return top;
+  }, [topExpenses]);
+
+  const expenseDeltaPct = summaryPrev.expenses > 0
+    ? Number((((expense - summaryPrev.expenses) / summaryPrev.expenses) * 100).toFixed(1))
+    : null;
+  const incomeDeltaPct = summaryPrev.incomes > 0
+    ? Number((((income - summaryPrev.incomes) / summaryPrev.incomes) * 100).toFixed(1))
+    : null;
 
   const onSelectPeriod = (key) => {
     setPeriod(key);
@@ -414,109 +500,21 @@ const FinanceWidget = () => {
           <div className={styles.summary}>
             <span className={styles.income}>Доходы: {money(income)}</span>
             <span className={styles.expense}>Расходы: {money(expense)}</span>
+            <span className={balance >= 0 ? styles.income : styles.expense}>
+              Сальдо: {money(balance)}
+            </span>
           </div>
 
-          <h3 className={styles.subtitle}>Добавить операцию</h3>
-          <div className={styles.addTransaction}>
-            <div className={styles.dateField}>
-              <span className={styles.dateLabel}>Дата</span>
-              <input
-                type="date"
-                value={form.date}
-                onChange={(e) => setForm({ ...form, date: e.target.value })}
-              />
-            </div>
-            <select
-              value={form.type}
-              onChange={(e) => {
-                setForm({
-                  type: e.target.value,
-                  category_id: "",
-                  comment: "",
-                  amount: "",
-                  account_id: form.account_id,
-                  date: form.date,
-                });
-                setShowNewCategoryForm(false);
-              }}
-            >
-              <option value="income">Доход</option>
-              <option value="expense">Расход</option>
-            </select>
-            {accounts.length > 1 && (
-              <select
-                value={form.account_id}
-                onChange={(e) => setForm({ ...form, account_id: e.target.value })}
-              >
-                <option value="">Выберите счёт</option>
-                {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name} · {Number(a.balance || 0).toLocaleString("ru-RU")} {String(a.currency || "RUB").toUpperCase()}
-                  </option>
-                ))}
-              </select>
-            )}
-            {accounts.length === 1 && (
-              <div className={styles.accountHint}>
-                Счёт: {accounts[0].name}
-              </div>
-            )}
-            <select
-              value={form.category_id}
-              onChange={(e) => {
-                if (e.target.value === "new") {
-                  setShowNewCategoryForm(true);
-                  setForm({ ...form, category_id: "" });
-                } else {
-                  setForm({ ...form, category_id: e.target.value });
-                  setShowNewCategoryForm(false);
-                }
-              }}
-            >
-              <option value="">Выберите категорию</option>
-              {(categories[form.type] || []).map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  {cat.name}
-                </option>
-              ))}
-              <option value="new">➕ Создать новую...</option>
-            </select>
-            {showNewCategoryForm && (
-              <div style={{ display: "flex", gap: "8px", width: "100%" }}>
-                <input
-                  type="text"
-                  placeholder="Название категории"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  onKeyPress={(e) => {
-                    if (e.key === "Enter") handleCreateCategory();
-                  }}
-                />
-                <button onClick={handleCreateCategory}>Создать</button>
-                <button onClick={() => {
-                  setShowNewCategoryForm(false);
-                  setNewCategoryName("");
-                }}>Отмена</button>
-              </div>
-            )}
-            <input
-              type="text"
-              placeholder="Комментарий (опционально)"
-              value={form.comment}
-              onChange={(e) => setForm({ ...form, comment: e.target.value })}
-            />
-            <input
-              type="number"
-              placeholder="Сумма"
-              value={form.amount}
-              onChange={(e) => setForm({ ...form, amount: e.target.value })}
-            />
-            <button onClick={handleAddTransaction} disabled={!form.category_id || !form.amount || !form.account_id}>
-              Добавить
-            </button>
-          </div>
-
+          <h3 className={styles.subtitle}>Операции</h3>
           <div className={styles.bulkToggleRow}>
+            <button
+              type="button"
+              className={styles.bulkOpenBtn}
+              onClick={() => setSingleModalOpen(true)}
+              disabled={!accounts.length}
+            >
+              Добавить операцию
+            </button>
             <button
               type="button"
               className={styles.bulkOpenBtn}
@@ -526,6 +524,120 @@ const FinanceWidget = () => {
               Массовое добавление
             </button>
           </div>
+
+          <Modal open={singleModalOpen} onClose={() => setSingleModalOpen(false)} title="Новая операция">
+            <div className={styles.modalGrid}>
+              <div className={styles.modalField}>
+                <label>Дата</label>
+                <input
+                  type="date"
+                  value={form.date}
+                  onChange={(e) => setForm({ ...form, date: e.target.value })}
+                />
+              </div>
+              <div className={styles.modalField}>
+                <label>Тип</label>
+                <select
+                  value={form.type}
+                  onChange={(e) => {
+                    setForm({
+                      type: e.target.value,
+                      category_id: "",
+                      comment: "",
+                      amount: "",
+                      account_id: form.account_id,
+                      date: form.date,
+                    });
+                    setShowNewCategoryForm(false);
+                  }}
+                >
+                  <option value="income">Доход</option>
+                  <option value="expense">Расход</option>
+                </select>
+              </div>
+              <div className={styles.modalField}>
+                <label>Счёт</label>
+                <select
+                  value={form.account_id}
+                  onChange={(e) => setForm({ ...form, account_id: e.target.value })}
+                >
+                  <option value="">Выберите счёт</option>
+                  {accounts.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name} · {Number(a.balance || 0).toLocaleString("ru-RU")} {String(a.currency || "RUB").toUpperCase()}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className={styles.modalField}>
+                <label>Категория</label>
+                <select
+                  value={form.category_id}
+                  onChange={(e) => {
+                    if (e.target.value === "new") {
+                      setShowNewCategoryForm(true);
+                      setForm({ ...form, category_id: "" });
+                    } else {
+                      setForm({ ...form, category_id: e.target.value });
+                      setShowNewCategoryForm(false);
+                    }
+                  }}
+                >
+                  <option value="">Выберите категорию</option>
+                  {(categories[form.type] || []).map((cat) => (
+                    <option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </option>
+                  ))}
+                  <option value="new">➕ Создать новую...</option>
+                </select>
+              </div>
+              {showNewCategoryForm && (
+                <div className={styles.modalFieldWide}>
+                  <label>Новая категория</label>
+                  <div className={styles.inlineRow}>
+                    <input
+                      type="text"
+                      placeholder="Название категории"
+                      value={newCategoryName}
+                      onChange={(e) => setNewCategoryName(e.target.value)}
+                    />
+                    <button type="button" onClick={handleCreateCategory}>Создать</button>
+                  </div>
+                </div>
+              )}
+              <div className={styles.modalFieldWide}>
+                <label>Комментарий</label>
+                <input
+                  type="text"
+                  placeholder="Опционально"
+                  value={form.comment}
+                  onChange={(e) => setForm({ ...form, comment: e.target.value })}
+                />
+              </div>
+              <div className={styles.modalField}>
+                <label>Сумма</label>
+                <input
+                  type="number"
+                  placeholder="0"
+                  value={form.amount}
+                  onChange={(e) => setForm({ ...form, amount: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className={styles.modalActions}>
+              <button type="button" className={styles.secondaryBtn} onClick={() => setSingleModalOpen(false)}>
+                Отмена
+              </button>
+              <button
+                type="button"
+                onClick={handleAddTransaction}
+                disabled={!form.category_id || !form.amount || !form.account_id}
+              >
+                Добавить
+              </button>
+            </div>
+          </Modal>
 
           <BulkFinanceModal
             open={bulkModalOpen}
@@ -578,6 +690,39 @@ const FinanceWidget = () => {
         </>
       ) : (
         <>
+          <div className={styles.analyticsKpis}>
+            <div className={styles.kpiCard}>
+              <div className={styles.kpiLabel}>Доходы за период</div>
+              <div className={`${styles.kpiValue} ${styles.income}`}>{money(income)}</div>
+              {incomeDeltaPct != null && (
+                <div className={styles.kpiSub}>к прошлому периоду: {incomeDeltaPct > 0 ? "+" : ""}{incomeDeltaPct}%</div>
+              )}
+            </div>
+            <div className={styles.kpiCard}>
+              <div className={styles.kpiLabel}>Расходы за период</div>
+              <div className={`${styles.kpiValue} ${styles.expense}`}>{money(expense)}</div>
+              {expenseDeltaPct != null && (
+                <div className={styles.kpiSub}>к прошлому периоду: {expenseDeltaPct > 0 ? "+" : ""}{expenseDeltaPct}%</div>
+              )}
+            </div>
+            <div className={styles.kpiCard}>
+              <div className={styles.kpiLabel}>Сальдо</div>
+              <div className={`${styles.kpiValue} ${balance >= 0 ? styles.income : styles.expense}`}>{money(balance)}</div>
+              <div className={styles.kpiSub}>
+                {savingsRate == null ? "Нет доходов в периоде" : `Норма сбережений: ${savingsRate}%`}
+              </div>
+            </div>
+            {budgetSnapshot?.totalBudget != null && (
+              <div className={styles.kpiCard}>
+                <div className={styles.kpiLabel}>Бюджет месяца</div>
+                <div className={styles.kpiValue}>{money(budgetSnapshot.totalBudget)}</div>
+                <div className={styles.kpiSub}>
+                  Факт: {money(budgetSnapshot.totalSpent || 0)} · Остаток: {money((budgetSnapshot.unallocated || 0) + ((budgetSnapshot.allocated || 0) - (budgetSnapshot.totalSpent || 0)))}
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* ===== Filters for Analytics ===== */}
           <div className={styles.filtersRow}>
             <div className={styles.filter}>
@@ -603,43 +748,47 @@ const FinanceWidget = () => {
 
           {/* ===== Line chart (monthly, filtered) ===== */}
           <div className={styles.chartCard}>
-            <ResponsiveContainer width="100%" height={320}>
-              <LineChart data={monthlySeries}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                <XAxis
-                  dataKey="month"
-                  tickFormatter={(date) => dayjs(date + "-01").format("MMM YY")}
-                  stroke="#aaa"
-                />
-                <YAxis stroke="#aaa" />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#1e1f26",
-                    border: "none",
-                    borderRadius: "8px",
-                    color: "#fff",
-                  }}
-                  formatter={(value) => [money(value)]}
-                />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="income"
-                  stroke="#4ade80"
-                  strokeWidth={3}
-                  dot={{ r: 4, fill: "#4ade80", strokeWidth: 2, stroke: "#1e1f26" }}
-                  activeDot={{ r: 6 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="expense"
-                  stroke="#f87171"
-                  strokeWidth={3}
-                  dot={{ r: 4, fill: "#f87171", strokeWidth: 2, stroke: "#1e1f26" }}
-                  activeDot={{ r: 6 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            {monthlySeries.length < 2 ? (
+              <div className={styles.rangeHint}>Недостаточно точек для тренда. Выбери более длинный период.</div>
+            ) : (
+              <ResponsiveContainer width="100%" height={320}>
+                <LineChart data={monthlySeries}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                  <XAxis
+                    dataKey="month"
+                    tickFormatter={(date) => dayjs(date + "-01").format("MMM YY")}
+                    stroke="#aaa"
+                  />
+                  <YAxis stroke="#aaa" />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#1e1f26",
+                      border: "none",
+                      borderRadius: "8px",
+                      color: "#fff",
+                    }}
+                    formatter={(value) => [money(value)]}
+                  />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="income"
+                    stroke="#4ade80"
+                    strokeWidth={3}
+                    dot={{ r: 4, fill: "#4ade80", strokeWidth: 2, stroke: "#1e1f26" }}
+                    activeDot={{ r: 6 }}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="expense"
+                    stroke="#f87171"
+                    strokeWidth={3}
+                    dot={{ r: 4, fill: "#f87171", strokeWidth: 2, stroke: "#1e1f26" }}
+                    activeDot={{ r: 6 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
           </div>
 
           {/* ===== Bars ===== */}
@@ -657,7 +806,7 @@ const FinanceWidget = () => {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                  <XAxis dataKey="category" stroke="#aaa" />
+                  <XAxis dataKey="category" stroke="#aaa" angle={-35} textAnchor="end" height={70} interval={0} tick={{ fontSize: 11 }} />
                   <YAxis stroke="#aaa" />
                   <Tooltip
                     contentStyle={{
@@ -686,7 +835,7 @@ const FinanceWidget = () => {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                  <XAxis dataKey="category" stroke="#aaa" />
+                  <XAxis dataKey="category" stroke="#aaa" angle={-35} textAnchor="end" height={70} interval={0} tick={{ fontSize: 11 }} />
                   <YAxis stroke="#aaa" />
                   <Tooltip
                     contentStyle={{
@@ -700,6 +849,36 @@ const FinanceWidget = () => {
                   <Bar dataKey="amount" fill="url(#barIncome)" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className={styles.analyticsCharts}>
+            <div className={styles.chartInner}>
+              <div className={styles.chartTitle}>Доли расходов (топ)</div>
+              {expensePie.length ? (
+                <div className={styles.pieWrap}>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <PieChart>
+                      <Pie data={expensePie} dataKey="value" nameKey="name" innerRadius={48} outerRadius={88} paddingAngle={2}>
+                        {expensePie.map((entry, i) => (
+                          <Cell key={entry.name} fill={EXPENSE_COLORS[i % EXPENSE_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(v) => [money(v)]} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <ul className={styles.legendList}>
+                    {expensePie.map((r, i) => (
+                      <li key={r.name}>
+                        <span className={styles.legendDot} style={{ background: EXPENSE_COLORS[i % EXPENSE_COLORS.length] }} />
+                        {r.name} — {r.share}%
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <div className={styles.rangeHint}>Нет расходов в выбранном диапазоне</div>
+              )}
             </div>
           </div>
         </>

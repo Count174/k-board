@@ -5,6 +5,37 @@ import styles from '../styles/SettingsPage.module.css';
 
 const CURRENCIES = ['RUB', 'USD', 'EUR', 'TRY', 'GBP', 'AED', 'KZT', 'GEL'];
 
+function getMaggiulliTemplateByWealth(wealthRub) {
+  if (wealthRub < 100000) {
+    return [
+      { category: 'Супермаркеты', pct: 28 },
+      { category: 'Транспорт', pct: 12 },
+      { category: 'Жильё и счета', pct: 30 },
+      { category: 'еда вне дома', pct: 8 },
+      { category: 'Резерв / подушка', pct: 12 },
+      { category: 'Прочее', pct: 10 },
+    ];
+  }
+  if (wealthRub < 1000000) {
+    return [
+      { category: 'Супермаркеты', pct: 24 },
+      { category: 'Транспорт', pct: 10 },
+      { category: 'Жильё и счета', pct: 26 },
+      { category: 'еда вне дома', pct: 10 },
+      { category: 'Инвестиции', pct: 20 },
+      { category: 'Прочее', pct: 10 },
+    ];
+  }
+  return [
+    { category: 'Супермаркеты', pct: 18 },
+    { category: 'Транспорт', pct: 8 },
+    { category: 'Жильё и счета', pct: 24 },
+    { category: 'еда вне дома', pct: 10 },
+    { category: 'Инвестиции', pct: 28 },
+    { category: 'Резерв / цели', pct: 12 },
+  ];
+}
+
 export default function SettingsPage() {
   const [accounts, setAccounts] = useState([]);
   const [month, setMonth] = useState(() => {
@@ -206,7 +237,7 @@ export default function SettingsPage() {
     }
     const payload = {
       budget_kind: draft.budget_kind,
-      category: String(draft.category || '').trim().toLowerCase(),
+      category: String(draft.category || '').trim(),
       amount,
       month,
       scope: draft.scope,
@@ -217,6 +248,37 @@ export default function SettingsPage() {
       await post('budgets', payload);
     }
     closeBudgetModal();
+    await load();
+  };
+
+  const applyMaggiulliBudgets = async () => {
+    const totalBudget = Number(window.prompt('Введи общий бюджет на месяц (₽):', '100000'));
+    if (!(totalBudget > 0)) return;
+    const liquidWealth = accounts.reduce((sum, a) => sum + Number(a.balance || 0), 0);
+    const template = getMaggiulliTemplateByWealth(liquidWealth);
+    const note =
+      liquidWealth < 100000
+        ? 'ступень: устойчивость (больше фокус на базовые траты и резерв)'
+        : liquidWealth < 1000000
+          ? 'ступень: рост (баланс между жизнью и накоплением капитала)'
+          : 'ступень: эффективность капитала (выше доля инвестиций)';
+    const ok = window.confirm(
+      `Создать бюджеты по Wealth Ladder (Маджули)?\n` +
+      `Оценка ликвидного капитала: ${Math.round(liquidWealth).toLocaleString('ru-RU')} ₽, ${note}.\n` +
+      `Будет создано ${template.length} категорий на ${month}.`
+    );
+    if (!ok) return;
+    for (const row of template) {
+      const amount = Math.round((totalBudget * row.pct) / 100);
+      if (amount <= 0) continue;
+      await post('budgets', {
+        budget_kind: 'category',
+        category: row.category,
+        amount,
+        month,
+        scope: 'month',
+      });
+    }
     await load();
   };
 
@@ -258,7 +320,13 @@ export default function SettingsPage() {
           <div className={styles.budgetPane}>
             <h3>Бюджет по категории</h3>
             <button className={styles.primaryBtn} onClick={openCreateCategoryBudget}>Добавить категорию</button>
+            <button className={styles.secondaryBtn} onClick={applyMaggiulliBudgets}>
+              Создать бюджеты по Маджули
+            </button>
             <div className={styles.budgetHint}>Рекомендуемые категории берутся из истории расходов</div>
+            <div className={styles.budgetHint}>
+              Шаблон по Wealth Ladder: распределяет лимиты по ступени капитала (оценка по текущим балансам счетов).
+            </div>
           </div>
         </div>
 
