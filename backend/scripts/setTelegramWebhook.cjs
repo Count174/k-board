@@ -6,6 +6,10 @@
  * Из каталога backend:
  *   BOT_TOKEN=xxx TELEGRAM_WEBHOOK_BASE_URL=https://o-board.ru node scripts/setTelegramWebhook.cjs
  *
+ * Сбросить очередь необработанных апдейтов у Telegram (после миграции и т.п.):
+ *   node scripts/setTelegramWebhook.cjs --drop-pending
+ *   или TELEGRAM_DROP_PENDING_UPDATES=1 node scripts/setTelegramWebhook.cjs
+ *
  * Или положи переменные в .env рядом с этим скриптом (../.env).
  */
 const path = require('path');
@@ -27,10 +31,19 @@ if (!base) {
 }
 
 const url = `${base}${hookPath.startsWith('/') ? hookPath : `/${hookPath}`}`;
-const payload = JSON.stringify({
+const dropPending =
+  process.argv.includes('--drop-pending') ||
+  process.env.TELEGRAM_DROP_PENDING_UPDATES === '1' ||
+  String(process.env.TELEGRAM_DROP_PENDING_UPDATES).toLowerCase() === 'true';
+const webhookBody = {
   url,
   allowed_updates: ['message', 'callback_query', 'edited_message'],
-});
+};
+if (dropPending) {
+  webhookBody.drop_pending_updates = true;
+  console.log('(drop_pending_updates: true — очередь апдейтов у Telegram будет обнулена)');
+}
+const payload = JSON.stringify(webhookBody);
 
 function request(method, pathAndQuery, body) {
   return new Promise((resolve, reject) => {
