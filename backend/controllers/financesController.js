@@ -62,6 +62,38 @@ function groupSkippedByReason(skipped) {
     .sort((a, b) => b.count - a.count);
 }
 
+const DUPLICATE_IMPORT_REASON =
+  'дубликат: уже есть операция с той же суммой, датой, категорией и описанием';
+
+/**
+ * Совпадение с уже сохранённой операцией (импорт xlsx): тип, счёт, дата, сумма, текст категории, комментарий.
+ * Учитывает строки, только что вставленные в этой же транзакции.
+ */
+async function findDuplicateFinanceForImport(userId, item) {
+  const { type, amount, date, category, comment, account_id } = item;
+  const accId = Number(account_id);
+  const amt = Number(amount);
+  if (!type || !Number.isFinite(amt) || !Number.isFinite(accId) || accId <= 0) return false;
+
+  const opDate = normalizeDate(date);
+  const cat = String(category ?? '').trim();
+  const com = String(comment ?? '').trim();
+
+  const row = await get(
+    `SELECT 1 AS ok FROM finances
+      WHERE user_id = ?
+        AND account_id = ?
+        AND date(date) = ?
+        AND type = ?
+        AND ABS(COALESCE(original_amount, amount) - ?) < 0.01
+        AND LOWER(TRIM(COALESCE(category, ''))) = LOWER(?)
+        AND TRIM(COALESCE(comment, '')) = ?
+     LIMIT 1`,
+    [userId, accId, opDate, type, amt, cat, com]
+  );
+  return Boolean(row);
+}
+
 /**
  * Одна операция: та же логика, что раньше в create (категория, FX, счёт, баланс).
  * @returns {Promise<object>} созданная строка с JOIN категории/счёта
@@ -335,12 +367,16 @@ exports.importXlsx = async (req, res) => {
   const sheet = workbook.Sheets[sheetName];
   const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
 
-  const { items: rawItems, skipped, errors } = buildImportItems(matrix);
+  const { items: rawItems, skipped: parseSkipped, errors } = buildImportItems(matrix);
   if (errors.length) {
     return res.status(400).json({ error: 'parse_failed', messages: errors });
   }
   if (!rawItems.length) {
-    return res.status(400).json({ error: 'no_rows_to_import', skipped, hint: 'Проверь, что есть строки со статусом OK и ненулевой суммой.' });
+    return res.status(400).json({
+      error: 'no_rows_to_import',
+      skipped: parseSkipped,
+      hint: 'Проверь, что есть строки со статусом OK и ненулевой суммой.',
+    });
   }
   if (rawItems.length > BANK_XLSX_MAX_ROWS) {
     return res.status(400).json({ error: 'too_many_rows', max: BANK_XLSX_MAX_ROWS, count: rawItems.length });
@@ -351,7 +387,13 @@ exports.importXlsx = async (req, res) => {
   try {
     await run('BEGIN IMMEDIATE');
     const created = [];
+    const duplicateSkipped = [];
     for (let i = 0; i < items.length; i++) {
+      const isDup = await findDuplicateFinanceForImport(req.userId, items[i]);
+      if (isDup) {
+        duplicateSkipped.push({ reason: DUPLICATE_IMPORT_REASON });
+        continue;
+      }
       try {
         const row = await insertFinanceRecord(req.userId, items[i]);
         created.push(row);
@@ -367,13 +409,14 @@ exports.importXlsx = async (req, res) => {
       }
     }
     await run('COMMIT');
+    const allSkipped = [...parseSkipped, ...duplicateSkipped];
     const summary = summarizeImportedRows(created);
-    const skipped_breakdown = groupSkippedByReason(skipped);
+    const skipped_breakdown = groupSkippedByReason(allSkipped);
     res.status(201).json({
       created,
       count: created.length,
       summary,
-      skipped_count: skipped.length,
+      skipped_count: allSkipped.length,
       skipped_breakdown,
     });
   } catch (e) {

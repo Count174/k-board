@@ -30,9 +30,26 @@ function parseAmountRu(val) {
   return Number.isFinite(n) ? n : NaN;
 }
 
+/** Excel serial date → YYYY-MM-DD (UTC), для ячеек-дат из Numbers/Excel */
+function parseExcelSerialToYmd(val) {
+  const n = Number(val);
+  if (!Number.isFinite(n) || n < 20000 || n > 1000000) return null;
+  const ms = Math.round((n - 25569) * 86400 * 1000);
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return null;
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(d.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 /** Дата операции: 11.04.2026 11:57:19 → YYYY-MM-DD */
 function parseOperationDate(val) {
   if (val == null || val === '') return null;
+  if (typeof val === 'number' && Number.isFinite(val)) {
+    const fromSerial = parseExcelSerialToYmd(val);
+    if (fromSerial) return fromSerial;
+  }
   const s = String(val).trim();
   const m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})/);
   if (!m) return null;
@@ -42,12 +59,9 @@ function parseOperationDate(val) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
-function isOwnAccountTransfer(bankCategory, description) {
-  const c = normHeader(bankCategory);
-  const d = normHeader(description);
-  if (c.includes('перевод') && d.includes('между своими счетами')) return true;
-  if (d.includes('между своими счетами')) return true;
-  return false;
+/** Пропуск только при явном тексте в описании (категория «Переводы» у зарплаты не должна мешать). */
+function isOwnAccountTransfer(_bankCategory, description) {
+  return normHeader(description).includes('между своими счетами');
 }
 
 /**
@@ -74,7 +88,8 @@ function mapColumns(headerRow) {
     if (h.includes('дата операции')) idx.dateOp = i;
     if (h === 'статус' || h.includes('статус')) idx.status = i;
     if (h.includes('сумма операции')) idx.amount = i;
-    if (!idx.amount && h.includes('сумма платежа')) idx.amountPay = i;
+    // Обе колонки часто есть в выписке; «сумма платежа» нужна, если «сумма операции» в строке пустая (напр. зарплата).
+    if (h.includes('сумма платежа')) idx.amountPay = i;
     if (h.includes('валюта операции')) idx.currency = i;
     if (!idx.currency && h.includes('валюта платежа')) idx.currencyPay = i;
     if (h.includes('категория')) idx.category = i;
@@ -115,8 +130,12 @@ function buildImportItems(matrix) {
   for (let r = headerRowIdx + 1; r < matrix.length; r++) {
     const row = matrix[r] || [];
     const status = String(row[col.status] ?? '').trim().toUpperCase();
-    const rawAmount = row[col.amount];
-    const amountSigned = parseAmountRu(rawAmount);
+    const rawOp = col.amount != null ? row[col.amount] : undefined;
+    const rawPay = col.amountPay != null ? row[col.amountPay] : undefined;
+    let amountSigned = parseAmountRu(rawOp);
+    if (!Number.isFinite(amountSigned) || Math.abs(amountSigned) < 1e-9) {
+      amountSigned = parseAmountRu(rawPay);
+    }
     const dateStr = parseOperationDate(row[col.dateOp]);
     const bankCategory = String(row[col.category] ?? '').trim();
     const description = String(row[col.description] ?? '').trim();
