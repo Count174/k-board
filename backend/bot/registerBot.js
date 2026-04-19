@@ -1458,8 +1458,13 @@ bot.on('message', async (msg) => {
     return handleWhoopNowCommand(chatId);
   }
 
-  // Фоллбек
-  if (text.startsWith('/')) return;
+  // Фоллбек: неизвестная команда /... (раньше был молчаливый return — казалось, что «бот мёртв»)
+  if (text.startsWith('/')) {
+    return bot.sendMessage(
+      chatId,
+      '🤖 Такой команды нет. Напиши /help — список команд. Если ещё не привязывал аккаунт: сначала /start, потом /connect и токен из веб-интерфейса.'
+    );
+  }
   return bot.sendMessage(chatId, '🤖 Не понял. Напиши /help для списка команд.');
 });
 
