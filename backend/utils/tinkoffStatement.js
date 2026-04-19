@@ -3,6 +3,22 @@
  * Маппинг банковских категорий → названия категорий в приложении (поиск по имени/синонимам в insertFinanceRecord).
  */
 
+/** Включить: DEBUG_TINKOFF_IMPORT=1 в окружении — подробные логи в консоль (pm2 logs / journalctl). */
+function isDebugImport() {
+  const v = process.env.DEBUG_TINKOFF_IMPORT;
+  return v === '1' || v === 'true' || v === 'yes';
+}
+
+function logImport(...args) {
+  if (isDebugImport()) console.log('[tinkoff-import]', ...args);
+}
+
+function previewCell(val, maxLen = 64) {
+  if (val == null) return '(null)';
+  const s = typeof val === 'object' ? JSON.stringify(val) : String(val);
+  return s.length > maxLen ? `${s.slice(0, maxLen)}…` : s;
+}
+
 /** Банковская категория (колонка «Категория») → целевое имя для учёта */
 const BANK_CATEGORY_TO_APP = {
   Такси: 'Транспорт',
@@ -159,8 +175,11 @@ function mapColumns(headerRow) {
  * @returns {{ items: object[], skipped: object[], errors: string[] }}
  */
 function buildImportItems(matrix) {
+  logImport('строк в matrix:', matrix?.length ?? 0);
+
   const headerRowIdx = findHeaderRow(matrix);
   if (headerRowIdx < 0) {
+    logImport('заголовки не найдены (нужны «дата операции» и «статус»/«сумма» в первых 30 строках)');
     return {
       items: [],
       skipped: [],
@@ -168,8 +187,19 @@ function buildImportItems(matrix) {
     };
   }
 
-  const col = mapColumns(matrix[headerRowIdx]);
+  const headerRow = matrix[headerRowIdx] || [];
+  logImport('строка заголовков: индекс', headerRowIdx, '(Excel row', headerRowIdx + 1, ')');
+  if (isDebugImport()) {
+    const heads = headerRow.map((c, i) => `${i}:${previewCell(c, 48)}`);
+    logImport('колонки заголовка:', heads.join(' | '));
+  }
+
+  const col = mapColumns(headerRow);
+  logImport('индексы колонок:', JSON.stringify(col));
+
   if (col.dateOp == null || col.status == null || (col.amount == null && col.amountPay == null)) {
+    logImport('ошибка сопоставления: dateOp=%s status=%s amount=%s amountPay=%s',
+      col.dateOp, col.status, col.amount, col.amountPay);
     return {
       items: [],
       skipped: [],
@@ -181,8 +211,13 @@ function buildImportItems(matrix) {
   const skipped = [];
   const errors = [];
 
+  if (headerRowIdx + 1 >= matrix.length && isDebugImport()) {
+    logImport('после строки заголовков нет ни одной строки данных (matrix.length слишком мал?)');
+  }
+
   for (let r = headerRowIdx + 1; r < matrix.length; r++) {
     const row = matrix[r] || [];
+    const dateRaw = row[col.dateOp];
     const status = String(row[col.status] ?? '').trim().toUpperCase();
     const rawOp = col.amount != null ? row[col.amount] : undefined;
     const rawPay = col.amountPay != null ? row[col.amountPay] : undefined;
@@ -190,32 +225,53 @@ function buildImportItems(matrix) {
     if (!Number.isFinite(amountSigned) || Math.abs(amountSigned) < 1e-9) {
       amountSigned = parseAmountRu(rawPay);
     }
-    const dateStr = parseOperationDate(row[col.dateOp]);
+    const dateStr = parseOperationDate(dateRaw);
     const bankCategory = String(row[col.category] ?? '').trim();
     const description = String(row[col.description] ?? '').trim();
     const currency = String(row[col.currency] ?? 'RUB')
       .trim()
       .toUpperCase() || 'RUB';
 
+    const excelRow = r + 1;
+    const isEmptyRow =
+      !String(status || '').trim() &&
+      !String(bankCategory || '').trim() &&
+      !String(description || '').trim() &&
+      (!Number.isFinite(amountSigned) || Math.abs(amountSigned) < 1e-9);
+
+    if (isDebugImport() && !isEmptyRow) {
+      logImport(`--- Excel row ${excelRow} (matrix[${r}]), ячеек в строке: ${row.length}`);
+      logImport('  dateRaw:', previewCell(dateRaw), '→', dateStr || '(нет даты)');
+      logImport('  status:', previewCell(status), 'idx.status=', col.status);
+      logImport('  сумма: rawOp=', previewCell(rawOp), 'rawPay=', previewCell(rawPay), '→ amountSigned=', amountSigned);
+      logImport('  категория idx=', col.category, '→', previewCell(bankCategory));
+      logImport('  описание idx=', col.description, '→', previewCell(description));
+    }
+
     if (!status) {
-      skipped.push({ row: r + 1, reason: 'пустой статус' });
+      if (isDebugImport() && !isEmptyRow) logImport('  итог: ПРОПУСК — пустой статус');
+      skipped.push({ row: excelRow, reason: 'пустой статус' });
       continue;
     }
     if (status !== 'OK') {
-      skipped.push({ row: r + 1, reason: `статус ${status}` });
+      if (isDebugImport()) logImport('  итог: ПРОПУСК —', `статус ${status}`);
+      skipped.push({ row: excelRow, reason: `статус ${status}` });
       continue;
     }
     if (!dateStr) {
-      skipped.push({ row: r + 1, reason: 'нет даты операции' });
+      if (isDebugImport()) logImport('  итог: ПРОПУСК — нет даты операции');
+      skipped.push({ row: excelRow, reason: 'нет даты операции' });
       continue;
     }
     if (!Number.isFinite(amountSigned) || Math.abs(amountSigned) < 1e-9) {
-      skipped.push({ row: r + 1, reason: 'нулевая или неверная сумма' });
+      if (isDebugImport()) logImport('  итог: ПРОПУСК — нулевая или неверная сумма');
+      skipped.push({ row: excelRow, reason: 'нулевая или неверная сумма' });
       continue;
     }
 
     if (isOwnAccountTransfer(bankCategory, description)) {
-      skipped.push({ row: r + 1, reason: 'перевод между своими счетами' });
+      if (isDebugImport()) logImport('  итог: ПРОПУСК — перевод между своими счетами');
+      skipped.push({ row: excelRow, reason: 'перевод между своими счетами' });
       continue;
     }
 
@@ -228,14 +284,21 @@ function buildImportItems(matrix) {
       .join(' ')
       .trim();
 
-    items.push({
+    const item = {
       type,
       amount,
       date: dateStr,
       category: mappedName,
       comment: comment || description,
       currency,
-    });
+    };
+    if (isDebugImport()) logImport('  итог: В ИМПОРТ', JSON.stringify(item));
+    items.push(item);
+  }
+
+  logImport('готово: items=', items.length, 'skipped=', skipped.length, 'errors=', errors.length);
+  if (skipped.length && isDebugImport()) {
+    logImport('пропуски:', JSON.stringify(skipped));
   }
 
   return { items, skipped, errors };
@@ -251,4 +314,5 @@ module.exports = {
   pickCategoryColumnIndex,
   pickAmountOperationIndex,
   pickAmountPaymentIndex,
+  isDebugImport,
 };

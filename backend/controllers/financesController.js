@@ -9,7 +9,7 @@ const {
 } = require('../utils/accountsService');
 const { getEffectiveBudgets } = require('../utils/budgetService');
 const XLSX = require('xlsx');
-const { buildImportItems } = require('../utils/tinkoffStatement');
+const { buildImportItems, isDebugImport } = require('../utils/tinkoffStatement');
 
 // small helpers
 const all = (sql, p = []) => new Promise((res, rej) =>
@@ -367,11 +367,21 @@ exports.importXlsx = async (req, res) => {
   const sheet = workbook.Sheets[sheetName];
   const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
 
+  if (isDebugImport()) {
+    console.log('[tinkoff-import] import-xlsx: user', req.userId, 'account_id', accountId);
+    console.log('[tinkoff-import] листы в книге:', workbook.SheetNames, 'берём:', sheetName);
+    console.log('[tinkoff-import] строк в matrix (включая пустые):', matrix.length);
+  }
+
   const { items: rawItems, skipped: parseSkipped, errors } = buildImportItems(matrix);
   if (errors.length) {
+    if (isDebugImport()) console.log('[tinkoff-import] parse errors:', errors);
     return res.status(400).json({ error: 'parse_failed', messages: errors });
   }
   if (!rawItems.length) {
+    if (isDebugImport()) {
+      console.log('[tinkoff-import] нет строк к импорту. parseSkipped:', JSON.stringify(parseSkipped));
+    }
     return res.status(400).json({
       error: 'no_rows_to_import',
       skipped: parseSkipped,
@@ -391,6 +401,9 @@ exports.importXlsx = async (req, res) => {
     for (let i = 0; i < items.length; i++) {
       const isDup = await findDuplicateFinanceForImport(req.userId, items[i]);
       if (isDup) {
+        if (isDebugImport()) {
+          console.log('[tinkoff-import] дубликат, пропуск index', i, JSON.stringify(items[i]));
+        }
         duplicateSkipped.push({ reason: DUPLICATE_IMPORT_REASON });
         continue;
       }
