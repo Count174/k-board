@@ -36,34 +36,16 @@ const movingRoutes = require('./routes/moving');
 const { bootstrapDefaultAccountsForAllUsers } = require('./utils/accountsService');
 
 app.set('trust proxy', 1); // доверие первому прокси (nginx)
-const allowedOrigins = new Set([
-  'https://oubaitori.ru',
-  'https://www.oubaitori.ru',
-  'https://o-board.ru',
-  'https://www.o-board.ru',
-  'https://k-board.whoiskirya.ru', // временно, пока редиректы/миграция
-]);
 
-app.use(cors({
-  origin(origin, cb) {
-    if (!origin) return cb(null, true);
-    if (allowedOrigins.has(origin)) return cb(null, true);
-    return cb(new Error(`CORS blocked: ${origin}`));
-  },
-  credentials: true,
-}));
-app.use((req, res, next) => {
-  res.header('Vary', 'Origin');
-  next();
-});
-app.use(express.json());
+app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Telegram Bot API (webhook) — до остальных /api, тело = JSON update
+// Telegram Bot API (webhook) — до CORS: запросы от серверов Telegram без Origin
 if (telegramBotEnabled) {
   app.post('/api/telegram/bot-webhook', (req, res) => {
     try {
+      console.log('[telegram] webhook POST, content-length=', req.headers['content-length'] || '—');
       processWebhookUpdate(req.body);
       res.sendStatus(200);
     } catch (e) {
@@ -90,6 +72,29 @@ if (telegramBotEnabled) {
     res.json({ ok: false, hint: 'TELEGRAM_BOT_ENABLED=0 — бот на этом хосте отключён' });
   });
 }
+
+const allowedOrigins = new Set([
+  'https://oubaitori.ru',
+  'https://www.oubaitori.ru',
+  'https://o-board.ru',
+  'https://www.o-board.ru',
+  'https://k-board.whoiskirya.ru', // временно, пока редиректы/миграция
+]);
+
+app.use(
+  cors({
+    origin(origin, cb) {
+      if (!origin) return cb(null, true);
+      if (allowedOrigins.has(origin)) return cb(null, true);
+      return cb(new Error(`CORS blocked: ${origin}`));
+    },
+    credentials: true,
+  })
+);
+app.use((req, res, next) => {
+  res.header('Vary', 'Origin');
+  next();
+});
 
 // API маршруты — должны быть раньше статики и SPA
 app.use('/api/finances', financesRoutes);
