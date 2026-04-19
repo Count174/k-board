@@ -81,8 +81,8 @@ async function getEffectiveBudgets(userId, month) {
       totalBudget = { id: r.id, amount: amt, source: Number(r.is_recurring) === 1 ? 'recurring' : 'month' };
       continue;
     }
-    const cat = String(r.category || '').trim().toLowerCase();
-    if (!cat || cat === '__total__') continue;
+    const cat = String(r.category || '').trim();
+    if (!cat || cat.toLowerCase() === '__total__') continue;
     categories.push({
       id: r.id,
       category: cat,
@@ -96,14 +96,16 @@ async function getEffectiveBudgets(userId, month) {
 }
 
 async function getSpentByCategory(userId, month) {
+  // Имя категории из справочника (как в аналитике), иначе текст из операции — иначе при category_id без текста «Факт» был 0.
   return all(
-    `SELECT LOWER(TRIM(COALESCE(category,''))) AS category,
-            SUM(ABS(COALESCE(amount_rub, amount))) AS spent
-       FROM finances
-      WHERE user_id = ?
-        AND type = 'expense'
-        AND strftime('%Y-%m', date) = ?
-      GROUP BY LOWER(TRIM(COALESCE(category,'')))`,
+    `SELECT LOWER(TRIM(COALESCE(c.name, f.category, ''))) AS category,
+            SUM(ABS(COALESCE(f.amount_rub, f.amount))) AS spent
+       FROM finances f
+       LEFT JOIN categories c ON c.id = f.category_id AND c.user_id = f.user_id
+      WHERE f.user_id = ?
+        AND f.type = 'expense'
+        AND strftime('%Y-%m', f.date) = ?
+      GROUP BY LOWER(TRIM(COALESCE(c.name, f.category, '')))`,
     [userId, month]
   );
 }

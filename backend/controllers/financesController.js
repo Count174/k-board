@@ -543,10 +543,12 @@ exports.getMonthOverview = async (req, res) => {
     // 3) % использования бюджетов (учитываем постоянные и общий бюджет)
     const { totalBudget, categories } = await getEffectiveBudgets(req.userId, month);
     const spentByCat = await all(
-      `SELECT LOWER(TRIM(category)) AS cat, SUM(ABS(COALESCE(amount_rub, amount))) AS total
-         FROM finances
-        WHERE user_id=? AND type='expense' AND strftime('%Y-%m', date)=?
-        GROUP BY LOWER(TRIM(category))`,
+      `SELECT LOWER(TRIM(COALESCE(c.name, f.category, ''))) AS cat,
+              SUM(ABS(COALESCE(f.amount_rub, f.amount))) AS total
+         FROM finances f
+         LEFT JOIN categories c ON c.id = f.category_id AND c.user_id = f.user_id
+        WHERE f.user_id=? AND f.type='expense' AND strftime('%Y-%m', f.date)=?
+        GROUP BY LOWER(TRIM(COALESCE(c.name, f.category, '')))`,
       [req.userId, month]
     );
     const mapSpent = Object.fromEntries(spentByCat.map((r) => [r.cat, Number(r.total) || 0]));
@@ -559,7 +561,7 @@ exports.getMonthOverview = async (req, res) => {
       for (const c of categories) {
         const plan = Number(c.amount || 0);
         if (plan <= 0) continue;
-        spentSum += Math.min(mapSpent[c.category] || 0, plan);
+        spentSum += Math.min(mapSpent[String(c.category || '').toLowerCase()] || 0, plan);
       }
     }
     const budgetUsePct = planSum > 0 ? Number(((spentSum / planSum) * 100).toFixed(1)) : null;

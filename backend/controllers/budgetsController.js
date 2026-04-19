@@ -33,17 +33,16 @@ exports.getAll = async (req, res) => {
 };
 
 // POST /api/budgets { category, amount, month }
-// Категория сравнивается без учёта регистра; при сохранении приводится к нижнему.
+// Категория: нормализуем пробелы; сравнение дубликатов в SQL — LOWER(...); регистр в БД сохраняем как ввод пользователя.
 exports.upsert = async (req, res) => {
   try {
     await ensureBudgetsSchema();
     const raw = String(req.body.category || '').trim().replace(/\s+/g, ' ');
-  const category = raw.toLowerCase();
-  const amount = Number(req.body.amount);
+    const amount = Number(req.body.amount);
     const month = req.body.month ? String(req.body.month) : null;
     const isRecurring = req.body.scope === 'recurring' ? 1 : 0;
     const budgetKind = req.body.budget_kind === 'total' ? 'total' : 'category';
-    const normalizedCategory = budgetKind === 'total' ? '__total__' : category;
+    const normalizedCategory = budgetKind === 'total' ? '__total__' : raw;
     let targetMonth = isRecurring ? RECURRING_TOKEN : month;
     if (isRecurring && (targetMonth == null || targetMonth === '')) {
       targetMonth = RECURRING_TOKEN;
@@ -100,7 +99,9 @@ exports.getStats = async (req, res) => {
     await ensureBudgetsSchema();
     const { totalBudget, categories } = await getEffectiveBudgets(req.userId, month);
     const spentRows = await getSpentByCategory(req.userId, month);
-    const mapSpent = Object.fromEntries(spentRows.map((r) => [String(r.category || ''), Number(r.spent) || 0]));
+    const mapSpent = Object.fromEntries(
+      spentRows.map((r) => [String(r.category || '').toLowerCase(), Number(r.spent) || 0])
+    );
 
     const [yy, mm] = month.split('-').map(Number);
     const dim = new Date(yy, mm, 0).getDate();
@@ -109,7 +110,7 @@ exports.getStats = async (req, res) => {
       today.format('YYYY-MM') === month ? today.date() : dim;
 
     const items = categories.map((r) => {
-      const spent = Number(mapSpent[r.category] || 0);
+      const spent = Number(mapSpent[String(r.category || '').toLowerCase()] || 0);
       const dailyRate = currentDay ? spent / currentDay : 0;
       const forecast = +(dailyRate * dim).toFixed(2);
       return {
@@ -182,7 +183,7 @@ exports.update = async (req, res) => {
 
     const budgetKind = req.body.budget_kind === 'total' ? 'total' : (existing.budget_kind || 'category');
     const rawCategory = req.body.category != null ? String(req.body.category).trim().replace(/\s+/g, ' ') : String(existing.category || '');
-    const normalizedCategory = budgetKind === 'total' ? '__total__' : rawCategory.toLowerCase();
+    const normalizedCategory = budgetKind === 'total' ? '__total__' : rawCategory;
     const amount = req.body.amount != null ? Number(req.body.amount) : Number(existing.amount || 0);
     const isRecurring = req.body.scope ? (req.body.scope === 'recurring' ? 1 : 0) : Number(existing.is_recurring || 0);
     const month = req.body.month != null ? String(req.body.month) : String(existing.month || '');
