@@ -39,6 +39,7 @@ async function ensureBudgetsSchema() {
   if (!(await tableExists('budgets'))) return;
   await addColumnIfMissing('budgets', 'is_recurring', 'is_recurring INTEGER NOT NULL DEFAULT 0');
   await addColumnIfMissing('budgets', 'budget_kind', `budget_kind TEXT NOT NULL DEFAULT 'category'`);
+  await addColumnIfMissing('budgets', 'updated_at', 'updated_at TEXT DEFAULT CURRENT_TIMESTAMP');
   await run(`UPDATE budgets SET month = ? WHERE is_recurring = 1 AND (month IS NULL OR month = '')`, [RECURRING_MONTH]);
   await run(`CREATE INDEX IF NOT EXISTS idx_budgets_user_month_kind_cat ON budgets(user_id, month, budget_kind, category)`);
 }

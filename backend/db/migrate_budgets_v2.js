@@ -45,6 +45,9 @@ async function main() {
   if (await addColumnIfMissing('budgets', 'budget_kind', `budget_kind TEXT NOT NULL DEFAULT 'category'`)) {
     added.push('budget_kind');
   }
+  if (await addColumnIfMissing('budgets', 'updated_at', 'updated_at TEXT DEFAULT CURRENT_TIMESTAMP')) {
+    added.push('updated_at');
+  }
 
   await run(`UPDATE budgets SET budget_kind='category' WHERE budget_kind IS NULL OR budget_kind=''`);
   await run(`UPDATE budgets SET is_recurring=0 WHERE is_recurring IS NULL`);
