@@ -271,3 +271,79 @@ exports.findByText = async (req, res) => {
     res.status(500).json({ error: 'failed_to_find_category' });
   }
 };
+
+/**
+ * POST /api/categories/merge
+ * body: { source_id, target_id }
+ * Переносит операции/бюджеты из source в target и удаляет source.
+ */
+exports.merge = async (req, res) => {
+  const sourceId = Number(req.body?.source_id);
+  const targetId = Number(req.body?.target_id);
+  if (!sourceId || !targetId || sourceId === targetId) {
+    return res.status(400).json({ error: 'source_target_required' });
+  }
+
+  try {
+    const [source, target] = await Promise.all([
+      get(`SELECT id, user_id, name, slug, synonyms, type FROM categories WHERE id = ? AND user_id = ?`, [sourceId, req.userId]),
+      get(`SELECT id, user_id, name, slug, synonyms, type FROM categories WHERE id = ? AND user_id = ?`, [targetId, req.userId]),
+    ]);
+
+    if (!source || !target) return res.status(404).json({ error: 'category_not_found' });
+    if (source.type !== target.type) return res.status(400).json({ error: 'category_type_mismatch' });
+
+    await run('BEGIN IMMEDIATE');
+
+    // Переносим привязанные операции
+    const movedById = await run(
+      `UPDATE finances
+          SET category_id = ?, category = ?
+        WHERE user_id = ? AND category_id = ?`,
+      [target.id, target.name, req.userId, source.id]
+    );
+    // И операции, где category текстом совпадал с источником (без category_id)
+    const movedByName = await run(
+      `UPDATE finances
+          SET category = ?
+        WHERE user_id = ?
+          AND (category_id IS NULL OR category_id = 0)
+          AND LOWER(TRIM(COALESCE(category,''))) = LOWER(TRIM(?))`,
+      [target.name, req.userId, source.name]
+    );
+
+    // Переносим бюджеты по текстовой категории
+    await run(
+      `UPDATE budgets
+          SET category = ?
+        WHERE user_id = ?
+          AND LOWER(TRIM(COALESCE(category,''))) = LOWER(TRIM(?))`,
+      [target.name, req.userId, source.name]
+    );
+
+    // Объединяем синонимы в целевой категории
+    const sourceSyn = source.synonyms ? JSON.parse(source.synonyms) : [];
+    const targetSyn = target.synonyms ? JSON.parse(target.synonyms) : [];
+    const mergedSynonyms = [...new Set([source.name, ...sourceSyn, ...targetSyn])]
+      .filter((v) => String(v || '').trim())
+      .map((v) => String(v).trim());
+    await run(
+      `UPDATE categories SET synonyms = ? WHERE id = ? AND user_id = ?`,
+      [JSON.stringify(mergedSynonyms), target.id, req.userId]
+    );
+
+    await run(`DELETE FROM categories WHERE id = ? AND user_id = ?`, [source.id, req.userId]);
+    await run('COMMIT');
+
+    return res.json({
+      success: true,
+      target_id: target.id,
+      moved_finances: Number(movedById?.changes || 0) + Number(movedByName?.changes || 0),
+      merged_synonyms: mergedSynonyms.length,
+    });
+  } catch (e) {
+    await run('ROLLBACK').catch(() => {});
+    console.error('categories.merge error:', e);
+    return res.status(500).json({ error: 'failed_to_merge_categories' });
+  }
+};

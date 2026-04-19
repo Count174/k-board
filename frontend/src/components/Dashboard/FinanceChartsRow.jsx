@@ -333,8 +333,8 @@ export default function FinanceChartsRow() {
           </div>
 
           <div className={styles.heroStats}>
-            <MiniStat label="Расходы" value={formatMoney(overview.expenses)} sub={expSub} />
             <MiniStat label="Доходы"  value={formatMoney(overview.incomes)}  sub={incSub} />
+            <MiniStat label="Расходы" value={formatMoney(overview.expenses)} sub={expSub} />
             <MiniStat label="Прогноз" value={formatMoney(overview.forecast)} />
             <MiniStat
               label="Бюджеты"

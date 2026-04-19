@@ -5,6 +5,7 @@ const authMiddleware = require('../middleware/authMiddleware');
 
 router.get('/', authMiddleware, controller.getAll);
 router.post('/', authMiddleware, controller.create);
+router.post('/merge', authMiddleware, controller.merge);
 router.put('/:id', authMiddleware, controller.update);
 router.delete('/:id', authMiddleware, controller.remove);
 router.post('/:id/synonyms', authMiddleware, controller.addSynonyms);

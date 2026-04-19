@@ -38,6 +38,7 @@ const formatTxAmount = (t) => {
 const FinanceWidget = () => {
   const [transactions, setTransactions] = useState([]);
   const [analyticsTx, setAnalyticsTx] = useState([]); // полный набор транзакций на период
+  const [analyticsPrevTx, setAnalyticsPrevTx] = useState([]);
   const [period, setPeriod] = useState("month");
   const [tab, setTab] = useState("transactions");
   const [form, setForm] = useState({
@@ -136,11 +137,15 @@ const FinanceWidget = () => {
     try {
       const { start, end } = getPeriodDates(selectedPeriod);
       const url = `/finances/period?start=${start}&end=${end}&limit=100000&offset=0`;
-      const data = await get(url);
+      const prev = getPrevPeriodDates(selectedPeriod);
+      const prevUrl = `/finances/period?start=${prev.start}&end=${prev.end}&limit=100000&offset=0`;
+      const [data, prevData] = await Promise.all([get(url), get(prevUrl)]);
       setAnalyticsTx(Array.isArray(data) ? data : []);
+      setAnalyticsPrevTx(Array.isArray(prevData) ? prevData : []);
     } catch (e) {
       console.error("Analytics TX load error:", e);
       setAnalyticsTx([]);
+      setAnalyticsPrevTx([]);
     }
   };
 
@@ -410,6 +415,38 @@ const FinanceWidget = () => {
     ? Number((((income - summaryPrev.incomes) / summaryPrev.incomes) * 100).toFixed(1))
     : null;
 
+  const topExpenseDeviation = useMemo(() => {
+    const curMap = new Map();
+    const prevMap = new Map();
+    for (const t of analyticsTx) {
+      if (t.type !== "expense") continue;
+      const cat = String(t.category || "").trim() || "—";
+      curMap.set(cat, (curMap.get(cat) || 0) + Math.abs(amountInRub(t)));
+    }
+    for (const t of analyticsPrevTx) {
+      if (t.type !== "expense") continue;
+      const cat = String(t.category || "").trim() || "—";
+      prevMap.set(cat, (prevMap.get(cat) || 0) + Math.abs(amountInRub(t)));
+    }
+    const cats = new Set([...curMap.keys(), ...prevMap.keys()]);
+    return [...cats]
+      .map((cat) => {
+        const cur = Number(curMap.get(cat) || 0);
+        const prev = Number(prevMap.get(cat) || 0);
+        const delta = cur - prev;
+        return {
+          category: cat,
+          current: cur,
+          previous: prev,
+          delta,
+          deltaPct: prev > 0 ? Number(((delta / prev) * 100).toFixed(1)) : null,
+        };
+      })
+      .filter((r) => r.delta > 0)
+      .sort((a, b) => b.delta - a.delta)
+      .slice(0, 3);
+  }, [analyticsTx, analyticsPrevTx]);
+
   const onSelectPeriod = (key) => {
     setPeriod(key);
     if (key !== "custom") setCustomApplied(false);
@@ -497,12 +534,21 @@ const FinanceWidget = () => {
 
       {tab === "transactions" ? (
         <>
-          <div className={styles.summary}>
-            <span className={styles.income}>Доходы: {money(income)}</span>
-            <span className={styles.expense}>Расходы: {money(expense)}</span>
-            <span className={balance >= 0 ? styles.income : styles.expense}>
-              Сальдо: {money(balance)}
-            </span>
+          <div className={styles.summaryCards}>
+            <div className={styles.summaryCard}>
+              <div className={styles.summaryLabel}>Доходы</div>
+              <div className={`${styles.summaryValue} ${styles.income}`}>{money(income)}</div>
+            </div>
+            <div className={styles.summaryCard}>
+              <div className={styles.summaryLabel}>Расходы</div>
+              <div className={`${styles.summaryValue} ${styles.expense}`}>{money(expense)}</div>
+            </div>
+            <div className={styles.summaryCard}>
+              <div className={styles.summaryLabel}>Сальдо</div>
+              <div className={`${styles.summaryValue} ${balance >= 0 ? styles.income : styles.expense}`}>
+                {money(balance)}
+              </div>
+            </div>
           </div>
 
           <h3 className={styles.subtitle}>Операции</h3>
@@ -864,7 +910,7 @@ const FinanceWidget = () => {
                           <Cell key={entry.name} fill={EXPENSE_COLORS[i % EXPENSE_COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip formatter={(v) => [money(v)]} />
+                      <Tooltip formatter={(v, _n, item) => [money(v), item?.payload?.name || "Категория"]} />
                     </PieChart>
                   </ResponsiveContainer>
                   <ul className={styles.legendList}>
@@ -878,6 +924,33 @@ const FinanceWidget = () => {
                 </div>
               ) : (
                 <div className={styles.rangeHint}>Нет расходов в выбранном диапазоне</div>
+              )}
+            </div>
+
+            <div className={styles.chartInner}>
+              <div className={styles.chartTitle}>Топ роста расходов к прошлому периоду</div>
+              {topExpenseDeviation.length ? (
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={topExpenseDeviation} layout="vertical" margin={{ left: 8, right: 8, top: 6, bottom: 6 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#444" />
+                    <XAxis type="number" stroke="#aaa" tickFormatter={(v) => `${Math.round(v / 1000)}k`} />
+                    <YAxis dataKey="category" type="category" stroke="#aaa" width={120} tick={{ fontSize: 12 }} />
+                    <Tooltip
+                      contentStyle={{ backgroundColor: "#1e1f26", border: "none", borderRadius: "8px", color: "#fff" }}
+                      formatter={(v, key, row) => {
+                        if (key === "delta") return [`+${money(v)}`, "Рост"];
+                        if (key === "previous") return [money(v), "Прошлый период"];
+                        if (key === "current") return [money(v), "Текущий период"];
+                        return [money(v), key];
+                      }}
+                    />
+                    <Legend />
+                    <Bar dataKey="previous" name="Прошлый период" fill="#64748b" radius={[4, 4, 4, 4]} />
+                    <Bar dataKey="current" name="Текущий период" fill="#f87171" radius={[4, 4, 4, 4]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className={styles.rangeHint}>Нет категорий с ростом расходов в текущем периоде</div>
               )}
             </div>
           </div>

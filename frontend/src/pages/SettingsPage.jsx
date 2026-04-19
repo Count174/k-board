@@ -44,6 +44,8 @@ export default function SettingsPage() {
   });
   const [budgetStats, setBudgetStats] = useState(null);
   const [budgetSuggestions, setBudgetSuggestions] = useState([]);
+  const [expenseCategories, setExpenseCategories] = useState([]);
+  const [mergeDraft, setMergeDraft] = useState({ source_id: '', target_id: '' });
   const [busy, setBusy] = useState(false);
   const [accountModal, setAccountModal] = useState({
     open: false,
@@ -59,14 +61,16 @@ export default function SettingsPage() {
   });
 
   const load = async () => {
-    const [accData, stats, suggestions] = await Promise.all([
+    const [accData, stats, suggestions, expenseCats] = await Promise.all([
       get('accounts'),
       get(`budgets/stats?month=${month}`).catch(() => null),
       get('budgets/suggestions').catch(() => []),
+      get('categories?type=expense').catch(() => []),
     ]);
     setAccounts(Array.isArray(accData) ? accData : []);
     setBudgetStats(stats);
     setBudgetSuggestions(Array.isArray(suggestions) ? suggestions : []);
+    setExpenseCategories(Array.isArray(expenseCats) ? expenseCats : []);
   };
 
   useEffect(() => {
@@ -289,6 +293,22 @@ export default function SettingsPage() {
     await load();
   };
 
+  const mergeCategories = async () => {
+    const sourceId = Number(mergeDraft.source_id);
+    const targetId = Number(mergeDraft.target_id);
+    if (!sourceId || !targetId || sourceId === targetId) {
+      alert('Выбери две разные категории');
+      return;
+    }
+    const source = expenseCategories.find((c) => Number(c.id) === sourceId);
+    const target = expenseCategories.find((c) => Number(c.id) === targetId);
+    const ok = window.confirm(`Объединить категорию "${source?.name || sourceId}" в "${target?.name || targetId}"?\nОперации и бюджеты будут перенесены.`);
+    if (!ok) return;
+    await post('categories/merge', { source_id: sourceId, target_id: targetId });
+    setMergeDraft({ source_id: '', target_id: '' });
+    await load();
+  };
+
   const totalBudgetText = useMemo(() => {
     if (budgetStats?.totalBudget == null) return 'Общий бюджет не задан';
     return `Задан: ${Number(budgetStats.totalBudget).toLocaleString('ru-RU')} ₽ · распределено: ${Number(
@@ -327,6 +347,36 @@ export default function SettingsPage() {
             <div className={styles.budgetHint}>
               Шаблон по Wealth Ladder: распределяет лимиты по ступени капитала (оценка по текущим балансам счетов).
             </div>
+          </div>
+        </div>
+
+        <div className={styles.budgetPane}>
+          <h3>Объединить категории расходов</h3>
+          <div className={styles.inlineForm}>
+            <select
+              value={mergeDraft.source_id}
+              onChange={(e) => setMergeDraft((m) => ({ ...m, source_id: e.target.value }))}
+            >
+              <option value="">Из категории…</option>
+              {expenseCategories.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <select
+              value={mergeDraft.target_id}
+              onChange={(e) => setMergeDraft((m) => ({ ...m, target_id: e.target.value }))}
+            >
+              <option value="">В категорию…</option>
+              {expenseCategories.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <button type="button" className={styles.primaryBtn} onClick={mergeCategories}>
+              Объединить
+            </button>
+          </div>
+          <div className={styles.budgetHint}>
+            Пример: «продукты» → «Супермаркеты». Все операции и бюджеты из исходной категории будут перенесены.
           </div>
         </div>
 
