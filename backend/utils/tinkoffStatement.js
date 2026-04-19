@@ -9,6 +9,7 @@ const BANK_CATEGORY_TO_APP = {
   'Местный транспорт': 'Транспорт',
   Фастфуд: 'еда вне дома',
   Рестораны: 'еда вне дома',
+  Зарплата: 'Зарплата',
 };
 
 function normHeader(s) {
@@ -79,6 +80,25 @@ function findHeaderRow(matrix, maxScan = 30) {
 }
 
 /**
+ * Индекс колонки «Категория» в выписке Тинькофф.
+ * Нельзя брать `includes('категория')` на каждой ячейке: «Подкатегория» содержит ту же подстроку и перезаписывала бы индекс
+ * (у зарплаты в подкатегории часто пусто — терялась «Зарплата»).
+ * Сначала ищем заголовок ровно «Категория», иначе — первую колонку с «категория», но не «подкатегор».
+ */
+function pickCategoryColumnIndex(headerRow) {
+  const norms = headerRow.map((c) => normHeader(c));
+  for (let i = 0; i < norms.length; i++) {
+    if (norms[i] === 'категория') return i;
+  }
+  for (let i = 0; i < norms.length; i++) {
+    const h = norms[i];
+    if (h.includes('подкатегор')) continue;
+    if (h.includes('категория')) return i;
+  }
+  return null;
+}
+
+/**
  * Строит индекс колонок по заголовкам
  */
 function mapColumns(headerRow) {
@@ -92,9 +112,10 @@ function mapColumns(headerRow) {
     if (h.includes('сумма платежа')) idx.amountPay = i;
     if (h.includes('валюта операции')) idx.currency = i;
     if (!idx.currency && h.includes('валюта платежа')) idx.currencyPay = i;
-    if (h.includes('категория')) idx.category = i;
-    if (h.includes('описание')) idx.description = i;
+    // Только первая колонка описания (иначе «Комментарий к описанию» и т.п. перезаписывали бы).
+    if (idx.description == null && h.includes('описание')) idx.description = i;
   });
+  idx.category = pickCategoryColumnIndex(headerRow);
   if (idx.amount == null) idx.amount = idx.amountPay;
   if (idx.currency == null) idx.currency = idx.currencyPay;
   return idx;
@@ -194,4 +215,5 @@ module.exports = {
   BANK_CATEGORY_TO_APP,
   findHeaderRow,
   mapColumns,
+  pickCategoryColumnIndex,
 };
