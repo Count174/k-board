@@ -28,6 +28,40 @@ function daysInMonth(yyyyMM) {
 const BULK_MAX_ITEMS = 150;
 const BANK_XLSX_MAX_ROWS = 500;
 
+/** Сводка по импортированным операциям (суммы в валюте записи, положительные числа). */
+function summarizeImportedRows(rows) {
+  let expenseCount = 0;
+  let incomeCount = 0;
+  let expenseTotal = 0;
+  let incomeTotal = 0;
+  for (const row of rows) {
+    const amt = Number(row.amount ?? 0);
+    if (row.type === 'expense') {
+      expenseCount += 1;
+      expenseTotal += amt;
+    } else if (row.type === 'income') {
+      incomeCount += 1;
+      incomeTotal += amt;
+    }
+  }
+  return {
+    expense: { count: expenseCount, total: expenseTotal },
+    income: { count: incomeCount, total: incomeTotal },
+  };
+}
+
+/** Группировка пропущенных строк по тексту причины. */
+function groupSkippedByReason(skipped) {
+  const map = new Map();
+  for (const s of skipped || []) {
+    const reason = String(s.reason || 'неизвестно').trim() || 'неизвестно';
+    map.set(reason, (map.get(reason) || 0) + 1);
+  }
+  return [...map.entries()]
+    .map(([reason, count]) => ({ reason, count }))
+    .sort((a, b) => b.count - a.count);
+}
+
 /**
  * Одна операция: та же логика, что раньше в create (категория, FX, счёт, баланс).
  * @returns {Promise<object>} созданная строка с JOIN категории/счёта
@@ -333,11 +367,14 @@ exports.importXlsx = async (req, res) => {
       }
     }
     await run('COMMIT');
+    const summary = summarizeImportedRows(created);
+    const skipped_breakdown = groupSkippedByReason(skipped);
     res.status(201).json({
       created,
       count: created.length,
-      skipped,
+      summary,
       skipped_count: skipped.length,
+      skipped_breakdown,
     });
   } catch (e) {
     await run('ROLLBACK').catch(() => {});

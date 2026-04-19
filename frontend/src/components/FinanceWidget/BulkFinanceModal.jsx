@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef, useId } from "react";
 import dayjs from "dayjs";
 import Modal from "../Modal";
 import { post, postForm } from "../../api/api";
@@ -59,6 +59,17 @@ function validateAndBuildItems(rows) {
   return { items };
 }
 
+function formatMoneyRub(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return new Intl.NumberFormat("ru-RU", {
+    style: "currency",
+    currency: "RUB",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(n);
+}
+
 export default function BulkFinanceModal({
   open,
   onClose,
@@ -72,6 +83,9 @@ export default function BulkFinanceModal({
   const [busy, setBusy] = useState(false);
   const [xlsxAccountId, setXlsxAccountId] = useState("");
   const [xlsxFile, setXlsxFile] = useState(null);
+  const [xlsxResult, setXlsxResult] = useState(null);
+  const fileInputRef = useRef(null);
+  const xlsxFileInputId = useId();
 
   const resetRows = useCallback(() => {
     const acc = defaultAccountId ? String(defaultAccountId) : "";
@@ -84,8 +98,14 @@ export default function BulkFinanceModal({
       setTab("manual");
       setXlsxFile(null);
       setXlsxAccountId(defaultAccountId ? String(defaultAccountId) : "");
+      setXlsxResult(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }, [open, resetRows, defaultAccountId]);
+
+  useEffect(() => {
+    if (tab !== "xlsx") setXlsxResult(null);
+  }, [tab]);
 
   const updateRow = (id, patch) => {
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
@@ -144,10 +164,8 @@ export default function BulkFinanceModal({
       fd.append("file", xlsxFile);
       fd.append("account_id", xlsxAccountId);
       const data = await postForm("/finances/import-xlsx", fd);
-      const sk = data.skipped_count != null ? ` Пропущено строк: ${data.skipped_count}.` : "";
-      alert(`Импортировано операций: ${data.count ?? 0}.${sk}`);
+      setXlsxResult(data);
       onSuccess?.();
-      onClose?.();
     } catch (e) {
       const msg = e?.message || String(e);
       let detail = msg;
@@ -166,6 +184,12 @@ export default function BulkFinanceModal({
   };
 
   const catOptions = (type) => categories[type] || [];
+
+  const closeXlsxResult = () => {
+    setXlsxResult(null);
+    setXlsxFile(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   return (
     <Modal open={open} onClose={busy ? undefined : onClose} title="Массовое добавление операций" wide>
@@ -189,6 +213,65 @@ export default function BulkFinanceModal({
       </div>
 
       {tab === "xlsx" ? (
+        xlsxResult ? (
+          <div className={styles.importResult}>
+            <h4 className={styles.importResultTitle}>Импорт завершён</h4>
+            <p className={styles.importResultLead}>
+              Всего добавлено операций: <strong>{xlsxResult.count ?? 0}</strong>
+            </p>
+            {xlsxResult.summary && (
+              <ul className={styles.importResultStats}>
+                {xlsxResult.summary.expense?.count > 0 && (
+                  <li>
+                    Расходы: <strong>{xlsxResult.summary.expense.count} шт.</strong> на сумму{" "}
+                    <span className={styles.sumExpense}>
+                      {formatMoneyRub(-Math.abs(Number(xlsxResult.summary.expense.total) || 0))}
+                    </span>
+                  </li>
+                )}
+                {xlsxResult.summary.income?.count > 0 && (
+                  <li>
+                    Доходы: <strong>{xlsxResult.summary.income.count} шт.</strong> на сумму{" "}
+                    <span className={styles.sumIncome}>
+                      +{formatMoneyRub(Math.abs(Number(xlsxResult.summary.income.total) || 0))}
+                    </span>
+                  </li>
+                )}
+              </ul>
+            )}
+            {Number(xlsxResult.skipped_count) > 0 && (
+              <div className={styles.skippedBlock}>
+                <div className={styles.skippedTitle}>
+                  Пропущено строк: <strong>{xlsxResult.skipped_count}</strong>
+                </div>
+                {Array.isArray(xlsxResult.skipped_breakdown) && xlsxResult.skipped_breakdown.length > 0 && (
+                  <ul className={styles.skippedList}>
+                    {xlsxResult.skipped_breakdown.map((row) => (
+                      <li key={row.reason}>
+                        <span className={styles.skippedCount}>{row.count}×</span> {row.reason}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+            <div className={styles.footer}>
+              <button type="button" className={styles.btnGhost} onClick={closeXlsxResult}>
+                Импортировать ещё
+              </button>
+              <button
+                type="button"
+                className={styles.btnPrimary}
+                onClick={() => {
+                  closeXlsxResult();
+                  onClose?.();
+                }}
+              >
+                Готово
+              </button>
+            </div>
+          </div>
+        ) : (
         <div className={styles.bankPanel}>
           <p className={styles.bankHint}>
             Экспорт операций из Тинькофф (Excel). Импортируются только строки со статусом <code>OK</code>. Пропускаются:{" "}
@@ -197,8 +280,14 @@ export default function BulkFinanceModal({
             названию категории из выписки (как в приложении). До {500} операций за раз.
           </p>
           <div className={styles.bankRow}>
-            <label>Счёт для всех операций из файла</label>
-            <select value={xlsxAccountId} onChange={(e) => setXlsxAccountId(e.target.value)} disabled={busy}>
+            <label htmlFor="bulk-xlsx-account">Счёт для всех операций из файла</label>
+            <select
+              id="bulk-xlsx-account"
+              className={styles.bankSelect}
+              value={xlsxAccountId}
+              onChange={(e) => setXlsxAccountId(e.target.value)}
+              disabled={busy}
+            >
               <option value="">Выберите счёт</option>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -208,13 +297,27 @@ export default function BulkFinanceModal({
             </select>
           </div>
           <div className={styles.bankRow}>
-            <label>Файл .xlsx</label>
-            <input
-              type="file"
-              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              onChange={(e) => setXlsxFile(e.target.files?.[0] || null)}
-              disabled={busy}
-            />
+            <span className={styles.bankLabel} id={`${xlsxFileInputId}-label`}>
+              Файл .xlsx
+            </span>
+            <div className={styles.filePick}>
+              <input
+                ref={fileInputRef}
+                id={xlsxFileInputId}
+                className={styles.fileInputHidden}
+                type="file"
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                aria-labelledby={`${xlsxFileInputId}-label`}
+                onChange={(e) => setXlsxFile(e.target.files?.[0] || null)}
+                disabled={busy}
+              />
+              <label htmlFor={xlsxFileInputId} className={styles.filePickBtn}>
+                Выбрать файл…
+              </label>
+              <span className={styles.fileName} title={xlsxFile?.name || ""}>
+                {xlsxFile?.name || "Файл не выбран"}
+              </span>
+            </div>
           </div>
           <div className={styles.footer}>
             <button type="button" className={styles.btnGhost} onClick={onClose} disabled={busy}>
@@ -230,6 +333,7 @@ export default function BulkFinanceModal({
             </button>
           </div>
         </div>
+        )
       ) : (
         <>
       <p className={styles.lead}>
