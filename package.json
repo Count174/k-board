@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "deploy:prod": "./scripts/deploy-prod.sh",
+    "deploy:prod:skip-commit": "./scripts/deploy-prod.sh --skip-commit"
+  },
   "dependencies": {
     "crypto-js": "^4.2.0",
     "oauth-1.0a": "^2.2.6"
