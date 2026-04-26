@@ -16,7 +16,7 @@ set -euo pipefail
 #   DEPLOY_WWW_DIR="/var/www/k-board/html"
 
 DEPLOY_SSH="${DEPLOY_SSH:-root@45.148.102.92}"
-DEPLOY_REMOTE_DIR="${DEPLOY_REMOTE_DIR:-~/k-board}"
+DEPLOY_REMOTE_DIR="${DEPLOY_REMOTE_DIR:-k-board}"
 DEPLOY_PM2_APP="${DEPLOY_PM2_APP:-k-board}"
 DEPLOY_WWW_DIR="${DEPLOY_WWW_DIR:-/var/www/k-board/html}"
 

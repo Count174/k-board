@@ -12,7 +12,7 @@ chmod +x ./scripts/deploy-prod.sh
 
 ```bash
 export DEPLOY_SSH="root@45.148.102.92"
-export DEPLOY_REMOTE_DIR="~/k-board"
+export DEPLOY_REMOTE_DIR="k-board"
 export DEPLOY_PM2_APP="k-board"
 export DEPLOY_WWW_DIR="/var/www/k-board/html"
 ```
