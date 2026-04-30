@@ -1,7 +1,7 @@
 .dashboard {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
   padding: 0;
   background: transparent;
   color: #ffffff;
@@ -11,14 +11,20 @@
 
 .widgetsRow {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
 }
 
 .widgetsColumn {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 14px;
+}
+
+@media (max-width: 1200px) {
+  .widgetsRow {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Адаптация карточек под новый стиль */

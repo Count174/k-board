@@ -11,6 +11,14 @@
   color: #f8fafc;
 }
 
+@media (max-width: 720px) {
+  .authContainer {
+    margin: 26px auto;
+    padding: 22px 16px;
+    border-radius: 16px;
+  }
+}
+
 .title {
   font-size: 24px;
   font-weight: 600;

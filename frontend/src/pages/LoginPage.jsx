@@ -29,7 +29,7 @@ export default function LoginPage() {
     <div className={styles.authContainer}>
       <h2 className={styles.title}>Войти в oubaitori</h2>
       <p className={styles.subtext}>
-        или <a href="/register">зарегистрироваться</a>
+        или <a href="/app/register">зарегистрироваться</a>
       </p>
 
       <form onSubmit={handleLogin} className={styles.form}>
