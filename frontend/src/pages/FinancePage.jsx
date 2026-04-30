@@ -87,15 +87,16 @@ export default function FinancePage() {
         <div className={styles.card}>
           <div className={styles.cardTitle}>Последние операции</div>
           {recent.map((t) => {
-            const amount = Number(t.amount_rub ?? t.amount ?? 0);
+            const amount = Math.abs(Number(t.amount_rub ?? t.amount ?? 0));
+            const isIncome = t.type === 'income';
             return (
               <div key={t.id} className={styles.tx}>
                 <div>
                   <div className={styles.txComment}>{t.comment || t.category_name || t.category || 'Операция'}</div>
                   <div className={styles.txDate}>{String(t.date || '').slice(0, 10)}</div>
                 </div>
-                <div className={`${styles.txAmount} ${amount >= 0 ? styles.inc : styles.exp}`}>
-                  {amount >= 0 ? '+' : '-'} {money(Math.abs(amount))}
+                <div className={`${styles.txAmount} ${isIncome ? styles.inc : styles.exp}`}>
+                  {isIncome ? '+' : '-'} {money(amount)}
                 </div>
               </div>
             );
