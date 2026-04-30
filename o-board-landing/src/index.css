@@ -1,0 +1,200 @@
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=Shippori+Mincho:wght@400;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* O-Board dark productivity theme */
+    --background: 160 18% 5%;
+    --foreground: 150 20% 96%;
+
+    --card: 160 16% 8%;
+    --card-foreground: 150 20% 96%;
+
+    --popover: 160 18% 7%;
+    --popover-foreground: 150 20% 96%;
+
+    --primary: 155 80% 58%;
+    --primary-foreground: 160 30% 8%;
+
+    --secondary: 160 12% 14%;
+    --secondary-foreground: 150 20% 96%;
+
+    --muted: 160 10% 12%;
+    --muted-foreground: 150 8% 62%;
+
+    --accent: 12 88% 65%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 75% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 160 12% 16%;
+    --input: 160 12% 16%;
+    --ring: 155 80% 58%;
+
+    --radius: 1rem;
+
+    /* Brand-specific tokens */
+    --mint: 155 80% 58%;
+    --mint-glow: 155 90% 70%;
+    --coral: 12 88% 65%;
+    --amber: 38 95% 62%;
+    --sky: 200 85% 65%;
+    --violet-soft: 260 60% 70%;
+    --sakura: 340 75% 75%;
+    --sakura-deep: 345 70% 62%;
+
+    --gradient-hero: radial-gradient(ellipse at top, hsl(155 80% 58% / 0.18), transparent 60%),
+                     radial-gradient(ellipse at bottom right, hsl(12 88% 65% / 0.12), transparent 55%),
+                     linear-gradient(180deg, hsl(160 18% 5%), hsl(160 20% 4%));
+    --gradient-mint: linear-gradient(135deg, hsl(155 80% 58%), hsl(170 75% 55%));
+    --gradient-coral: linear-gradient(135deg, hsl(12 88% 65%), hsl(28 90% 62%));
+    --gradient-card: linear-gradient(160deg, hsl(160 16% 9% / 0.9), hsl(160 14% 7% / 0.6));
+    --gradient-text: linear-gradient(135deg, hsl(150 20% 98%), hsl(155 60% 78%));
+    --gradient-sakura: linear-gradient(135deg, hsl(340 75% 78%), hsl(155 70% 65%));
+
+    --shadow-glow: 0 0 80px -10px hsl(155 80% 58% / 0.45);
+    --shadow-card: 0 20px 60px -20px hsl(160 30% 0% / 0.6);
+    --shadow-coral: 0 0 60px -15px hsl(12 88% 65% / 0.4);
+
+    --transition-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-feature-settings: 'ss01', 'cv11';
+  }
+
+  h1, h2, h3, h4, h5 {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    background: var(--gradient-text);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .text-gradient-mint {
+    background: var(--gradient-mint);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .text-gradient-sakura {
+    background: var(--gradient-sakura);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .font-mincho { font-family: 'Shippori Mincho', serif; }
+  .vertical-jp {
+    writing-mode: vertical-rl;
+    text-orientation: upright;
+    font-family: 'Shippori Mincho', serif;
+    letter-spacing: 0.4em;
+  }
+  .bg-hero { background: var(--gradient-hero); }
+  .bg-card-glass { background: var(--gradient-card); backdrop-filter: blur(12px); }
+  .shadow-glow { box-shadow: var(--shadow-glow); }
+  .shadow-card-soft { box-shadow: var(--shadow-card); }
+  .shadow-coral { box-shadow: var(--shadow-coral); }
+  .grid-bg {
+    background-image:
+      linear-gradient(hsl(155 40% 50% / 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(155 40% 50% / 0.06) 1px, transparent 1px);
+    background-size: 48px 48px;
+    mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
+  }
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-12px) rotate(1deg); }
+}
+@keyframes pulse-glow {
+  0%, 100% { opacity: 0.6; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes petal-fall {
+  0%   { transform: translateY(-10vh) translateX(0) rotate(0deg); opacity: 0; }
+  10%  { opacity: 0.7; }
+  90%  { opacity: 0.7; }
+  100% { transform: translateY(110vh) translateX(40px) rotate(360deg); opacity: 0; }
+}
+@keyframes drift {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  50%      { transform: translateX(20px) rotate(8deg); }
+}
