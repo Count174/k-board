@@ -1,18 +1,21 @@
 .shell {
   min-height: 100vh;
-  background: radial-gradient(120% 120% at 0% 0%, #182025 0%, #0d1117 55%, #0a0d13 100%);
+  background:
+    radial-gradient(130% 140% at 0% 0%, rgba(24, 196, 167, 0.14) 0%, rgba(10, 14, 21, 0) 52%),
+    radial-gradient(130% 130% at 100% 100%, rgba(255, 120, 186, 0.12) 0%, rgba(10, 14, 21, 0) 45%),
+    #0a0f17;
   color: #eef2ff;
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: 218px 1fr;
 }
 
 .sidebar {
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 18px 14px;
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 14px 12px;
   position: sticky;
   top: 0;
   height: 100vh;
-  background: rgba(7, 12, 16, 0.82);
+  background: rgba(7, 13, 20, 0.9);
   backdrop-filter: blur(10px);
   display: flex;
   flex-direction: column;
@@ -22,23 +25,32 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 24px;
+  font-size: 34px;
   font-weight: 700;
   color: #fff;
   text-decoration: none;
-  margin-bottom: 18px;
+  margin: 2px 0 12px;
 }
 
 .brandBadge {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(244, 180, 215, 0.9), rgba(156, 244, 204, 0.85));
-  color: #111827;
-  font-weight: 800;
+  font-size: 24px;
+  background: linear-gradient(135deg, rgba(255, 191, 223, 0.9), rgba(162, 248, 228, 0.85));
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.itemIcon {
+  font-size: 16px;
+  line-height: 1;
+  color: #8ec9b9;
+  width: 18px;
+  text-align: center;
 }
 
 .menu {
@@ -48,39 +60,73 @@
 }
 
 .item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
   text-decoration: none;
   color: #b7c2d8;
   border: 1px solid transparent;
   border-radius: 12px;
-  padding: 10px 12px;
-  font-size: 14px;
+  padding: 10px 11px;
+  font-size: 15px;
   transition: all 0.15s ease;
 }
 
 .item:hover {
   color: #f3f4f6;
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 188, 219, 0.24);
   background: rgba(255, 255, 255, 0.04);
 }
 
 .itemActive {
   color: #f8fafc;
-  border-color: rgba(236, 72, 153, 0.35);
-  background: linear-gradient(120deg, rgba(16, 185, 129, 0.12), rgba(236, 72, 153, 0.12));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 184, 219, 0.52);
+  background: linear-gradient(120deg, rgba(117, 255, 203, 0.1), rgba(255, 160, 206, 0.12));
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.05) inset,
+    0 0 18px rgba(255, 170, 214, 0.24);
 }
 
 .spacer {
   flex: 1;
 }
 
+.profileCard {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #fecdd3, #99f6e4);
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.profileName {
+  font-size: 14px;
+  color: #e2e8f0;
+  margin-bottom: 4px;
+}
+
 .logoutBtn {
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: transparent;
-  color: #d6d9e6;
-  border-radius: 12px;
-  padding: 9px 12px;
+  color: #cbd5e1;
+  border-radius: 8px;
+  padding: 5px 9px;
   cursor: pointer;
+  font-size: 12px;
 }
 
 .main {
@@ -89,12 +135,12 @@
 
 .topBar {
   height: 64px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 22px;
-  background: rgba(8, 12, 16, 0.72);
+  padding: 0 18px;
+  background: rgba(8, 13, 20, 0.84);
   backdrop-filter: blur(8px);
   position: sticky;
   top: 0;
@@ -102,12 +148,44 @@
 }
 
 .topTitle {
-  font-size: 22px;
-  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 21px;
+  font-weight: 500;
+}
+
+.topMark {
+  font-size: 19px;
+  color: #8de2cf;
+}
+
+.topRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.search {
+  width: min(220px, 30vw);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  min-height: 34px;
+}
+
+.bellBtn {
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #dbeafe;
+  padding: 0;
 }
 
 .content {
-  padding: 20px 22px 90px;
+  padding: 14px 16px 90px;
 }
 
 .mobileNav {
@@ -129,7 +207,20 @@
     height: 56px;
   }
   .topTitle {
-    font-size: 18px;
+    font-size: 15px;
+  }
+  .topRight {
+    gap: 6px;
+  }
+  .search {
+    width: 120px;
+    min-height: 30px;
+    padding: 0 10px;
+    font-size: 12px;
+  }
+  .bellBtn {
+    width: 30px;
+    height: 30px;
   }
   .mobileNav {
     display: grid;
@@ -149,7 +240,7 @@
   .mobileItem {
     text-decoration: none;
     color: #9ca3af;
-    font-size: 11px;
+    font-size: 12px;
     text-align: center;
     border-radius: 10px;
     padding: 7px 4px;

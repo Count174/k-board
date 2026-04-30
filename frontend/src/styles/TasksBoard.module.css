@@ -1,0 +1,144 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.titleRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(38px, 4vw, 54px);
+  letter-spacing: -0.03em;
+  font-weight: 700;
+}
+
+.addRow {
+  display: flex;
+  gap: 8px;
+}
+
+.addInput {
+  min-width: 210px;
+  border-radius: 999px;
+}
+
+.addBtn {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 184, 219, 0.42);
+  background: rgba(255, 168, 211, 0.11);
+  color: #fdf2f8;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 12px;
+}
+
+.columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.column {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 12px;
+  min-height: 460px;
+}
+
+.columnTitle {
+  font-size: 27px;
+  margin-bottom: 10px;
+}
+
+.taskCard {
+  width: 100%;
+  text-align: left;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  color: #e2e8f0;
+  padding: 11px 12px;
+  margin-bottom: 8px;
+}
+
+.taskCardActive {
+  border-color: rgba(253, 164, 206, 0.6);
+  box-shadow: 0 0 18px rgba(253, 164, 206, 0.22);
+}
+
+.taskTitle {
+  font-size: 18px;
+  line-height: 1.2;
+  margin-bottom: 6px;
+}
+
+.taskMeta {
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.empty {
+  color: #64748b;
+  padding: 14px 8px;
+}
+
+.side {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  padding: 16px;
+}
+
+.sideTitle {
+  font-size: 40px;
+  line-height: 1.05;
+  margin-bottom: 12px;
+}
+
+.sideSub {
+  color: #94a3b8;
+  margin-bottom: 18px;
+}
+
+.doneBtn {
+  width: 100%;
+}
+
+@media (max-width: 1200px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  .side {
+    order: -1;
+  }
+}
+
+@media (max-width: 980px) {
+  .columns {
+    grid-template-columns: 1fr;
+  }
+  .titleRow {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .addRow {
+    width: 100%;
+  }
+  .addInput {
+    min-width: 0;
+    flex: 1;
+  }
+  .column {
+    min-height: auto;
+  }
+}

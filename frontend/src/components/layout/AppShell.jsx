@@ -1,15 +1,17 @@
 import { Link, NavLink, Outlet } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
 import { post } from '../../api/api';
+import { get } from '../../api/api';
 import styles from './AppShell.module.css';
 
 const NAV_ITEMS = [
-  { to: '/dashboard', label: 'Сегодня' },
-  { to: '/tasks', label: 'Задачи' },
-  { to: '/finance', label: 'Финансы' },
-  { to: '/goals', label: 'Цели' },
-  { to: '/budget', label: 'Бюджет' },
-  { to: '/loans', label: 'Кредиты' },
-  { to: '/settings', label: 'Настройки' },
+  { to: '/dashboard', label: 'Сегодня', icon: '桜' },
+  { to: '/tasks', label: 'Задачи', icon: '三' },
+  { to: '/finance', label: 'Финансы', icon: '銭' },
+  { to: '/goals', label: 'Цели', icon: '花' },
+  { to: '/budget', label: 'Бюджет', icon: '市' },
+  { to: '/loans', label: 'Кредиты', icon: '道' },
+  { to: '/settings', label: 'Настройки', icon: '⚙' },
 ];
 
 function titleByPath(pathname) {
@@ -18,6 +20,29 @@ function titleByPath(pathname) {
 }
 
 export default function AppShell({ pathname }) {
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    get('auth/me').then(setUser).catch(() => {});
+  }, []);
+
+  const greeting = useMemo(() => {
+    const h = new Date().getHours();
+    if (h < 12) return 'Доброе утро';
+    if (h < 18) return 'Добрый день';
+    return 'Добрый вечер';
+  }, []);
+
+  const today = useMemo(
+    () =>
+      new Date().toLocaleDateString('ru-RU', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+      }),
+    []
+  );
+
   const onLogout = async () => {
     try {
       await post('auth/logout');
@@ -31,8 +56,8 @@ export default function AppShell({ pathname }) {
     <div className={styles.shell}>
       <aside className={styles.sidebar}>
         <Link to="/dashboard" className={styles.brand}>
-          <span className={styles.brandBadge}>o</span>
-          oubaitori
+          <span className={styles.brandBadge}>桜</span>
+          o-board
         </Link>
         <nav className={styles.menu}>
           {NAV_ITEMS.map((item) => (
@@ -43,22 +68,37 @@ export default function AppShell({ pathname }) {
                 `${styles.item} ${isActive ? styles.itemActive : ''}`
               }
             >
-              {item.label}
+              <span className={styles.itemIcon}>{item.icon}</span>
+              <span>{item.label}</span>
             </NavLink>
           ))}
         </nav>
         <div className={styles.spacer} />
-        <button type="button" className={styles.logoutBtn} onClick={onLogout}>
-          Выйти
-        </button>
+        <div className={styles.profileCard}>
+          <div className={styles.avatar}>{(user?.name || 'A').slice(0, 1)}</div>
+          <div>
+            <div className={styles.profileName}>{user?.name || 'Пользователь'}</div>
+            <button type="button" className={styles.logoutBtn} onClick={onLogout}>
+              Выйти
+            </button>
+          </div>
+        </div>
       </aside>
 
       <main className={styles.main}>
         <header className={styles.topBar}>
-          <div className={styles.topTitle}>{titleByPath(pathname)}</div>
-          <button type="button" className={styles.logoutBtn} onClick={onLogout}>
-            Выйти
-          </button>
+          <div className={styles.topTitle}>
+            <span className={styles.topMark}>桜</span>
+            <span>
+              {greeting}, {user?.name || 'друг'} · {today}
+            </span>
+          </div>
+          <div className={styles.topRight}>
+            <input className={styles.search} placeholder="Поиск" />
+            <button type="button" className={styles.bellBtn} aria-label="Уведомления">
+              ◌
+            </button>
+          </div>
         </header>
         <div className={styles.content}>
           <Outlet />
@@ -74,7 +114,7 @@ export default function AppShell({ pathname }) {
               `${styles.mobileItem} ${isActive ? styles.mobileActive : ''}`
             }
           >
-            {item.label}
+            <span>{item.icon}</span>
           </NavLink>
         ))}
       </nav>

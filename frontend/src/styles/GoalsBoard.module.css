@@ -1,0 +1,144 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.title {
+  margin: 0;
+  font-size: clamp(36px, 4vw, 56px);
+  letter-spacing: -0.03em;
+}
+
+.sub {
+  font-size: 29px;
+  color: #cbd5e1;
+  margin-top: 6px;
+}
+
+.goalsGrid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 12px;
+}
+
+.mainGoal {
+  border: 1px solid rgba(251, 191, 219, 0.45);
+  border-radius: 16px;
+  padding: 14px;
+  background:
+    radial-gradient(140% 120% at 100% 0%, rgba(251, 191, 219, 0.16) 0%, rgba(15, 23, 42, 0) 52%),
+    rgba(255, 255, 255, 0.03);
+}
+
+.mainGoalTitle {
+  font-size: 35px;
+}
+
+.mainGoalValue {
+  margin-top: 4px;
+  font-size: 29px;
+  color: #e2e8f0;
+}
+
+.ringWrap {
+  margin-top: 8px;
+  position: relative;
+  width: 142px;
+}
+
+.ringText {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 32px;
+}
+
+.sideGoals {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sideGoal {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 10px;
+}
+
+.sideHead {
+  display: flex;
+  justify-content: space-between;
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.sideTrack {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sideFill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #86efac, #99f6e4);
+}
+
+.loans {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.loanRow {
+  display: grid;
+  grid-template-columns: 1.2fr 140px 1fr 120px;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 10px;
+}
+
+.loanName {
+  font-size: 24px;
+}
+
+.loanPay {
+  color: #e2e8f0;
+  font-size: 20px;
+}
+
+.loanTrack {
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.loanFill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #fdba74, #f9a8d4);
+}
+
+.loanTerm {
+  color: #cbd5e1;
+  text-align: right;
+}
+
+@media (max-width: 1100px) {
+  .goalsGrid {
+    grid-template-columns: 1fr;
+  }
+  .loanRow {
+    grid-template-columns: 1fr;
+  }
+  .loanTerm {
+    text-align: left;
+  }
+}
