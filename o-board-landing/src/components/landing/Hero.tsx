@@ -41,13 +41,13 @@ export const Hero = () => {
 
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Button asChild size="lg" className="bg-gradient-to-r from-mint to-mint-glow text-primary-foreground hover:opacity-90 font-medium px-8 h-12 shadow-glow group">
-              <a href="/register">
+              <a href="/app/register">
                 Посадить свой сад
                 <ArrowRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
               </a>
             </Button>
             <Button asChild size="lg" variant="ghost" className="h-12 px-6 text-muted-foreground hover:text-foreground">
-              <a href="/login">Посмотреть, как растёт</a>
+              <a href="/app/login">Посмотреть, как растёт</a>
             </Button>
           </div>
 

@@ -22,10 +22,10 @@ export const Navbar = () => {
 
         <div className="flex items-center gap-2">
           <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
-            <a href="/login">Войти</a>
+            <a href="/app/login">Войти</a>
           </Button>
           <Button asChild size="sm" className="bg-gradient-to-r from-mint to-mint-glow text-primary-foreground hover:opacity-90 font-medium">
-            <a href="/register">Начать</a>
+            <a href="/app/register">Начать</a>
           </Button>
         </div>
       </div>

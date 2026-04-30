@@ -16,7 +16,7 @@ function Landing() {
     <div style={{ padding: 24, color: '#fff' }}>
       <h1>Oubaitori</h1>
       <p>Лендинг в разработке</p>
-      <a href="/login" style={{ color: '#c9cbff' }}>Войти</a>
+      <a href="/app/login" style={{ color: '#c9cbff' }}>Войти</a>
     </div>
   );
 }
@@ -36,7 +36,7 @@ function PublicHome() {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/app">
       <Routes>
         {/* Публичная главная */}
         <Route path="/" element={<PublicHome />} />
