@@ -2,10 +2,10 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
-  padding: 24px;
-  background-color: #0d0d0d;
+  padding: 0;
+  background: transparent;
   color: #ffffff;
-  min-height: 100vh;
+  min-height: auto;
   font-family: 'Inter', sans-serif;
 }
 

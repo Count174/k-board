@@ -1,0 +1,38 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.header {
+  padding: 16px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(140deg, rgba(16, 185, 129, 0.08), rgba(236, 72, 153, 0.08));
+}
+
+.title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  color: #f8fafc;
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  color: #9ca3af;
+}
+
+.content {
+  min-width: 0;
+}
+
+@media (max-width: 980px) {
+  .header {
+    padding: 12px 14px;
+    border-radius: 14px;
+  }
+  .title {
+    font-size: 22px;
+  }
+}

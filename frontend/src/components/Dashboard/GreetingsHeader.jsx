@@ -96,7 +96,7 @@ function GreetingsHeader({ user, onConnectClick, onLogout }) {
               </button>
 
               <button
-                onClick={() => { setDropdownOpen(false); window.location.href = '/history'; }}
+                onClick={() => { setDropdownOpen(false); window.location.href = '/app/history'; }}
                 className={styles.dropItem}
               >
                 <History size={16} />
@@ -104,7 +104,7 @@ function GreetingsHeader({ user, onConnectClick, onLogout }) {
               </button>
 
               <button
-                onClick={() => { setDropdownOpen(false); window.location.href = '/settings'; }}
+                onClick={() => { setDropdownOpen(false); window.location.href = '/app/settings'; }}
                 className={styles.dropItem}
               >
                 <Settings size={16} />

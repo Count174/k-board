@@ -1,14 +1,14 @@
 .page {
-  min-height: 100vh;
+  min-height: auto;
   width: 100%;
-  background: linear-gradient(180deg, #10121a 0%, #0b0d14 100%);
+  background: transparent;
   color: #e6e8ef;
 }
 
 .wrap {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 16px;
+  max-width: 1300px;
+  margin: 0;
+  padding: 0;
 }
 
 .header {

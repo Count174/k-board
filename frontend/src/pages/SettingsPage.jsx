@@ -320,7 +320,7 @@ export default function SettingsPage() {
     <div className={styles.page}>
       <div className={styles.header}>
         <h1>Настройки</h1>
-        <button onClick={() => (window.location.href = '/dashboard')}>Назад</button>
+        <button onClick={() => (window.location.href = '/app/dashboard')}>Назад</button>
       </div>
 
       <div className={styles.card}>

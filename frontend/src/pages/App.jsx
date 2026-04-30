@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Dashboard from './Dashboard';
 import LoginPage from './LoginPage';
 import RegisterPage from './RegisterPage';
@@ -8,6 +8,12 @@ import ResetPasswordPage from './ResetPasswordPage';
 import HelicopterPage from './HelicopterPage';
 import MovingPage from './MovingPage';
 import SettingsPage from './SettingsPage';
+import TasksPage from './TasksPage';
+import FinancePage from './FinancePage';
+import GoalsPage from './GoalsPage';
+import BudgetPage from './BudgetPage';
+import LoansPage from './LoansPage';
+import AppShell from '../components/layout/AppShell';
 import '../styles/index.css';
 
 // Временный лендинг-заглушка (потом заменишь на реальный компонент)
@@ -27,6 +33,15 @@ function isLoggedIn() {
 
 function PrivateRoute({ children }) {
   return isLoggedIn() ? children : <Navigate to="/login" replace />;
+}
+
+function PrivateLayout() {
+  const location = useLocation();
+  return (
+    <PrivateRoute>
+      <AppShell pathname={location.pathname} />
+    </PrivateRoute>
+  );
 }
 
 function PublicHome() {
@@ -65,32 +80,17 @@ export default function App() {
         {/* Переезд — отдельная пара логин/пароль из .env (не основная БД) */}
         <Route path="/moving" element={<MovingPage />} />
 
-        {/* Приватные страницы */}
-        <Route
-          path="/dashboard"
-          element={
-            <PrivateRoute>
-              <Dashboard />
-            </PrivateRoute>
-          }
-        />
-
-        <Route
-          path="/history"
-          element={
-            <PrivateRoute>
-              <UserHistoryPage />
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path="/settings"
-          element={
-            <PrivateRoute>
-              <SettingsPage />
-            </PrivateRoute>
-          }
-        />
+        {/* Приватные страницы в общем shell */}
+        <Route path="/" element={<PrivateLayout />}>
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="tasks" element={<TasksPage />} />
+          <Route path="finance" element={<FinancePage />} />
+          <Route path="goals" element={<GoalsPage />} />
+          <Route path="budget" element={<BudgetPage />} />
+          <Route path="loans" element={<LoansPage />} />
+          <Route path="history" element={<UserHistoryPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+        </Route>
 
         {/* Фолбэк */}
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,12 +1,14 @@
 .authContainer {
-  max-width: 400px;
-  margin: 80px auto;
-  background: #fff;
-  padding: 32px;
-  border-radius: 12px;
-  box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  max-width: 430px;
+  margin: 64px auto;
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.78));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  padding: 30px;
+  border-radius: 20px;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35);
   text-align: center;
   font-family: 'Inter', sans-serif;
+  color: #f8fafc;
 }
 
 .title {
@@ -18,11 +20,11 @@
 .subtext {
   margin-bottom: 24px;
   font-size: 14px;
-  color: #555;
+  color: #94a3b8;
 }
 
 .subtext a {
-  color: #007bff;
+  color: #34d399;
   text-decoration: none;
 }
 
@@ -40,9 +42,11 @@
 .form input[type="password"],
 .form input[type="text"] {
   padding: 12px 16px;
-  border: 1px solid #ccc;
-  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
   font-size: 15px;
+  background: rgba(15, 23, 42, 0.72);
+  color: #f8fafc;
 }
 
 .checkboxRow {
@@ -56,10 +60,10 @@
 }
 
 .primaryButton {
-  background: #0066ff;
+  background: linear-gradient(135deg, #ec4899, #10b981);
   color: white;
   padding: 12px;
-  border-radius: 8px;
+  border-radius: 12px;
   font-weight: 500;
   font-size: 16px;
   border: none;
@@ -67,7 +71,7 @@
 }
 
 .primaryButton:hover {
-  background: #0055cc;
+  filter: brightness(1.07);
 }
 
 .googleButton {
@@ -99,7 +103,7 @@
 }
 
 .forgot a {
-  color: #007bff;
+  color: #67e8f9;
   text-decoration: none;
 }
 
@@ -108,7 +112,7 @@
 }
 
 .error {
-  color: red;
+  color: #fda4af;
   font-size: 14px;
 }
 
