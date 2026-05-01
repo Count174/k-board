@@ -43,7 +43,9 @@ export default function FinancePage() {
       const rows = Array.isArray(tx) ? tx : [];
       rows.sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
       setTransactions(rows);
-      setBudgetStats(Array.isArray(budgets) ? budgets : []);
+      // API возвращает { items, totalBudget, ... }, не массив
+      const items = Array.isArray(budgets?.items) ? budgets.items : [];
+      setBudgetStats(items);
     };
     load().catch(() => {});
   }, [month]);

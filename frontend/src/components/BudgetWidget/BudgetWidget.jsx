@@ -14,7 +14,7 @@ export default function BudgetWidget() {
 
   const reload = async () => {
     const s = await get(`budgets/stats?month=${month}`);
-    setStats(Array.isArray(s) ? s : []);
+    setStats(Array.isArray(s?.items) ? s.items : []);
   };
 
   useEffect(() => {
