@@ -5,6 +5,10 @@ import { Car, Utensils, ShoppingBag, Bus, Coffee, Wallet2, Home, CircleDollarSig
 
 const money = (v) => `${Math.round(Number(v || 0)).toLocaleString('ru-RU')} ₽`;
 
+/** Группы разрядов без разрыва строки между «30» и «000» */
+const fmtIntNbsp = (v) =>
+  Math.round(Number(v || 0)).toLocaleString('ru-RU').replace(/\s/g, '\u00A0');
+
 const txIconByText = (txt) => {
   const t = String(txt || '').toLowerCase();
   if (t.includes('коф')) return Coffee;
@@ -136,8 +140,13 @@ export default function FinancePage() {
             return (
               <div key={`${b.id || b.category}-${b.category}`} className={styles.budgetItem}>
                 <div className={styles.budgetHead}>
-                  <span>{b.category || 'Категория'}</span>
-                  <span>{Math.round(spent).toLocaleString('ru-RU')} / {Math.round(budget).toLocaleString('ru-RU')} ₽</span>
+                  <span className={styles.budgetCategory}>{b.category || 'Категория'}</span>
+                  <span className={styles.budgetAmount}>
+                    {fmtIntNbsp(spent)}
+                    {'\u00A0/\u00A0'}
+                    {fmtIntNbsp(budget)}
+                    {'\u00A0₽'}
+                  </span>
                 </div>
                 <div className={styles.budgetTrack}>
                   <div className={styles.budgetFill} style={{ width: `${pct}%` }} />

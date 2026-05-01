@@ -163,23 +163,40 @@
 
 .budgetGrid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .budgetItem {
   background: rgba(255, 255, 255, 0.03);
   border-radius: 12px;
-  padding: 8px;
+  padding: 10px 12px;
+  min-width: 0;
 }
 
 .budgetHead {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
+  align-items: flex-start;
+  gap: 10px;
   font-size: 14px;
   color: #cbd5e1;
   margin-bottom: 8px;
+}
+
+.budgetCategory {
+  min-width: 0;
+  flex: 1;
+  line-height: 1.35;
+  hyphens: auto;
+  overflow-wrap: anywhere;
+}
+
+.budgetAmount {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
 .budgetTrack {
@@ -200,5 +217,10 @@
 
 @media (max-width: 1100px) {
   .grid { grid-template-columns: 1fr; }
-  .budgetGrid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 560px) {
+  .budgetGrid {
+    grid-template-columns: 1fr;
+  }
 }
