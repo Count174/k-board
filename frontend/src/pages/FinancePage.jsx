@@ -1,8 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { get } from '../api/api';
 import styles from '../styles/FinanceBoard.module.css';
+import { Car, Utensils, ShoppingBag, Bus, Coffee, Wallet2, Home, CircleDollarSign } from 'lucide-react';
 
 const money = (v) => `${Math.round(Number(v || 0)).toLocaleString('ru-RU')} ₽`;
+
+const txIconByText = (txt) => {
+  const t = String(txt || '').toLowerCase();
+  if (t.includes('коф')) return Coffee;
+  if (t.includes('метро') || t.includes('транспорт')) return Bus;
+  if (t.includes('такси')) return Car;
+  if (t.includes('еда') || t.includes('каф') || t.includes('ресторан')) return Utensils;
+  if (t.includes('дом') || t.includes('жиль')) return Home;
+  if (t.includes('супермаркет') || t.includes('продукт')) return ShoppingBag;
+  if (t.includes('зарплат') || t.includes('доход')) return CircleDollarSign;
+  return Wallet2;
+};
 
 export default function FinancePage() {
   const [month, setMonth] = useState(() => {
@@ -89,11 +102,18 @@ export default function FinancePage() {
           {recent.map((t) => {
             const amount = Math.abs(Number(t.amount_rub ?? t.amount ?? 0));
             const isIncome = t.type === 'income';
+            const label = t.comment || t.category_name || t.category || 'Операция';
+            const TxIcon = txIconByText(label);
             return (
               <div key={t.id} className={styles.tx}>
-                <div>
-                  <div className={styles.txComment}>{t.comment || t.category_name || t.category || 'Операция'}</div>
+                <div className={styles.txLeft}>
+                  <span className={`${styles.txIconWrap} ${isIncome ? styles.txIconIncome : styles.txIconExpense}`}>
+                    <TxIcon size={16} />
+                  </span>
+                  <div>
+                  <div className={styles.txComment}>{label}</div>
                   <div className={styles.txDate}>{String(t.date || '').slice(0, 10)}</div>
+                  </div>
                 </div>
                 <div className={`${styles.txAmount} ${isIncome ? styles.inc : styles.exp}`}>
                   {isIncome ? '+' : '-'} {money(amount)}

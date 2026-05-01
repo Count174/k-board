@@ -92,6 +92,9 @@
 .barFill {
   height: 100%;
   border-radius: inherit;
+  box-shadow:
+    0 0 10px rgba(167, 243, 208, 0.35),
+    inset 0 0 8px rgba(255, 255, 255, 0.22);
 }
 
 .c0 { background: linear-gradient(90deg, #86efac, #a7f3d0); }
@@ -114,6 +117,32 @@
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   margin-bottom: 8px;
+}
+
+.txLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.txIconWrap {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.txIconIncome {
+  color: #86efac;
+  background: rgba(134, 239, 172, 0.12);
+}
+
+.txIconExpense {
+  color: #fda4af;
+  background: rgba(253, 164, 175, 0.12);
 }
 
 .txComment {
@@ -164,6 +193,9 @@
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, #bbf7d0, #86efac);
+  box-shadow:
+    0 0 10px rgba(134, 239, 172, 0.35),
+    inset 0 0 8px rgba(255, 255, 255, 0.24);
 }
 
 @media (max-width: 1100px) {
