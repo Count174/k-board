@@ -47,6 +47,38 @@
   margin-bottom: 10px;
 }
 
+.healthCardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.healthCardHead .cardTitle {
+  margin-bottom: 0;
+}
+
+.gearBtn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: #99f6e4;
+  cursor: pointer;
+}
+
+.gearBtn:hover {
+  background: rgba(134, 239, 172, 0.12);
+  border-color: rgba(134, 239, 172, 0.35);
+  color: #d1fae5;
+}
+
 .todoList {
   display: flex;
   flex-direction: column;
@@ -81,17 +113,38 @@
 }
 
 .healthPill {
-  background: rgba(253, 164, 175, 0.22);
-  border: 1px solid rgba(253, 164, 175, 0.35);
-  color: #ffe4e6;
-  border-radius: 999px;
-  width: fit-content;
-  padding: 4px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(134, 239, 172, 0.22);
+  color: #e2e8f0;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 100%;
+  padding: 8px 12px;
+}
+
+.healthPillName {
+  font-weight: 600;
+  font-size: 16px;
+  color: #f1f5f9;
+}
+
+.healthPillDosage {
+  font-size: 14px;
+  color: #cbd5e1;
+}
+
+.healthPillTimes {
+  font-size: 13px;
+  color: #86efac;
 }
 
 .goalRow {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 10px;
 }
 

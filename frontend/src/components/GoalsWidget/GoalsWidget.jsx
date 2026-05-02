@@ -18,8 +18,30 @@ const PRESETS = [
   { key: 'goal-10', label: 'Routine' },
 ];
 
-function presetSrc(key) {
-  return `${import.meta.env.BASE_URL}assets/goals/${key}.jpg`;
+/** Файлы в репозитории: public/images (на бэкенде отдаются как GET /k-board/images/...) */
+const PRESET_IMAGE_FILE = {
+  'goal-01': 'different.jpg',
+  'goal-02': 'moscow.jpg',
+  'goal-03': 'bmw.jpg',
+  'goal-04': 'different.jpg',
+  'goal-05': 'money.jpg',
+  'goal-06': 'moscow.jpg',
+  'goal-07': 'bmw.jpg',
+  'goal-08': 'different.jpg',
+  'goal-09': 'og.png',
+  'goal-10': 'money.jpg',
+};
+
+function goalImageSrc(stored) {
+  const raw = String(stored || 'goal-01').trim();
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.startsWith('/k-board/images/')) return raw;
+  if (/\.(jpe?g|png|webp|gif)$/i.test(raw)) {
+    const baseName = raw.replace(/^.*[/\\]/, '');
+    return `/k-board/images/${baseName}`;
+  }
+  const file = PRESET_IMAGE_FILE[raw] || PRESET_IMAGE_FILE['goal-01'];
+  return `/k-board/images/${file}`;
 }
 
 function formatMoney(v) {
@@ -86,7 +108,7 @@ function PresetPicker({ value, onChange }) {
           className={`${styles.presetTile} ${value === p.key ? styles.presetActive : ''}`}
           onClick={() => onChange(p.key)}
         >
-          <img className={styles.presetImg} src={presetSrc(p.key)} alt="" />
+          <img className={styles.presetImg} src={goalImageSrc(p.key)} alt="" />
           <div className={styles.presetLabel}>{p.label}</div>
         </button>
       ))}
@@ -227,7 +249,7 @@ export default function GoalsWidget() {
             <div key={goal.id} className={styles.card}>
               <div className={styles.cardTop}>
                 <div className={styles.imgWrap}>
-                  <img className={styles.img} src={presetSrc(goal.image || 'goal-01')} alt="" />
+                  <img className={styles.img} src={goalImageSrc(goal.image)} alt="" />
                   <button
                     className={styles.deleteBtn}
                     onClick={() => handleDeleteGoal(goal.id)}

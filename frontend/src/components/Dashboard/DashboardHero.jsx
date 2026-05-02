@@ -1,10 +1,26 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import dayjs from 'dayjs';
+import { Settings2 } from 'lucide-react';
 import { get } from '../../api/api';
+import Modal from '../Modal';
+import MedicationsWidget from '../MedicationsWidget/MedicationsWidget';
 import styles from './DashboardHero.module.css';
 
 function money(v) {
   return `${Math.round(Number(v || 0)).toLocaleString('ru-RU')} ₽`;
+}
+
+function formatGoalNumber(v) {
+  return new Intl.NumberFormat('ru-RU').format(Math.round(Number(v || 0)));
+}
+
+function fmtGoalValue(v, unit) {
+  if (v == null || v === '') return '—';
+  const n = Number(v);
+  if (Number.isNaN(n)) return '—';
+  if (String(unit || '').trim() === '₽') return `${formatGoalNumber(n)} ₽`;
+  const u = String(unit || '').trim();
+  return u ? `${formatGoalNumber(n)} ${u}` : formatGoalNumber(n);
 }
 
 function goalProgress(goal) {
@@ -20,29 +36,33 @@ export default function DashboardHero() {
   const [todos, setTodos] = useState([]);
   const [summary, setSummary] = useState({ balance: 0 });
   const [meds, setMeds] = useState([]);
+  const [medsModalOpen, setMedsModalOpen] = useState(false);
+
+  const loadMeds = useCallback(async () => {
+    const medsRaw = await get('medications').catch(() => []);
+    setMeds((Array.isArray(medsRaw) ? medsRaw : []).filter((m) => Number(m.active) === 1));
+  }, []);
 
   useEffect(() => {
     const load = async () => {
       const start = dayjs().startOf('month').format('YYYY-MM-DD');
       const end = dayjs().endOf('month').format('YYYY-MM-DD');
-      const [goalsRaw, todosRaw, summaryRaw, medsRaw] = await Promise.all([
+      const [goalsRaw, todosRaw, summaryRaw] = await Promise.all([
         get('goals').catch(() => []),
         get('todos').catch(() => []),
         get(`finances/summary?start=${start}&end=${end}`).catch(() => ({})),
-        get('medications').catch(() => []),
       ]);
       setGoals(Array.isArray(goalsRaw) ? goalsRaw : []);
       setTodos(Array.isArray(todosRaw) ? todosRaw : []);
       setSummary({
         balance: Number(summaryRaw?.balance || 0),
       });
-      setMeds((Array.isArray(medsRaw) ? medsRaw : []).filter((m) => Number(m.active) === 1).slice(0, 3));
+      await loadMeds();
     };
     load().catch(() => {});
-  }, []);
+  }, [loadMeds]);
 
   const goalsBloomed = useMemo(() => goals.filter((g) => goalProgress(g) >= 1).length, [goals]);
-  const topGoals = useMemo(() => goals.slice(0, 3), [goals]);
   const dayTodos = useMemo(() => todos.filter((t) => !t.completed).slice(0, 5), [todos]);
 
   const currentMonth = dayjs().format('MMMM');
@@ -75,9 +95,32 @@ export default function DashboardHero() {
         </div>
 
         <div className={styles.card}>
-          <div className={styles.cardTitle}>Здоровье</div>
+          <div className={styles.healthCardHead}>
+            <div className={styles.cardTitle}>Здоровье</div>
+            <button
+              type="button"
+              className={styles.gearBtn}
+              title="Приёмы лекарств: добавить и редактировать"
+              aria-label="Настройки приёмов лекарств"
+              onClick={() => setMedsModalOpen(true)}
+            >
+              <Settings2 size={22} strokeWidth={2} />
+            </button>
+          </div>
           <div className={styles.healthList}>
-            {meds.length ? meds.map((m) => <div key={m.id} className={styles.healthPill}>{m.name}</div>) : <div className={styles.muted}>Добавь приемы в лекарствах</div>}
+            {meds.length ? (
+              meds.map((m) => (
+                <div key={m.id} className={styles.healthPill}>
+                  <span className={styles.healthPillName}>{m.name}</span>
+                  {m.dosage ? <span className={styles.healthPillDosage}>{m.dosage}</span> : null}
+                  {Array.isArray(m.times) && m.times.length ? (
+                    <span className={styles.healthPillTimes}>{m.times.join(', ')}</span>
+                  ) : null}
+                </div>
+              ))
+            ) : (
+              <div className={styles.muted}>Через шестерёнку справа — добавить и править приёмы</div>
+            )}
           </div>
         </div>
       </div>
@@ -85,12 +128,14 @@ export default function DashboardHero() {
       <div className={styles.card}>
         <div className={styles.cardTitle}>Долгие цели</div>
         <div className={styles.goalRow}>
-          {topGoals.length ? topGoals.map((g) => {
+          {goals.length ? goals.map((g) => {
             const p = Math.round(goalProgress(g) * 100);
             return (
               <div key={g.id} className={styles.goalItem}>
                 <div className={styles.goalName}>{g.title}</div>
-                <div className={styles.goalMeta}>{money(g.last_value || 0)} / {money(g.target || 0)}</div>
+                <div className={styles.goalMeta}>
+                  {fmtGoalValue(g.last_value, g.unit)} / {fmtGoalValue(g.target, g.unit)}
+                </div>
                 <div className={styles.goalTrack}>
                   <div className={styles.goalFill} style={{ width: `${p}%` }} />
                 </div>
@@ -99,6 +144,18 @@ export default function DashboardHero() {
           }) : <div className={styles.muted}>Пока нет целей</div>}
         </div>
       </div>
+
+      <Modal
+        open={medsModalOpen}
+        onClose={() => {
+          setMedsModalOpen(false);
+          loadMeds().catch(() => {});
+        }}
+        title="Приёмы лекарств"
+        wide
+      >
+        <MedicationsWidget hideHeading />
+      </Modal>
     </section>
   );
 }

@@ -269,7 +269,7 @@ function EditMedicationDialog({ item, onClose, onSaved }) {
 }
 
 /* ===== Main widget ===== */
-export default function MedicationsWidget() {
+export default function MedicationsWidget({ hideHeading = false }) {
   const [items, setItems] = useState([]);
   const [form, setForm] = useState(emptyForm);
 
@@ -388,7 +388,7 @@ export default function MedicationsWidget() {
 
   return (
     <div className={styles.widget}>
-      <h2 className={styles.title}>Лекарства</h2>
+      {!hideHeading ? <h2 className={styles.title}>Лекарства</h2> : null}
 
       {/* Форма создания */}
       <div className={styles.form}>
