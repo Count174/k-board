@@ -146,9 +146,10 @@ app.use('/api/whoop', whoopRoutes);
 app.use('/api/accounts', accountsRoutes);
 app.use('/api/moving', movingRoutes);
 
-// Статика: favicon и изображения из корневой public
+// Статика: favicon, прочие картинки и пресеты целей (public/assets/goals/goal-01.jpg …)
 app.get('/favicon.png', (req, res) => res.sendFile(path.join(publicPath, 'favicon.png')));
 app.use('/k-board/images', express.static(path.join(publicPath, 'images')));
+app.use('/assets/goals', express.static(path.join(publicPath, 'assets/goals')));
 
 
 bootstrapDefaultAccountsForAllUsers()

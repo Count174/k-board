@@ -18,30 +18,19 @@ const PRESETS = [
   { key: 'goal-10', label: 'Routine' },
 ];
 
-/** Файлы в репозитории: public/images (на бэкенде отдаются как GET /k-board/images/...) */
-const PRESET_IMAGE_FILE = {
-  'goal-01': 'different.jpg',
-  'goal-02': 'moscow.jpg',
-  'goal-03': 'bmw.jpg',
-  'goal-04': 'different.jpg',
-  'goal-05': 'money.jpg',
-  'goal-06': 'moscow.jpg',
-  'goal-07': 'bmw.jpg',
-  'goal-08': 'different.jpg',
-  'goal-09': 'og.png',
-  'goal-10': 'money.jpg',
-};
-
+/** Пресеты: файлы в public/assets/goals/ (на бэкенде: GET /assets/goals/goal-01.jpg) */
 function goalImageSrc(stored) {
   const raw = String(stored || 'goal-01').trim();
   if (/^https?:\/\//i.test(raw)) return raw;
+  if (raw.startsWith('/assets/goals/')) return raw;
   if (raw.startsWith('/k-board/images/')) return raw;
+
   if (/\.(jpe?g|png|webp|gif)$/i.test(raw)) {
     const baseName = raw.replace(/^.*[/\\]/, '');
-    return `/k-board/images/${baseName}`;
+    return `/assets/goals/${baseName}`;
   }
-  const file = PRESET_IMAGE_FILE[raw] || PRESET_IMAGE_FILE['goal-01'];
-  return `/k-board/images/${file}`;
+  const key = /^goal-\d{2}$/i.test(raw) ? raw.toLowerCase() : 'goal-01';
+  return `/assets/goals/${key}.jpg`;
 }
 
 function formatMoney(v) {

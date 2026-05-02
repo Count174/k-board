@@ -16,8 +16,11 @@ export default defineConfig({
         target: 'http://localhost:8000',  // Ваш бэкенд
         changeOrigin: true,
       },
-      // Картинки целей из корневого public/images (см. backend: /k-board/images)
       '/k-board/images': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/assets/goals': {
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
