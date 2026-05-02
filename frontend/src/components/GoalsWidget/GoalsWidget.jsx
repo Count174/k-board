@@ -18,19 +18,33 @@ const PRESETS = [
   { key: 'goal-10', label: 'Routine' },
 ];
 
-/** Пресеты: файлы в public/assets/goals/ (на бэкенде: GET /assets/goals/goal-01.jpg) */
+/**
+ * Пресеты лежат в public/assets/goals/ (репозиторий) и копируются в сборку как /app/assets/goals/
+ * при base '/app/'. Абсолютный /assets/... без префикса приложения даёт 404 за пределами Vite.
+ */
 function goalImageSrc(stored) {
   const raw = String(stored || 'goal-01').trim();
   if (/^https?:\/\//i.test(raw)) return raw;
-  if (raw.startsWith('/assets/goals/')) return raw;
+
+  const base = import.meta.env.BASE_URL || '/';
+  const prefix = base.endsWith('/') ? base : `${base}/`;
+
+  if (raw.startsWith(`${prefix}assets/goals/`)) return raw;
   if (raw.startsWith('/k-board/images/')) return raw;
 
-  if (/\.(jpe?g|png|webp|gif)$/i.test(raw)) {
-    const baseName = raw.replace(/^.*[/\\]/, '');
-    return `/assets/goals/${baseName}`;
+  if (raw.startsWith('/assets/goals/')) {
+    const rest = raw.slice('/assets/goals/'.length);
+    return `${prefix}assets/goals/${rest}`;
   }
-  const key = /^goal-\d{2}$/i.test(raw) ? raw.toLowerCase() : 'goal-01';
-  return `/assets/goals/${key}.jpg`;
+
+  let file;
+  if (/\.(jpe?g|png|webp|gif)$/i.test(raw)) {
+    file = raw.replace(/^.*[/\\]/, '');
+  } else {
+    const key = /^goal-\d{2}$/i.test(raw) ? raw.toLowerCase() : 'goal-01';
+    file = `${key}.jpg`;
+  }
+  return `${prefix}assets/goals/${file}`;
 }
 
 function formatMoney(v) {

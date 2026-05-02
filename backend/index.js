@@ -150,6 +150,8 @@ app.use('/api/moving', movingRoutes);
 app.get('/favicon.png', (req, res) => res.sendFile(path.join(publicPath, 'favicon.png')));
 app.use('/k-board/images', express.static(path.join(publicPath, 'images')));
 app.use('/assets/goals', express.static(path.join(publicPath, 'assets/goals')));
+// то же дерево под префиксом SPA (base /app/), если статику отдаёт Node
+app.use('/app/assets/goals', express.static(path.join(publicPath, 'assets/goals')));
 
 
 bootstrapDefaultAccountsForAllUsers()
