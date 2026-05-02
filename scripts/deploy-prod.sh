@@ -5,7 +5,8 @@ set -euo pipefail
 # 1) local commit + push
 # 2) remote pull
 # 3) build/sync frontend if frontend changed
-# 4) pm2 restart
+# 4) build/sync o-board-landing if landing changed
+# 5) pm2 restart
 #
 # Usage:
 #   ./scripts/deploy-prod.sh -m "feat: message"
@@ -14,11 +15,13 @@ set -euo pipefail
 #   DEPLOY_REMOTE_DIR="~/k-board"
 #   DEPLOY_PM2_APP="k-board"
 #   DEPLOY_WWW_DIR="/var/www/k-board/html"
+#   DEPLOY_LANDING_WWW_DIR="/var/www/o-board-landing/html"
 
 DEPLOY_SSH="${DEPLOY_SSH:-root@45.148.102.92}"
 DEPLOY_REMOTE_DIR="${DEPLOY_REMOTE_DIR:-/root/k-board}"
 DEPLOY_PM2_APP="${DEPLOY_PM2_APP:-k-board}"
 DEPLOY_WWW_DIR="${DEPLOY_WWW_DIR:-/var/www/k-board/html}"
+DEPLOY_LANDING_WWW_DIR="${DEPLOY_LANDING_WWW_DIR:-/var/www/o-board-landing/html}"
 
 COMMIT_MSG=""
 SKIP_COMMIT="${SKIP_COMMIT:-0}"
@@ -101,6 +104,27 @@ if [[ "\$FRONT_CHANGED" -eq 1 ]]; then
   sudo chown -R www-data:www-data "$DEPLOY_WWW_DIR"
 else
   echo "[remote] frontend unchanged -> skip static rebuild"
+fi
+
+LANDING_CHANGED=0
+while IFS= read -r f; do
+  if [[ "\$f" == o-board-landing/* ]]; then
+    LANDING_CHANGED=1
+    break
+  fi
+done < <(git diff --name-only "\$OLD_REV" "\$NEW_REV")
+
+if [[ "\$LANDING_CHANGED" -eq 1 ]]; then
+  echo "[remote] o-board-landing changed -> build and sync to $DEPLOY_LANDING_WWW_DIR"
+  cd "$DEPLOY_REMOTE_DIR/o-board-landing"
+  npm run build
+
+  sudo mkdir -p "$DEPLOY_LANDING_WWW_DIR"
+  sudo rm -rf "$DEPLOY_LANDING_WWW_DIR"/*
+  sudo cp -a "$DEPLOY_REMOTE_DIR/o-board-landing/dist/." "$DEPLOY_LANDING_WWW_DIR/"
+  sudo chown -R www-data:www-data "$DEPLOY_LANDING_WWW_DIR"
+else
+  echo "[remote] o-board-landing unchanged -> skip landing rebuild"
 fi
 
 cd "$DEPLOY_REMOTE_DIR"
