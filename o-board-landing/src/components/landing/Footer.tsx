@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 export const Footer = () => {
   return (
     <footer className="border-t border-border/60 py-12">
@@ -13,7 +15,9 @@ export const Footer = () => {
           <span className="text-xs">© {new Date().getFullYear()}</span>
         </div>
         <nav className="flex items-center gap-6">
-          <a href="#" className="hover:text-foreground transition-colors">Приватность</a>
+          <Link to="/confidential" className="hover:text-foreground transition-colors">
+            Политика конфиденциальности
+          </Link>
           <a href="#" className="hover:text-foreground transition-colors">Условия</a>
           <a href="mailto:hi@o-board.ru" className="hover:text-foreground transition-colors">hi@o-board.ru</a>
         </nav>
