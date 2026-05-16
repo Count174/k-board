@@ -40,6 +40,7 @@ const ceoRoutes = require('./routes/ceo');
 const whoopRoutes = require('./routes/whoop');
 const accountsRoutes = require('./routes/accounts');
 const movingRoutes = require('./routes/moving');
+const workoutsRoutes = require('./routes/workouts');
 const { bootstrapDefaultAccountsForAllUsers } = require('./utils/accountsService');
 
 app.set('trust proxy', 1); // доверие первому прокси (nginx)
@@ -145,6 +146,7 @@ app.use('/api/ceo', ceoRoutes);
 app.use('/api/whoop', whoopRoutes);
 app.use('/api/accounts', accountsRoutes);
 app.use('/api/moving', movingRoutes);
+app.use('/api/workouts', workoutsRoutes);
 
 // Статика: favicon, прочие картинки и пресеты целей (public/assets/goals/goal-01.jpg …)
 app.get('/favicon.png', (req, res) => res.sendFile(path.join(publicPath, 'favicon.png')));

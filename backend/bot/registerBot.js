@@ -24,9 +24,11 @@ const {
 } = require('../utils/accountsService');
 const { helpMessage } = require('./constants');
 const parseDate = require('./utils/parseDate');
+const { registerWorkoutPlanBot } = require('./workoutPlanBot');
 
 function registerTelegramBot(bot) {
 ensureAccountsSchema().catch((e) => console.error('bot ensureAccountsSchema error:', e));
+registerWorkoutPlanBot(bot, db);
 
 const userStates = {}; // состояния пошаговых сценариев
 
@@ -1563,6 +1565,8 @@ bot.on('callback_query', async (query) => {
   const data = query.data || '';
   const parts = data.split(':');
   const key = parts[0];
+
+  if (key === 'wps') return;
 
   // ---- daily_checks ----
   if (key === 'sleep') {

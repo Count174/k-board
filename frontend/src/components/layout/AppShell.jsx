@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { to: '/tasks', label: 'Задачи', icon: '三' },
   { to: '/finance', label: 'Финансы', icon: '銭' },
   { to: '/goals', label: 'Цели', icon: '花' },
+  { to: '/workouts', label: 'Тренировки', icon: '力' },
   { to: '/budget', label: 'Бюджет', icon: '市' },
   { to: '/loans', label: 'Кредиты', icon: '道' },
   { to: '/settings', label: 'Настройки', icon: '⚙' },

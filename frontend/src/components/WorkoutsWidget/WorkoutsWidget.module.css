@@ -1,0 +1,203 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.card {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 14px;
+}
+
+.cardTitle {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 10px;
+  color: #f8fafc;
+}
+
+.muted {
+  color: #94a3b8;
+  font-size: 14px;
+}
+
+.progressRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.progressCard {
+  border-radius: 12px;
+  border: 1px solid rgba(134, 239, 172, 0.22);
+  background: rgba(134, 239, 172, 0.06);
+  padding: 12px;
+}
+
+.progressLabel {
+  font-size: 13px;
+  color: #a7f3d0;
+  margin-bottom: 6px;
+}
+
+.progressValue {
+  font-size: 28px;
+  font-weight: 700;
+  color: #ecfdf5;
+  line-height: 1.1;
+}
+
+.progressSub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.weekRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dayBtn {
+  min-width: 44px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e2e8f0;
+  cursor: pointer;
+}
+
+.dayBtnActive {
+  border-color: rgba(134, 239, 172, 0.45);
+  background: rgba(134, 239, 172, 0.16);
+  color: #d1fae5;
+}
+
+.fieldRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.input,
+.select,
+.textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  color: #f8fafc;
+}
+
+.textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.inputInline {
+  width: auto;
+  min-width: 120px;
+}
+
+.planList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.planItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.planName {
+  font-size: 18px;
+  font-weight: 600;
+  color: #f1f5f9;
+}
+
+.planMeta {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+
+.planActions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.primaryBtn,
+.secondaryBtn,
+.dangerBtn {
+  border-radius: 12px;
+  padding: 9px 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+.primaryBtn {
+  background: linear-gradient(180deg, rgba(134, 239, 172, 0.35), rgba(16, 185, 129, 0.55));
+  color: #052e24;
+  border: 1px solid rgba(167, 243, 208, 0.45);
+}
+
+.secondaryBtn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
+}
+
+.dangerBtn {
+  background: rgba(253, 164, 175, 0.12);
+  border: 1px solid rgba(253, 164, 175, 0.35);
+  color: #fecdd3;
+}
+
+.exerciseBlock {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 10px;
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.exerciseGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.modalForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+@media (max-width: 720px) {
+  .progressRow {
+    grid-template-columns: 1fr;
+  }
+  .exerciseGrid {
+    grid-template-columns: 1fr;
+  }
+}
