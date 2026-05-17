@@ -1,6 +1,7 @@
 const db = require('../db/db');
 const dayjs = require('dayjs');
 const { getEffectiveBudgets } = require('../utils/budgetService');
+const { calcWorkoutPlanAttendance } = require('../utils/workoutPlanService');
 
 // ---------- утилиты ----------
 const all = (sql, p = []) =>
@@ -66,8 +67,8 @@ async function calcSleepStrict(userId, start, end) {
   };
 }
 
-// ---------- HEALTH: тренировки (из health И из daily_checks) ----------
-async function calcWorkoutsCombined(userId, start, end) {
+// ---------- HEALTH: тренировки (планы + fallback) ----------
+async function calcWorkoutsLegacy(userId, start, end) {
   const hDone = await all(
     `SELECT DISTINCT date FROM health
      WHERE user_id=? AND type='training' AND completed=1 AND date>=? AND date<=?`,
@@ -95,7 +96,13 @@ async function calcWorkoutsCombined(userId, start, end) {
   else if (doneDays === target + 1) score = 95;
   else score = Math.round(90 * clamp01(doneDays / target));
 
-  return { score, done_days: doneDays, target_days: target };
+  return { score, done_days: doneDays, target_days: target, source: 'legacy' };
+}
+
+async function calcWorkoutsCombined(userId, start, end) {
+  const fromPlans = await calcWorkoutPlanAttendance(userId, start, end);
+  if (fromPlans) return fromPlans;
+  return calcWorkoutsLegacy(userId, start, end);
 }
 
 // ---------- MEDS ----------

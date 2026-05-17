@@ -5,6 +5,8 @@ import styles from './WorkoutsWidget.module.css';
 
 const WEEKDAY_LABELS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
+const emptySetRow = () => ({ reps: '', weight_kg: '', duration_min: '' });
+
 const emptyExercise = () => ({
   kind: 'strength',
   name: '',
@@ -15,7 +17,31 @@ const emptyExercise = () => ({
   distance_km: '',
   rest_sec: '',
   notes: '',
+  custom_sets: false,
+  set_rows: [],
 });
+
+function hasCustomSetRows(ex) {
+  if (!Array.isArray(ex.set_rows) || ex.set_rows.length < 2) return false;
+  const first = ex.set_rows[0];
+  return ex.set_rows.some(
+    (r, i) =>
+      i > 0 &&
+      (String(r.reps) !== String(first.reps) ||
+        String(r.weight_kg) !== String(first.weight_kg) ||
+        String(r.duration_min) !== String(first.duration_min))
+  );
+}
+
+function buildSetRowsFromSimple(ex) {
+  const n = Math.max(0, Number(ex.sets) || 0);
+  if (!n) return [];
+  return Array.from({ length: n }, () => ({
+    reps: ex.reps ?? '',
+    weight_kg: ex.weight_kg ?? '',
+    duration_min: ex.duration_min ?? '',
+  }));
+}
 
 const emptyPlan = () => ({
   id: null,
@@ -91,17 +117,30 @@ export default function WorkoutsWidget() {
       notify_time: plan.notify_time || '',
       active: plan.active !== false,
       exercises: (plan.exercises || []).length
-        ? plan.exercises.map((ex) => ({
-            kind: ex.kind || 'strength',
-            name: ex.name || '',
-            sets: ex.sets ?? '',
-            reps: ex.reps ?? '',
-            weight_kg: ex.weight_kg ?? '',
-            duration_min: ex.duration_min ?? '',
-            distance_km: ex.distance_km ?? '',
-            rest_sec: ex.rest_sec ?? '',
-            notes: ex.notes || '',
-          }))
+        ? plan.exercises.map((ex) => {
+            const set_rows =
+              Array.isArray(ex.set_rows) && ex.set_rows.length
+                ? ex.set_rows.map((r) => ({
+                    reps: r.reps ?? '',
+                    weight_kg: r.weight_kg ?? '',
+                    duration_min: r.duration_min ?? '',
+                  }))
+                : buildSetRowsFromSimple(ex);
+            const custom_sets = hasCustomSetRows({ set_rows });
+            return {
+              kind: ex.kind || 'strength',
+              name: ex.name || '',
+              sets: ex.sets ?? (set_rows.length || ''),
+              reps: ex.reps ?? '',
+              weight_kg: ex.weight_kg ?? '',
+              duration_min: ex.duration_min ?? '',
+              distance_km: ex.distance_km ?? '',
+              rest_sec: ex.rest_sec ?? '',
+              notes: ex.notes || '',
+              custom_sets,
+              set_rows: custom_sets ? set_rows : [],
+            };
+          })
         : [emptyExercise()],
     });
     setModalOpen(true);
@@ -119,7 +158,69 @@ export default function WorkoutsWidget() {
   const updateExercise = (index, field, value) => {
     setForm((prev) => {
       const exercises = [...prev.exercises];
-      exercises[index] = { ...exercises[index], [field]: value };
+      const ex = { ...exercises[index], [field]: value };
+      if (!ex.custom_sets && ['sets', 'reps', 'weight_kg', 'duration_min'].includes(field)) {
+        ex.set_rows = buildSetRowsFromSimple(ex);
+      }
+      exercises[index] = ex;
+      return { ...prev, exercises };
+    });
+  };
+
+  const toggleCustomSets = (index, on) => {
+    setForm((prev) => {
+      const exercises = [...prev.exercises];
+      const ex = { ...exercises[index], custom_sets: on };
+      if (on) {
+        ex.set_rows = buildSetRowsFromSimple(ex);
+        if (!ex.set_rows.length) ex.set_rows = [emptySetRow(), emptySetRow()];
+      } else {
+        ex.set_rows = [];
+      }
+      exercises[index] = ex;
+      return { ...prev, exercises };
+    });
+  };
+
+  const updateSetRow = (exIndex, rowIndex, field, value) => {
+    setForm((prev) => {
+      const exercises = [...prev.exercises];
+      const ex = { ...exercises[exIndex] };
+      const set_rows = [...(ex.set_rows || [])];
+      set_rows[rowIndex] = { ...set_rows[rowIndex], [field]: value };
+      ex.set_rows = set_rows;
+      ex.sets = set_rows.length;
+      exercises[exIndex] = ex;
+      return { ...prev, exercises };
+    });
+  };
+
+  const addSetRow = (exIndex) => {
+    setForm((prev) => {
+      const exercises = [...prev.exercises];
+      const ex = { ...exercises[exIndex] };
+      const last = ex.set_rows?.[ex.set_rows.length - 1] || emptySetRow();
+      ex.set_rows = [...(ex.set_rows || []), { ...last }];
+      ex.sets = ex.set_rows.length;
+      ex.custom_sets = true;
+      exercises[exIndex] = ex;
+      return { ...prev, exercises };
+    });
+  };
+
+  const removeSetRow = (exIndex, rowIndex) => {
+    setForm((prev) => {
+      const exercises = [...prev.exercises];
+      const ex = { ...exercises[exIndex] };
+      const set_rows = (ex.set_rows || []).filter((_, i) => i !== rowIndex);
+      if (set_rows.length <= 1) {
+        ex.custom_sets = false;
+        ex.set_rows = [];
+      } else {
+        ex.set_rows = set_rows;
+        ex.sets = set_rows.length;
+      }
+      exercises[exIndex] = ex;
       return { ...prev, exercises };
     });
   };
@@ -337,27 +438,31 @@ export default function WorkoutsWidget() {
                 onChange={(e) => updateExercise(idx, 'name', e.target.value)}
               />
               <div className={styles.exerciseGrid}>
-                <input
-                  className={styles.input}
-                  type="number"
-                  placeholder="Подходы"
-                  value={ex.sets}
-                  onChange={(e) => updateExercise(idx, 'sets', e.target.value)}
-                />
-                <input
-                  className={styles.input}
-                  type="number"
-                  placeholder="Повторы"
-                  value={ex.reps}
-                  onChange={(e) => updateExercise(idx, 'reps', e.target.value)}
-                />
-                <input
-                  className={styles.input}
-                  type="number"
-                  placeholder="Вес, кг"
-                  value={ex.weight_kg}
-                  onChange={(e) => updateExercise(idx, 'weight_kg', e.target.value)}
-                />
+                {!ex.custom_sets ? (
+                  <>
+                    <input
+                      className={styles.input}
+                      type="number"
+                      placeholder="Подходы"
+                      value={ex.sets}
+                      onChange={(e) => updateExercise(idx, 'sets', e.target.value)}
+                    />
+                    <input
+                      className={styles.input}
+                      type="number"
+                      placeholder="Повторы"
+                      value={ex.reps}
+                      onChange={(e) => updateExercise(idx, 'reps', e.target.value)}
+                    />
+                    <input
+                      className={styles.input}
+                      type="number"
+                      placeholder="Вес, кг"
+                      value={ex.weight_kg}
+                      onChange={(e) => updateExercise(idx, 'weight_kg', e.target.value)}
+                    />
+                  </>
+                ) : null}
                 <input
                   className={styles.input}
                   type="number"
@@ -380,6 +485,62 @@ export default function WorkoutsWidget() {
                   onChange={(e) => updateExercise(idx, 'rest_sec', e.target.value)}
                 />
               </div>
+              <label className={styles.checkRow}>
+                <input
+                  type="checkbox"
+                  checked={!!ex.custom_sets}
+                  onChange={(e) => toggleCustomSets(idx, e.target.checked)}
+                />
+                <span>Разные веса и повторы по подходам</span>
+              </label>
+              {ex.custom_sets ? (
+                <div className={styles.setRowsBlock}>
+                  <div className={styles.setRowsHead}>
+                    <span>#</span>
+                    <span>Повторы</span>
+                    <span>Вес, кг</span>
+                    <span>Мин</span>
+                    <span />
+                  </div>
+                  {(ex.set_rows || []).map((row, rowIdx) => (
+                    <div key={rowIdx} className={styles.setRow}>
+                      <span className={styles.setNum}>{rowIdx + 1}</span>
+                      <input
+                        className={styles.input}
+                        type="number"
+                        placeholder="×"
+                        value={row.reps}
+                        onChange={(e) => updateSetRow(idx, rowIdx, 'reps', e.target.value)}
+                      />
+                      <input
+                        className={styles.input}
+                        type="number"
+                        placeholder="кг"
+                        value={row.weight_kg}
+                        onChange={(e) => updateSetRow(idx, rowIdx, 'weight_kg', e.target.value)}
+                      />
+                      <input
+                        className={styles.input}
+                        type="number"
+                        placeholder="мин"
+                        value={row.duration_min}
+                        onChange={(e) => updateSetRow(idx, rowIdx, 'duration_min', e.target.value)}
+                      />
+                      <button
+                        type="button"
+                        className={styles.iconBtn}
+                        onClick={() => removeSetRow(idx, rowIdx)}
+                        title="Удалить подход"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  <button type="button" className={styles.secondaryBtn} onClick={() => addSetRow(idx)}>
+                    + Подход
+                  </button>
+                </div>
+              ) : null}
               <input
                 className={styles.input}
                 placeholder="Заметка"

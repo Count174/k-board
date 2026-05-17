@@ -65,6 +65,12 @@ function kindLabel(id) {
   return EXERCISE_KINDS.find((k) => k.id === id)?.label || id;
 }
 
+async function addColumnIfMissing(table, column, ddl) {
+  const cols = await all(`PRAGMA table_info(${table})`);
+  const exists = cols.some((c) => String(c.name).toLowerCase() === column.toLowerCase());
+  if (!exists) await run(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+}
+
 async function ensureSchema() {
   await run(`
     CREATE TABLE IF NOT EXISTS workout_settings (
@@ -122,6 +128,63 @@ async function ensureSchema() {
       UNIQUE(user_id, plan_id, session_date)
     )
   `);
+  await addColumnIfMissing('workout_exercises', 'sets_detail', 'sets_detail TEXT');
+}
+
+function getPlanEffectiveWeekdays(planRow, settings) {
+  const days = parseWeekdays(planRow?.weekdays);
+  return days.length ? days : parseWeekdays(settings?.weekdays);
+}
+
+function parseSetRowsFromPayload(ex) {
+  if (Array.isArray(ex.set_rows) && ex.set_rows.length) {
+    const rows = ex.set_rows
+      .map((s, i) => ({
+        set_number: i + 1,
+        reps: s.reps != null && s.reps !== '' ? Number(s.reps) : null,
+        weight_kg: s.weight_kg != null && s.weight_kg !== '' ? Number(s.weight_kg) : null,
+        duration_min: s.duration_min != null && s.duration_min !== '' ? Number(s.duration_min) : null,
+      }))
+      .filter((s) => s.reps != null || s.weight_kg != null || s.duration_min != null);
+    if (rows.length) return rows;
+  }
+  const n = Number(ex.sets) || 0;
+  if (n > 0) {
+    const reps = ex.reps != null && ex.reps !== '' ? Number(ex.reps) : null;
+    const weight = ex.weight_kg != null && ex.weight_kg !== '' ? Number(ex.weight_kg) : null;
+    return Array.from({ length: n }, (_, i) => ({
+      set_number: i + 1,
+      reps,
+      weight_kg: weight,
+      duration_min: null,
+    }));
+  }
+  return null;
+}
+
+function mapExerciseRow(row) {
+  let set_rows = [];
+  if (row.sets_detail) {
+    try {
+      const parsed = JSON.parse(row.sets_detail);
+      if (Array.isArray(parsed)) set_rows = parsed;
+    } catch {
+      /* ignore */
+    }
+  }
+  return {
+    id: row.id,
+    kind: row.kind,
+    name: row.name,
+    sets: row.sets,
+    reps: row.reps,
+    weight_kg: row.weight_kg,
+    duration_min: row.duration_min,
+    distance_km: row.distance_km,
+    rest_sec: row.rest_sec,
+    notes: row.notes,
+    set_rows,
+  };
 }
 
 async function getSettings(userId) {
@@ -154,10 +217,11 @@ async function saveSettings(userId, { weekdays, notify_time }) {
 }
 
 async function getExercisesForPlan(planId) {
-  return all(
+  const rows = await all(
     `SELECT * FROM workout_exercises WHERE plan_id = ? ORDER BY sort_order ASC, id ASC`,
     [planId]
   );
+  return rows.map(mapExerciseRow);
 }
 
 function mapPlanRow(row, exercises = []) {
@@ -202,17 +266,21 @@ function normalizeExercise(ex, index) {
   const kind = EXERCISE_KINDS.some((k) => k.id === ex.kind) ? ex.kind : 'other';
   const name = String(ex.name || '').trim();
   if (!name) return null;
+  const setRows = parseSetRowsFromPayload(ex);
+  const setsFromRows = setRows?.length || null;
+  const first = setRows?.[0];
   return {
     sort_order: index,
     kind,
     name,
-    sets: ex.sets != null && ex.sets !== '' ? Number(ex.sets) : null,
-    reps: ex.reps != null && ex.reps !== '' ? Number(ex.reps) : null,
-    weight_kg: ex.weight_kg != null && ex.weight_kg !== '' ? Number(ex.weight_kg) : null,
+    sets: setsFromRows || (ex.sets != null && ex.sets !== '' ? Number(ex.sets) : null),
+    reps: first?.reps ?? (ex.reps != null && ex.reps !== '' ? Number(ex.reps) : null),
+    weight_kg: first?.weight_kg ?? (ex.weight_kg != null && ex.weight_kg !== '' ? Number(ex.weight_kg) : null),
     duration_min: ex.duration_min != null && ex.duration_min !== '' ? Number(ex.duration_min) : null,
     distance_km: ex.distance_km != null && ex.distance_km !== '' ? Number(ex.distance_km) : null,
     rest_sec: ex.rest_sec != null && ex.rest_sec !== '' ? Number(ex.rest_sec) : null,
     notes: ex.notes ? String(ex.notes).trim() : null,
+    sets_detail: setRows ? JSON.stringify(setRows) : null,
   };
 }
 
@@ -224,8 +292,8 @@ async function saveExercises(planId, exercises) {
   for (const ex of list) {
     await run(
       `INSERT INTO workout_exercises
-        (plan_id, sort_order, kind, name, sets, reps, weight_kg, duration_min, distance_km, rest_sec, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (plan_id, sort_order, kind, name, sets, reps, weight_kg, duration_min, distance_km, rest_sec, notes, sets_detail)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         planId,
         ex.sort_order,
@@ -238,8 +306,30 @@ async function saveExercises(planId, exercises) {
         ex.distance_km,
         ex.rest_sec,
         ex.notes,
+        ex.sets_detail,
       ]
     );
+  }
+}
+
+/** Удаляет будущие pending-сессии, которые не попадают на дни плана (после смены расписания). */
+async function syncPlanSessions(userId, planId) {
+  const planRow = await get(`SELECT * FROM workout_plans WHERE id = ? AND user_id = ?`, [planId, userId]);
+  if (!planRow) return;
+  const settings = await getSettings(userId);
+  const effective = getPlanEffectiveWeekdays(planRow, settings);
+  if (!effective.length) return;
+
+  const today = moscowTodayISO();
+  const pending = await all(
+    `SELECT id, session_date FROM workout_sessions
+      WHERE user_id = ? AND plan_id = ? AND status = 'pending' AND session_date >= ?`,
+    [userId, planId, today]
+  );
+  for (const row of pending) {
+    if (!effective.includes(weekdayFromDate(row.session_date))) {
+      await run(`DELETE FROM workout_sessions WHERE id = ?`, [row.id]);
+    }
   }
 }
 
@@ -299,7 +389,8 @@ async function upsertPlan(userId, payload) {
 
   await saveExercises(planId, payload.exercises);
   if (active) {
-    await generateSessions(userId, planId, dayjs().format('YYYY-MM-DD'), 4);
+    await syncPlanSessions(userId, planId);
+    await generateSessions(userId, planId, moscowTodayISO(), 4);
   }
   return getPlan(userId, planId);
 }
@@ -317,8 +408,7 @@ async function ensureSessionsForDate(userId, dateStr) {
     [userId]
   );
   for (const plan of plans) {
-    const days = parseWeekdays(plan.weekdays);
-    const effective = days.length ? days : settings.weekdays;
+    const effective = getPlanEffectiveWeekdays(plan, settings);
     if (!effective.includes(wd)) continue;
     await run(
       `INSERT OR IGNORE INTO workout_sessions (user_id, plan_id, session_date, status)
@@ -330,8 +420,10 @@ async function ensureSessionsForDate(userId, dateStr) {
 
 async function getPendingSessionsForDate(userId, dateStr) {
   await ensureSessionsForDate(userId, dateStr);
+  const settings = await getSettings(userId);
+  const wd = weekdayFromDate(dateStr);
   const rows = await all(
-    `SELECT s.id AS session_id, s.status, s.session_date, p.id AS plan_id, p.name, p.sport_type, p.description
+    `SELECT s.id AS session_id, s.status, s.session_date, p.id AS plan_id, p.name, p.sport_type, p.description, p.weekdays
        FROM workout_sessions s
        JOIN workout_plans p ON p.id = s.plan_id
       WHERE s.user_id = ? AND s.session_date = ? AND s.status = 'pending' AND p.active = 1
@@ -340,6 +432,11 @@ async function getPendingSessionsForDate(userId, dateStr) {
   );
   const out = [];
   for (const row of rows) {
+    const effective = getPlanEffectiveWeekdays(row, settings);
+    if (!effective.includes(wd)) {
+      await run(`DELETE FROM workout_sessions WHERE id = ?`, [row.session_id]);
+      continue;
+    }
     const exercises = await getExercisesForPlan(row.plan_id);
     out.push({
       session_id: row.session_id,
@@ -431,15 +528,75 @@ async function getAllProgress(userId) {
 function formatExerciseLine(ex) {
   const parts = [`• ${kindLabel(ex.kind)}: ${ex.name}`];
   const details = [];
-  if (ex.sets && ex.reps) details.push(`${ex.sets}×${ex.reps}`);
-  else if (ex.sets) details.push(`${ex.sets} подходов`);
-  if (ex.weight_kg) details.push(`${ex.weight_kg} кг`);
-  if (ex.duration_min) details.push(`${ex.duration_min} мин`);
+  let setRows = ex.set_rows;
+  if ((!setRows || !setRows.length) && ex.sets_detail) {
+    try {
+      setRows = JSON.parse(ex.sets_detail);
+    } catch {
+      setRows = [];
+    }
+  }
+  if (setRows?.length) {
+    const perSet = setRows.map((s, i) => {
+      const bits = [];
+      if (s.reps != null) bits.push(`${s.reps}`);
+      if (s.weight_kg != null) bits.push(`${s.weight_kg} кг`);
+      if (s.duration_min != null) bits.push(`${s.duration_min} мин`);
+      return `${i + 1}: ${bits.join(' × ') || '—'}`;
+    });
+    details.push(`подходы ${perSet.join('; ')}`);
+  } else {
+    if (ex.sets && ex.reps) details.push(`${ex.sets}×${ex.reps}`);
+    else if (ex.sets) details.push(`${ex.sets} подходов`);
+    if (ex.weight_kg) details.push(`${ex.weight_kg} кг`);
+  }
+  if (ex.duration_min && !setRows?.length) details.push(`${ex.duration_min} мин`);
   if (ex.distance_km) details.push(`${ex.distance_km} км`);
   if (ex.rest_sec) details.push(`отдых ${ex.rest_sec} с`);
   if (details.length) parts.push(`(${details.join(', ')})`);
   if (ex.notes) parts.push(`— ${ex.notes}`);
   return parts.join(' ');
+}
+
+/** Скоринг посещаемости по планам: ≥75% запланированных = отлично */
+async function calcWorkoutPlanAttendance(userId, start, end) {
+  await ensureSchema();
+  const rows = await all(
+    `SELECT status FROM workout_sessions
+      WHERE user_id = ? AND session_date >= ? AND session_date <= ?
+        AND status IN ('pending', 'completed', 'skipped')`,
+    [userId, start, end]
+  );
+  const planned = rows.length;
+  if (!planned) return null;
+
+  const completed = rows.filter((r) => r.status === 'completed').length;
+  const skipped = rows.filter((r) => r.status === 'skipped').length;
+  const pending = rows.filter((r) => r.status === 'pending').length;
+  const rate = completed / planned;
+  const TARGET = 0.75;
+
+  let score;
+  if (rate >= TARGET) score = 100;
+  else if (rate >= 0.5) score = Math.round(75 + 25 * (rate / TARGET));
+  else score = Math.round(40 + 35 * (rate / TARGET));
+
+  return {
+    score,
+    planned,
+    completed,
+    skipped,
+    pending,
+    attendance_rate: Math.round(rate * 100),
+    target_rate: Math.round(TARGET * 100),
+    on_track: rate >= TARGET,
+    source: 'workout_plans',
+  };
+}
+
+function moscowTodayISO() {
+  const moscow = new Date(Date.now() + 3 * 60 * 60 * 1000);
+  return moscow.toISOString().slice(0, 10);
 }
 
 function formatPlanTelegramMessage(session) {
@@ -469,14 +626,18 @@ module.exports = {
   upsertPlan,
   deletePlan,
   generateSessions,
+  syncPlanSessions,
   ensureSessionsForDate,
   getPendingSessionsForDate,
   setSessionStatus,
   markNotified,
   getAllProgress,
   getProgressStats,
+  calcWorkoutPlanAttendance,
   formatPlanTelegramMessage,
   sportLabel,
   kindLabel,
   parseWeekdays,
+  weekdayFromDate,
+  moscowTodayISO,
 };

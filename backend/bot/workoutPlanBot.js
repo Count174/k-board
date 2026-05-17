@@ -5,6 +5,7 @@ const {
   setSessionStatus,
   markNotified,
   formatPlanTelegramMessage,
+  moscowTodayISO,
 } = require('../utils/workoutPlanService');
 
 function getUserId(db, chatId) {
@@ -57,7 +58,7 @@ function registerWorkoutPlanBot(bot, db) {
   /** 08:00 МСК — план тренировки и кнопки */
   const cron = require('node-cron');
   cron.schedule('0 5 * * *', async () => {
-    const today = dayjs().format('YYYY-MM-DD');
+    const today = moscowTodayISO();
     db.all('SELECT chat_id, user_id FROM telegram_users', async (err, users) => {
       if (err || !users?.length) return;
 

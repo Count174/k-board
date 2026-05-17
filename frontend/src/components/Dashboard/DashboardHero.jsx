@@ -23,6 +23,16 @@ function fmtGoalValue(v, unit) {
   return u ? `${formatGoalNumber(n)} ${u}` : formatGoalNumber(n);
 }
 
+function weekRangeISO() {
+  const d = dayjs();
+  const dow = d.day();
+  const monday = d.subtract(dow === 0 ? 6 : dow - 1, 'day');
+  return {
+    start: monday.format('YYYY-MM-DD'),
+    end: monday.add(6, 'day').format('YYYY-MM-DD'),
+  };
+}
+
 function goalProgress(goal) {
   const target = Number(goal?.target || 0);
   const value = Number(goal?.last_value || 0);
@@ -37,6 +47,7 @@ export default function DashboardHero() {
   const [summary, setSummary] = useState({ balance: 0 });
   const [meds, setMeds] = useState([]);
   const [medsModalOpen, setMedsModalOpen] = useState(false);
+  const [workoutWeek, setWorkoutWeek] = useState(null);
 
   const loadMeds = useCallback(async () => {
     const medsRaw = await get('medications').catch(() => []);
@@ -47,16 +58,19 @@ export default function DashboardHero() {
     const load = async () => {
       const start = dayjs().startOf('month').format('YYYY-MM-DD');
       const end = dayjs().endOf('month').format('YYYY-MM-DD');
-      const [goalsRaw, todosRaw, summaryRaw] = await Promise.all([
+      const { start: wStart, end: wEnd } = weekRangeISO();
+      const [goalsRaw, todosRaw, summaryRaw, scoreRaw] = await Promise.all([
         get('goals').catch(() => []),
         get('todos').catch(() => []),
         get(`finances/summary?start=${start}&end=${end}`).catch(() => ({})),
+        get(`analytics/score?start=${wStart}&end=${wEnd}`).catch(() => null),
       ]);
       setGoals(Array.isArray(goalsRaw) ? goalsRaw : []);
       setTodos(Array.isArray(todosRaw) ? todosRaw : []);
       setSummary({
         balance: Number(summaryRaw?.balance || 0),
       });
+      setWorkoutWeek(scoreRaw?.breakdown?.health?.workouts || null);
       await loadMeds();
     };
     load().catch(() => {});
@@ -122,6 +136,21 @@ export default function DashboardHero() {
               <div className={styles.muted}>Через шестерёнку справа — добавить и править приёмы</div>
             )}
           </div>
+          {workoutWeek?.source === 'workout_plans' && workoutWeek.planned > 0 ? (
+            <div
+              className={`${styles.workoutStat} ${workoutWeek.on_track ? styles.workoutStatGood : styles.workoutStatMid}`}
+            >
+              <div className={styles.workoutStatTitle}>
+                {workoutWeek.on_track ? 'Тренировки: молодец!' : 'Тренировки на неделе'}
+              </div>
+              <div className={styles.workoutStatMeta}>
+                Посещено {workoutWeek.completed} из {workoutWeek.planned}
+                {workoutWeek.skipped ? ` · пропусков ${workoutWeek.skipped}` : ''}
+                {' · '}
+                цель {workoutWeek.target_rate ?? 75}%
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
 

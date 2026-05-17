@@ -185,6 +185,55 @@
   gap: 8px;
 }
 
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #cbd5e1;
+  cursor: pointer;
+}
+
+.setRowsBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 10px;
+  border: 1px dashed rgba(134, 239, 172, 0.25);
+  background: rgba(134, 239, 172, 0.04);
+}
+
+.setRowsHead,
+.setRow {
+  display: grid;
+  grid-template-columns: 28px 1fr 1fr 1fr 32px;
+  gap: 6px;
+  align-items: center;
+}
+
+.setRowsHead {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.setNum {
+  font-size: 13px;
+  color: #a7f3d0;
+  text-align: center;
+}
+
+.iconBtn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(253, 164, 175, 0.35);
+  background: rgba(253, 164, 175, 0.1);
+  color: #fecdd3;
+  cursor: pointer;
+  line-height: 1;
+}
+
 .modalForm {
   display: flex;
   flex-direction: column;

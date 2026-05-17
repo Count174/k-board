@@ -142,6 +142,35 @@
   color: #86efac;
 }
 
+.workoutStat {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.workoutStatGood {
+  border-color: rgba(134, 239, 172, 0.35);
+  background: rgba(134, 239, 172, 0.1);
+}
+
+.workoutStatMid {
+  border-color: rgba(251, 191, 36, 0.35);
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.workoutStatTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: #ecfdf5;
+}
+
+.workoutStatMeta {
+  margin-top: 4px;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
 .goalRow {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
