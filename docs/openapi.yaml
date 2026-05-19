@@ -1,0 +1,185 @@
+openapi: 3.0.3
+info:
+  title: Oubaitori / k-board API
+  version: 1.0.0
+  description: REST API для веб и iOS. Веб — cookie userId; iOS — Bearer access + refresh.
+
+servers:
+  - url: https://o-board.ru/api
+    description: Production (пример)
+  - url: http://localhost:3002/api
+    description: Local dev
+
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: userId
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        email: { type: string, format: email }
+    AuthTokens:
+      type: object
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        expiresIn: { type: integer, description: seconds }
+        tokenType: { type: string, example: Bearer }
+    LoginResponse:
+      allOf:
+        - properties:
+            success: { type: boolean }
+            user: { $ref: '#/components/schemas/User' }
+        - $ref: '#/components/schemas/AuthTokens'
+
+security:
+  - bearerAuth: []
+  - cookieAuth: []
+
+paths:
+  /auth/register:
+    post:
+      security: []
+      summary: Регистрация
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                name: { type: string }
+                email: { type: string }
+                password: { type: string }
+      responses:
+        '201':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+
+  /auth/login:
+    post:
+      security: []
+      summary: Вход
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string }
+                password: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+
+  /auth/refresh:
+    post:
+      security: []
+      summary: Обновить access по refresh (iOS)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+
+  /auth/logout:
+    post:
+      summary: Выход
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refreshToken: { type: string }
+      responses:
+        '200':
+          description: OK
+
+  /auth/me:
+    get:
+      summary: Текущий пользователь
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+
+  /todos:
+    get:
+      summary: Список задач
+    post:
+      summary: Создать задачу
+
+  /goals:
+    get:
+      summary: Список целей
+    post:
+      summary: Создать цель
+
+  /finances/summary:
+    get:
+      summary: Сводка финансов за период
+      parameters:
+        - name: start
+          in: query
+          schema: { type: string, format: date }
+        - name: end
+          in: query
+          schema: { type: string, format: date }
+
+  /workouts/plans:
+    get:
+      summary: Планы тренировок
+    post:
+      summary: Создать план
+
+  /daily-checks:
+    get:
+      summary: Чек-ин дня (сон, настроение)
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema: { type: string, format: date }
+    put:
+      summary: Сохранить чек-ин дня
+
+  /analytics/score:
+    get:
+      summary: Скоринг здоровья/финансов
+      parameters:
+        - name: start
+          in: query
+          schema: { type: string, format: date }
+        - name: end
+          in: query
+          schema: { type: string, format: date }

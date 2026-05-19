@@ -8,6 +8,41 @@ const authMiddleware = require('../middleware/authMiddleware');
 const { sendPasswordResetEmail, sendPasswordChangedEmail } = require('../utils/emailService');
 const { notifyNewUser } = require('../utils/ceoTelegram');
 const { ensureDefaultAccountForUser } = require('../utils/accountsService');
+const {
+  issueTokenPair,
+  consumeRefreshToken,
+  revokeRefreshToken,
+  revokeAllRefreshTokensForUser,
+  ensureRefreshTokensSchema,
+  resolveUserIdFromRequest,
+} = require('../utils/authTokens');
+
+const COOKIE_OPTS = {
+  httpOnly: false,
+  secure: true,
+  sameSite: 'None',
+  maxAge: 14 * 24 * 60 * 60 * 1000,
+  path: '/',
+};
+
+function setWebSessionCookie(res, userId) {
+  res.cookie('userId', userId, COOKIE_OPTS);
+}
+
+async function attachMobileTokens(res, userId) {
+  await ensureRefreshTokensSchema();
+  return issueTokenPair(userId);
+}
+
+async function authSuccessResponse(res, user, statusCode = 200) {
+  setWebSessionCookie(res, user.id);
+  const tokens = await attachMobileTokens(res, user.id);
+  return res.status(statusCode).json({
+    success: true,
+    user: { id: user.id, name: user.name, email: user.email },
+    ...tokens,
+  });
+}
 
 // Регистрация
 router.post('/register', async (req, res) => {
@@ -38,19 +73,13 @@ router.post('/register', async (req, res) => {
 
           notifyNewUser(safeName, email).catch(() => {});
 
-          // ставим ту же cookie, что и при логине
-          res.cookie('userId', this.lastID, {
-            httpOnly: false,            // у вас уже так в /login
-            secure: true,
-            sameSite: 'None',
-            maxAge: 14 * 24 * 60 * 60 * 1000,
-            path: '/',
-          });
-
-          // можно вернуть короткий профиль
-          return res.status(201).json({
-            success: true,
-            user: { id: this.lastID, name: safeName, email },
+          authSuccessResponse(
+            res,
+            { id: this.lastID, name: safeName, email },
+            201
+          ).catch((e) => {
+            console.error('register tokens error:', e);
+            res.status(500).json({ error: 'Ошибка при регистрации' });
           });
         }
       );
@@ -73,30 +102,68 @@ router.post('/login', (req, res) => {
     const valid = await bcrypt.compare(password, user.password_hash);
     if (!valid) return res.status(401).json({ error: 'Неверные данные' });
 
-    res.cookie('userId', user.id, {
-      httpOnly: false,
-      secure: true,
-      sameSite: 'None',
-      maxAge: 14 * 24 * 60 * 60 * 1000,
-      path: '/',
+    authSuccessResponse(res, user).catch((e) => {
+      console.error('login tokens error:', e);
+      res.status(500).json({ error: 'Ошибка сервера' });
     });
-
-    res.json({ success: true });
   });
 });
 
-// Выход
-router.post('/logout', (req, res) => {
+// Обновление access-токена (iOS)
+router.post('/refresh', async (req, res) => {
+  const { refreshToken } = req.body || {};
+  if (!refreshToken) {
+    return res.status(400).json({ error: 'refreshToken обязателен' });
+  }
+
+  try {
+    await ensureRefreshTokensSchema();
+    const userId = await consumeRefreshToken(refreshToken);
+    if (!userId) {
+      return res.status(401).json({ error: 'Недействительный refresh-токен' });
+    }
+
+    db.get('SELECT id, name, email FROM users WHERE id = ?', [userId], async (err, user) => {
+      if (err) return res.status(500).json({ error: 'Ошибка сервера' });
+      if (!user) return res.status(404).json({ error: 'Пользователь не найден' });
+
+      setWebSessionCookie(res, user.id);
+      try {
+        const tokens = await issueTokenPair(user.id);
+        return res.json({ success: true, user: { id: user.id, name: user.name, email: user.email }, ...tokens });
+      } catch (e) {
+        console.error('refresh tokens error:', e);
+        return res.status(500).json({ error: 'Ошибка сервера' });
+      }
+    });
+  } catch (e) {
+    console.error('refresh error:', e);
+    return res.status(500).json({ error: 'Ошибка сервера' });
+  }
+});
+
+// Выход (веб cookie + опционально refresh для mobile)
+router.post('/logout', async (req, res) => {
+  const { refreshToken } = req.body || {};
   res.clearCookie('userId', { path: '/' });
+
+  const userId = resolveUserIdFromRequest(req);
+  try {
+    if (refreshToken) {
+      await revokeRefreshToken(refreshToken);
+    } else if (userId) {
+      await revokeAllRefreshTokensForUser(userId);
+    }
+  } catch (e) {
+    console.error('logout revoke error:', e);
+  }
+
   res.json({ success: true });
 });
 
 // Получение инфы о пользователе
-router.get('/me', (req, res) => {
-  const userId = req.cookies.userId;
-  if (!userId) return res.status(401).json({ error: 'Не авторизован' });
-
-  db.get('SELECT id, name, email FROM users WHERE id = ?', [userId], (err, row) => {
+router.get('/me', authMiddleware, (req, res) => {
+  db.get('SELECT id, name, email FROM users WHERE id = ?', [req.userId], (err, row) => {
     if (err) return res.status(500).json({ error: 'Ошибка сервера' });
     if (!row) return res.status(404).json({ error: 'Пользователь не найден' });
     res.json(row);

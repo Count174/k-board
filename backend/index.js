@@ -41,7 +41,9 @@ const whoopRoutes = require('./routes/whoop');
 const accountsRoutes = require('./routes/accounts');
 const movingRoutes = require('./routes/moving');
 const workoutsRoutes = require('./routes/workouts');
+const dailyChecksRoutes = require('./routes/dailyChecks');
 const { bootstrapDefaultAccountsForAllUsers } = require('./utils/accountsService');
+const { ensureRefreshTokensSchema } = require('./utils/authTokens');
 
 app.set('trust proxy', 1); // доверие первому прокси (nginx)
 
@@ -119,6 +121,7 @@ app.use(
       return cb(new Error(`CORS blocked: ${origin}`));
     },
     credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
 app.use((req, res, next) => {
@@ -147,6 +150,7 @@ app.use('/api/whoop', whoopRoutes);
 app.use('/api/accounts', accountsRoutes);
 app.use('/api/moving', movingRoutes);
 app.use('/api/workouts', workoutsRoutes);
+app.use('/api/daily-checks', dailyChecksRoutes);
 
 // Статика: favicon, прочие картинки и пресеты целей (public/assets/goals/goal-01.jpg …)
 app.get('/favicon.png', (req, res) => res.sendFile(path.join(publicPath, 'favicon.png')));
@@ -156,9 +160,10 @@ app.use('/assets/goals', express.static(path.join(publicPath, 'assets/goals')));
 app.use('/app/assets/goals', express.static(path.join(publicPath, 'assets/goals')));
 
 
-bootstrapDefaultAccountsForAllUsers()
-  .catch((e) => console.error('accounts bootstrap failed:', e))
-  .finally(() => {
+Promise.all([
+  bootstrapDefaultAccountsForAllUsers().catch((e) => console.error('accounts bootstrap failed:', e)),
+  ensureRefreshTokensSchema().catch((e) => console.error('refresh_tokens schema failed:', e)),
+]).finally(() => {
     app.listen(PORT, async () => {
       const envPath = path.join(__dirname, '.env');
       console.log(`✅ Server running on port ${PORT}`);
