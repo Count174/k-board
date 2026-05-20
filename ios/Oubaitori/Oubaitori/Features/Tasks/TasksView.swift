@@ -6,7 +6,7 @@ struct TasksView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .topTrailing) {
+            ZStack(alignment: .bottomTrailing) {
                 VStack(spacing: DesignTokens.Spacing.md) {
                     OBSegmentedControl(selection: $vm.segment, options: TodoColumn.allCases)
                         .padding(.horizontal, DesignTokens.Spacing.md)
@@ -18,12 +18,13 @@ struct TasksView: View {
                             }
                         }
                         .padding(.horizontal, DesignTokens.Spacing.md)
+                        .padding(.bottom, 88)
                     }
                 }
 
-                addButton
-                    .padding(.top, 4)
+                OBFloatingAddButton { showAdd = true }
                     .padding(.trailing, DesignTokens.Spacing.md)
+                    .padding(.bottom, DesignTokens.Spacing.md)
             }
             .navigationTitle("Задачи")
             .navigationBarTitleDisplayMode(.large)
@@ -33,26 +34,13 @@ struct TasksView: View {
             .sheet(isPresented: $showAdd) {
                 addTaskSheet
             }
-        }
-    }
-
-    private var addButton: some View {
-        Button {
-            showAdd = true
-        } label: {
-            Image(systemName: "plus")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(Color(hex: 0x0A1F18))
-                .frame(width: 44, height: 44)
-                .background(DesignTokens.Colors.accent)
-                .clipShape(Circle())
-                .shadow(color: DesignTokens.Colors.accentGlow, radius: 8)
+            .obUndoToast($vm.undoToast)
         }
     }
 
     private func taskRow(_ t: TodoDTO) -> some View {
         Button {
-            Task { await vm.toggle(t.id) }
+            Task { await vm.complete(t) }
         } label: {
             HStack(alignment: .top, spacing: 12) {
                 Image(systemName: t.isCompleted ? "checkmark.circle.fill" : "circle")
@@ -93,12 +81,13 @@ struct TasksView: View {
         NavigationStack {
             VStack(spacing: DesignTokens.Spacing.md) {
                 OBTextField(placeholder: "Название задачи", text: $vm.newText)
-                OBButton(title: "Сохранить") {
+                OBButton(title: "Сохранить", horizontalPadding: DesignTokens.Spacing.lg) {
                     Task {
                         await vm.add()
                         showAdd = false
                     }
                 }
+                .padding(.horizontal, DesignTokens.Spacing.md)
                 Spacer()
             }
             .padding(DesignTokens.Spacing.lg)

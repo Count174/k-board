@@ -1,20 +1,13 @@
 import Foundation
 import Combine
 
-enum TodoColumn: String, CaseIterable, CustomStringConvertible {
-    case today = "Сегодня"
-    case week = "Неделя"
-    case all = "Все"
-
-    var description: String { rawValue }
-}
-
 @MainActor
 final class TasksViewModel: ObservableObject {
     @Published var items: [TodoDTO] = []
     @Published var error: String?
     @Published var newText = ""
     @Published var segment: TodoColumn = .today
+    @Published var undoToast: UndoToast?
 
     func load() async {
         do {
@@ -24,24 +17,12 @@ final class TasksViewModel: ObservableObject {
         }
     }
 
-    func column(for todo: TodoDTO) -> TodoColumn {
-        guard let ds = todo.due_date, !ds.isEmpty else { return .all }
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM-dd"
-        guard let d = fmt.date(from: String(ds.prefix(10))) else { return .all }
-        let cal = Calendar.current
-        if cal.isDateInToday(d) { return .today }
-        let endOfWeek = cal.date(byAdding: .day, value: 7, to: cal.startOfDay(for: Date()))!
-        if d < endOfWeek { return .week }
-        return .all
-    }
-
     var filteredItems: [TodoDTO] {
         switch segment {
         case .today:
-            return items.filter { !$0.isCompleted && column(for: $0) == .today }
+            return items.filter { !$0.isCompleted && TodoService.column(for: $0) == .today }
         case .week:
-            return items.filter { !$0.isCompleted && (column(for: $0) == .today || column(for: $0) == .week) }
+            return items.filter { !$0.isCompleted && (TodoService.column(for: $0) == .today || TodoService.column(for: $0) == .week) }
         case .all:
             return items.filter { !$0.isCompleted }
         }
@@ -50,14 +31,11 @@ final class TasksViewModel: ObservableObject {
     func add() async {
         let text = newText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        let fmt = DateFormatter()
-        fmt.dateFormat = "yyyy-MM-dd"
-        let today = fmt.string(from: Date())
         do {
             let _: TodoDTO = try await APIClient.shared.request(
                 "POST",
                 path: "todos",
-                body: CreateTodoBody(text: text, due_date: today)
+                body: CreateTodoBody(text: text, due_date: TodoService.todayString())
             )
             newText = ""
             await load()
@@ -66,9 +44,23 @@ final class TasksViewModel: ObservableObject {
         }
     }
 
+    func complete(_ todo: TodoDTO) async {
+        guard !todo.isCompleted else { return }
+        let title = todo.text
+        do {
+            try await TodoService.toggle(todo.id)
+            await load()
+            undoToast = UndoToast(message: "«\(title)» выполнена", undoTitle: "Отменить") { [weak self] in
+                Task { await self?.toggle(todo.id) }
+            }
+        } catch let err {
+            error = err.localizedDescription
+        }
+    }
+
     func toggle(_ id: Int) async {
         do {
-            try await APIClient.shared.requestVoid("POST", path: "todos/\(id)/toggle")
+            try await TodoService.toggle(id)
             await load()
         } catch let err {
             error = err.localizedDescription

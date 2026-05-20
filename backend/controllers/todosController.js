@@ -7,14 +7,18 @@ exports.getAll = (req, res) => {
       id: row.id,
       text: row.text,
       done: !!row.completed,
-      dueDate: row.due_date || null
+      completed: row.completed,
+      dueDate: row.due_date || null,
+      due_date: row.due_date || null,
+      time: row.time || null,
     }));
     res.json(normalized);
   });
 };
 
 exports.create = (req, res) => {
-  const { text, done, dueDate } = req.body;
+  const { text, done } = req.body;
+  const dueDate = req.body.dueDate ?? req.body.due_date ?? null;
   if (!text) {
     return res.status(400).json({ error: 'Поле "text" обязательно' });
   }
@@ -29,7 +33,9 @@ exports.create = (req, res) => {
         id: this.lastID,
         text,
         done: !!completed,
-        dueDate: dueDate || null
+        completed,
+        dueDate: dueDate || null,
+        due_date: dueDate || null,
       });
     }
   );

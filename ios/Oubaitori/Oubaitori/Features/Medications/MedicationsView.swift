@@ -8,8 +8,21 @@ struct MedicationDTO: Codable, Identifiable {
     let active: Int?
 }
 
+struct MedicationIntakeDTO: Codable {
+    let medication_id: Int
+    let intake_time: String?
+    let status: String?
+}
+
+struct MedicationIntakeBody: Encodable {
+    let id: Int
+    let status: String
+    let intake_time: String?
+}
+
 struct MedicationsView: View {
     @State private var items: [MedicationDTO] = []
+    @State private var takenIds: Set<Int> = []
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
@@ -26,18 +39,15 @@ struct MedicationsView: View {
                 .padding(DesignTokens.Spacing.md)
             }
 
-            HStack(spacing: 8) {
-                OBKanjiBadge(character: "薬", color: DesignTokens.Colors.accent)
-            }
-            .padding(.top, 8)
-            .padding(.trailing, DesignTokens.Spacing.lg)
+            OBKanjiBadge(character: "薬", color: DesignTokens.Colors.accent)
+                .padding(.top, 8)
+                .padding(.trailing, DesignTokens.Spacing.lg)
         }
         .obScreenBackground(showPetals: false)
         .navigationTitle("Лекарства")
         .navigationBarTitleDisplayMode(.large)
-        .task {
-            items = (try? await APIClient.shared.request("GET", path: "medications") as [MedicationDTO]) ?? []
-        }
+        .task { await load() }
+        .refreshable { await load() }
     }
 
     private var activeMeds: [MedicationDTO] {
@@ -45,18 +55,21 @@ struct MedicationsView: View {
     }
 
     private var progressHeader: some View {
-        OBCard {
+        let total = max(activeMeds.count, 1)
+        let done = activeMeds.filter { takenIds.contains($0.id) }.count
+        return OBCard {
             VStack(alignment: .leading, spacing: 8) {
-                Text("1 из \(max(activeMeds.count, 1)) принято сегодня")
+                Text("\(done) из \(activeMeds.count) принято сегодня")
                     .font(DesignTokens.Typography.caption)
                     .foregroundStyle(DesignTokens.Colors.textSecondary)
-                OBLinearProgress(value: activeMeds.isEmpty ? 0 : 0.25)
+                OBLinearProgress(value: Double(done) / Double(total))
             }
         }
     }
 
     private func medCard(_ m: MedicationDTO) -> some View {
-        OBCard {
+        let taken = takenIds.contains(m.id)
+        return OBCard {
             HStack(spacing: 12) {
                 Circle()
                     .fill(DesignTokens.Colors.coral.opacity(0.25))
@@ -78,10 +91,43 @@ struct MedicationsView: View {
                     }
                 }
                 Spacer()
-                Circle()
-                    .stroke(DesignTokens.Colors.accent, lineWidth: 2)
-                    .frame(width: 28, height: 28)
+                Button {
+                    Task { await toggleTaken(m) }
+                } label: {
+                    Image(systemName: taken ? "checkmark.circle.fill" : "circle")
+                        .font(.title2)
+                        .foregroundStyle(taken ? DesignTokens.Colors.accent : DesignTokens.Colors.textTertiary)
+                }
+                .buttonStyle(.plain)
             }
         }
+    }
+
+    private func load() async {
+        items = (try? await APIClient.shared.request("GET", path: "medications") as [MedicationDTO]) ?? []
+        let intakes: [MedicationIntakeDTO] = (try? await APIClient.shared.request("GET", path: "medications/intakes/today")) ?? []
+        takenIds = Set(intakes.filter { $0.status == "taken" }.map(\.medication_id))
+    }
+
+    private func toggleTaken(_ m: MedicationDTO) async {
+        let wasTaken = takenIds.contains(m.id)
+        if wasTaken {
+            takenIds.remove(m.id)
+            _ = try? await APIClient.shared.requestVoid(
+                "POST",
+                path: "medications/intake",
+                body: MedicationIntakeBody(id: m.id, status: "skipped", intake_time: m.times?.first),
+                authorized: true
+            )
+        } else {
+            takenIds.insert(m.id)
+            _ = try? await APIClient.shared.requestVoid(
+                "POST",
+                path: "medications/intake",
+                body: MedicationIntakeBody(id: m.id, status: "taken", intake_time: m.times?.first),
+                authorized: true
+            )
+        }
+        await load()
     }
 }

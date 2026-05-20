@@ -74,6 +74,68 @@ exports.remove = (req, res) => {
   });
 };
 
+function todayYmd() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** GET /api/medications/intakes/today?date=YYYY-MM-DD */
+exports.listTodayIntakes = (req, res) => {
+  const userId = req.userId;
+  const dateStr = String(req.query.date || todayYmd()).slice(0, 10);
+  db.all(
+    `SELECT medication_id, intake_time, status
+       FROM medication_intakes
+      WHERE user_id = ? AND intake_date = ? AND status = 'taken'`,
+    [userId, dateStr],
+    (err, rows) => {
+      if (err) return res.status(500).json({ error: 'db_error' });
+      res.json(rows || []);
+    }
+  );
+};
+
+/** POST /api/medications/intake  body: { id, status?: taken|skipped, intake_time?, intake_date? } */
+exports.recordIntake = (req, res) => {
+  const userId = req.userId;
+  const { id, status = 'taken', intake_time, intake_date } = req.body || {};
+  if (!id) return res.status(400).json({ error: 'id_required' });
+
+  const dateStr = String(intake_date || todayYmd()).slice(0, 10);
+  const timeStr = String(intake_time || '').slice(0, 5) || new Date().toTimeString().slice(0, 5);
+  const st = status === 'skipped' ? 'skipped' : 'taken';
+
+  const remove = () => {
+    db.run(
+      `DELETE FROM medication_intakes
+        WHERE medication_id = ? AND user_id = ? AND intake_date = ?`,
+      [id, userId, dateStr],
+      function (delErr) {
+        if (delErr) return res.status(500).json({ error: 'db_error' });
+        res.json({ ok: true, status: 'cleared' });
+      }
+    );
+  };
+
+  if (st === 'skipped') return remove();
+
+  db.run(
+    `DELETE FROM medication_intakes
+      WHERE medication_id = ? AND user_id = ? AND intake_date = ?`,
+    [id, userId, dateStr],
+    () => {
+      db.run(
+        `INSERT INTO medication_intakes (medication_id, user_id, intake_date, intake_time, status)
+         VALUES (?, ?, ?, ?, 'taken')`,
+        [id, userId, dateStr, timeStr],
+        function (err) {
+          if (err) return res.status(500).json({ error: 'db_error' });
+          res.json({ ok: true, status: 'taken' });
+        }
+      );
+    }
+  );
+};
+
 // Быстро включить/выключить курс
 exports.toggleActive = (req, res) => {
   const userId = req.userId;

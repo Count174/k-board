@@ -4,6 +4,8 @@ struct FinanceHubView: View {
     @State private var balance: Double = 0
     @State private var incomes: Double = 0
     @State private var expenses: Double = 0
+    @State private var showAddTx = false
+    @State private var addTxType = "expense"
 
     var body: some View {
         NavigationStack {
@@ -12,6 +14,34 @@ struct FinanceHubView: View {
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
                         balanceCard
                         incomeExpenseRow
+
+                        HStack(spacing: DesignTokens.Spacing.sm) {
+                            Button {
+                                addTxType = "expense"
+                                showAddTx = true
+                            } label: {
+                                Label("Расход", systemImage: "minus.circle.fill")
+                                    .font(DesignTokens.Typography.callout.weight(.medium))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                                    .background(DesignTokens.Colors.coral.opacity(0.15))
+                                    .foregroundStyle(DesignTokens.Colors.coral)
+                                    .clipShape(Capsule())
+                            }
+                            Button {
+                                addTxType = "income"
+                                showAddTx = true
+                            } label: {
+                                Label("Доход", systemImage: "plus.circle.fill")
+                                    .font(DesignTokens.Typography.callout.weight(.medium))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 14)
+                                    .background(DesignTokens.Colors.accentDim)
+                                    .foregroundStyle(DesignTokens.Colors.accent)
+                                    .clipShape(Capsule())
+                            }
+                        }
+
                         NavigationLink {
                             BudgetView()
                         } label: {
@@ -34,6 +64,9 @@ struct FinanceHubView: View {
             .navigationBarTitleDisplayMode(.large)
             .task { await load() }
             .refreshable { await load() }
+            .sheet(isPresented: $showAddTx) {
+                AddTransactionSheet(initialType: addTxType) { await load() }
+            }
         }
     }
 

@@ -11,7 +11,7 @@ struct GoalsView: View {
 
     var body: some View {
         NavigationStack {
-            ZStack(alignment: .topTrailing) {
+            ZStack(alignment: .bottomTrailing) {
                 ScrollView {
                     LazyVStack(spacing: DesignTokens.Spacing.md) {
                         ForEach(Array(vm.goals.enumerated()), id: \.element.id) { index, g in
@@ -19,14 +19,12 @@ struct GoalsView: View {
                         }
                     }
                     .padding(DesignTokens.Spacing.md)
+                    .padding(.bottom, 88)
                 }
 
-                HStack(spacing: 8) {
-                    OBKanjiBadge(character: "目")
-                    addButton
-                }
-                .padding(.top, 4)
-                .padding(.trailing, DesignTokens.Spacing.md)
+                OBFloatingAddButton { vm.showAddGoal = true }
+                    .padding(.trailing, DesignTokens.Spacing.md)
+                    .padding(.bottom, DesignTokens.Spacing.md)
             }
             .navigationTitle("Цели")
             .navigationBarTitleDisplayMode(.large)
@@ -35,17 +33,9 @@ struct GoalsView: View {
             .sheet(item: $vm.selectedGoal) { g in
                 checkinSheet(g)
             }
-        }
-    }
-
-    private var addButton: some View {
-        Button {} label: {
-            Image(systemName: "plus")
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(Color(hex: 0x0A1F18))
-                .frame(width: 44, height: 44)
-                .background(DesignTokens.Colors.accent)
-                .clipShape(Circle())
+            .sheet(isPresented: $vm.showAddGoal) {
+                addGoalSheet
+            }
         }
     }
 
@@ -80,6 +70,37 @@ struct GoalsView: View {
         return "\(v) / \(t) \(u)"
     }
 
+    private var addGoalSheet: some View {
+        NavigationStack {
+            VStack(spacing: DesignTokens.Spacing.md) {
+                OBTextField(placeholder: "Название цели", text: $vm.newTitle)
+                OBTextField(placeholder: "Целевое значение", text: $vm.newTarget)
+                    .keyboardType(.decimalPad)
+                OBTextField(placeholder: "Единица (кг, ₽, книг…)", text: $vm.newUnit)
+                if let error = vm.error {
+                    Text(error)
+                        .font(DesignTokens.Typography.caption)
+                        .foregroundStyle(DesignTokens.Colors.danger)
+                }
+                OBButton(title: "Сохранить", horizontalPadding: DesignTokens.Spacing.lg) {
+                    Task { await vm.createGoal() }
+                }
+                .padding(.horizontal, DesignTokens.Spacing.md)
+                Spacer()
+            }
+            .padding(DesignTokens.Spacing.lg)
+            .obScreenBackground(showPetals: false)
+            .navigationTitle("Новая цель")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Отмена") { vm.showAddGoal = false }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
     private func checkinSheet(_ g: GoalDTO) -> some View {
         NavigationStack {
             VStack(spacing: DesignTokens.Spacing.md) {
@@ -87,9 +108,10 @@ struct GoalsView: View {
                     .font(DesignTokens.Typography.headline)
                 OBTextField(placeholder: "Текущее значение", text: $vm.checkinValue)
                     .keyboardType(.decimalPad)
-                OBButton(title: "Сохранить") {
+                OBButton(title: "Сохранить", horizontalPadding: DesignTokens.Spacing.lg) {
                     Task { await vm.submitCheckin() }
                 }
+                .padding(.horizontal, DesignTokens.Spacing.md)
                 Spacer()
             }
             .padding(DesignTokens.Spacing.lg)

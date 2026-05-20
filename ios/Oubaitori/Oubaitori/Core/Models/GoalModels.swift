@@ -24,3 +24,11 @@ struct GoalCheckinBody: Encodable {
     let note: String?
     let date: String?
 }
+
+struct CreateGoalBody: Encodable {
+    let title: String
+    let target: Double
+    let unit: String
+    let direction: String
+    let image: String
+}

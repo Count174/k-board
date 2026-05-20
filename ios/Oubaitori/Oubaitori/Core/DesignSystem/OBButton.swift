@@ -4,6 +4,7 @@ struct OBButton: View {
     let title: String
     var style: Style = .primary
     var isLoading = false
+    var horizontalPadding: CGFloat = 0
     let action: () -> Void
 
     enum Style { case primary, secondary, ghost }
@@ -34,6 +35,7 @@ struct OBButton: View {
                 .font(DesignTokens.Typography.headline)
                 .foregroundStyle(Color(hex: 0x0A1F18))
         }
+        .padding(.horizontal, horizontalPadding)
         .padding(.vertical, 16)
         .background(DesignTokens.Gradients.primaryButton)
         .clipShape(Capsule())

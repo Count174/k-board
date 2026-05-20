@@ -49,6 +49,7 @@ struct DashboardView: View {
             }
             .refreshable { await vm.load() }
             .task { await vm.load() }
+            .obUndoToast($vm.undoToast)
         }
     }
 
@@ -106,9 +107,15 @@ struct DashboardView: View {
             } else {
                 ForEach(vm.todos) { t in
                     HStack(spacing: 12) {
-                        Circle()
-                            .stroke(DesignTokens.Colors.textTertiary, lineWidth: 1.5)
-                            .frame(width: 22, height: 22)
+                        Button {
+                            Task { await vm.completeTodo(t) }
+                        } label: {
+                            Image(systemName: "circle")
+                                .font(.title3)
+                                .foregroundStyle(DesignTokens.Colors.textTertiary)
+                        }
+                        .buttonStyle(.plain)
+
                         VStack(alignment: .leading, spacing: 4) {
                             Text(t.text)
                                 .font(DesignTokens.Typography.body)
@@ -139,7 +146,6 @@ struct DashboardView: View {
                 Text(formatMoney(vm.balance))
                     .font(DesignTokens.Typography.title)
                     .foregroundStyle(DesignTokens.Colors.textPrimary)
-                // Placeholder sparkline
                 RoundedRectangle(cornerRadius: 4)
                     .fill(DesignTokens.Gradients.mintChartFill)
                     .frame(height: 56)

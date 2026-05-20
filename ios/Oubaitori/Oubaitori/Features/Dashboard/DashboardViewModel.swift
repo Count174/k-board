@@ -9,6 +9,7 @@ final class DashboardViewModel: ObservableObject {
     @Published var workoutLine: String?
     @Published var error: String?
     @Published var loading = false
+    @Published var undoToast: UndoToast?
 
     func load() async {
         loading = true
@@ -52,9 +53,28 @@ final class DashboardViewModel: ObservableObject {
             } else {
                 workoutLine = nil
             }
-        } catch {
-            self.error = error.localizedDescription
+        } catch let err {
+            self.error = err.localizedDescription
         }
+    }
+
+    func completeTodo(_ todo: TodoDTO) async {
+        guard !todo.isCompleted else { return }
+        let title = todo.text
+        do {
+            try await TodoService.toggle(todo.id)
+            await load()
+            undoToast = UndoToast(message: "«\(title)» выполнена", undoTitle: "Отменить") { [weak self] in
+                Task { await self?.undoTodo(todo.id) }
+            }
+        } catch let err {
+            error = err.localizedDescription
+        }
+    }
+
+    private func undoTodo(_ id: Int) async {
+        try? await TodoService.toggle(id)
+        await load()
     }
 }
 
