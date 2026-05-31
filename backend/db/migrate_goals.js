@@ -90,19 +90,24 @@ async function ensureGoalsSchema() {
 }
 
 async function backfill() {
-  // goal_type для строк, где он пустой/дефолтный, но осталась legacy is_binary
-  const rows = await all(
-    `SELECT id, title, is_binary, goal_type, icon FROM goals`
-  );
+  // Схема goals на разных машинах отличается (legacy is_binary может отсутствовать),
+  // поэтому выбираем только реально существующие колонки.
+  const cols = await getColumns('goals');
+  const hasBinary = cols.has('is_binary');
+
+  const selectCols = ['id', 'title', 'goal_type', 'icon'];
+  if (hasBinary) selectCols.push('is_binary');
+
+  const rows = await all(`SELECT ${selectCols.join(', ')} FROM goals`);
   for (const r of rows) {
     const updates = [];
     const params = [];
 
-    const hasBinary = r.is_binary != null && Number(r.is_binary) === 1;
+    const isBinary = hasBinary && Number(r.is_binary) === 1;
     if (!r.goal_type || r.goal_type === '') {
       updates.push('goal_type = ?');
-      params.push(hasBinary ? 'task' : 'build_up');
-    } else if (hasBinary && r.goal_type === 'build_up') {
+      params.push(isBinary ? 'task' : 'build_up');
+    } else if (isBinary && r.goal_type === 'build_up') {
       // строка из старого онбординга: бинарная цель ошибочно как build_up
       updates.push('goal_type = ?');
       params.push('task');

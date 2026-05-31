@@ -5,6 +5,15 @@ backend/data/moving-todos.json
 node_modules/
 **/node_modules/
 
+# Базы данных (на сервере лежит прод-БД — НИКОГДА не коммитим)
+*.sqlite
+*.sqlite3
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal
+*.db
+backend/db/database.sqlite
+
 # Build / cache
 .vite/
 **/.vite/
