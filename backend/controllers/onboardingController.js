@@ -157,8 +157,10 @@ exports.complete = async (req, res) => {
       }
     }
 
-    // 3) ЦЕЛИ: payload.goals — массив {title, target, unit, is_binary}
+    // 3) ЦЕЛИ: payload.goals — массив {title, goal_type, target, unit}
+    //    goal_type: task | build_up | reduce | habit (старый is_binary тоже поддержан)
     if (Array.isArray(payload.goals) && payload.goals.length) {
+      const ALLOWED_TYPES = ['task', 'build_up', 'reduce', 'habit'];
       for (const g of payload.goals) {
         const title = String(g?.title || '').trim();
         if (!title) continue; // без названия не добавляем
@@ -170,17 +172,24 @@ exports.complete = async (req, res) => {
         );
         if (exists) continue;
 
-        const isBinary = g?.is_binary ? 1 : 0;
-        const goalType = isBinary ? 'task' : 'build_up';
-        const rawTarget = g?.target;
-        const target = isBinary ? 1 : Math.max(0, Number(rawTarget || 0));
-        const unit = String(g?.unit || '').trim();
+        let goalType = String(g?.goal_type || '').trim();
+        if (!ALLOWED_TYPES.includes(goalType)) {
+          // обратная совместимость со старым форматом
+          goalType = g?.is_binary ? 'task' : 'build_up';
+        }
+
+        const isBinary = goalType === 'task' ? 1 : 0;
+        const target = goalType === 'task' ? 1 : Math.max(0, Number(g?.target || 0));
+        const unit = goalType === 'habit'
+          ? String(g?.unit || 'раз').trim()
+          : String(g?.unit || '').trim();
+        const direction = goalType === 'reduce' ? 'decrease' : 'increase';
         const icon = deriveIcon(title);
 
         await run(
           `INSERT INTO goals (user_id, title, current, target, unit, is_binary, image, goal_type, icon, direction, checkin_freq)
-           VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, 'increase', 'weekly')`,
-          [userId, title, 0, target, unit, isBinary, goalType, icon]
+           VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, ?, 'weekly')`,
+          [userId, title, 0, target, unit, isBinary, goalType, icon, direction]
         );
       }
     }

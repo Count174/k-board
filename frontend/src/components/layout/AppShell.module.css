@@ -119,6 +119,12 @@
   margin-bottom: 4px;
 }
 
+.profileActions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
 .logoutBtn {
   border: 1px solid rgba(255, 255, 255, 0.16);
   background: transparent;
@@ -128,6 +134,17 @@
   cursor: pointer;
   font-size: 12px;
 }
+
+.tgBtn {
+  border: 1px solid rgba(153, 246, 228, 0.3);
+  background: rgba(153, 246, 228, 0.1);
+  color: #99f6e4;
+  border-radius: 8px;
+  padding: 5px 9px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.tgBtn:hover { background: rgba(153, 246, 228, 0.16); }
 
 .main {
   min-width: 0;

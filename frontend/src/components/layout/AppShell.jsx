@@ -2,6 +2,7 @@ import { Link, NavLink, Outlet } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { post } from '../../api/api';
 import { get } from '../../api/api';
+import TelegramModal from '../TelegramModal';
 import styles from './AppShell.module.css';
 
 const NAV_ITEMS = [
@@ -22,6 +23,7 @@ function titleByPath(pathname) {
 
 export default function AppShell({ pathname }) {
   const [user, setUser] = useState(null);
+  const [showTelegram, setShowTelegram] = useState(false);
 
   useEffect(() => {
     get('auth/me').then(setUser).catch(() => {});
@@ -79,12 +81,19 @@ export default function AppShell({ pathname }) {
           <div className={styles.avatar}>{(user?.name || 'A').slice(0, 1)}</div>
           <div>
             <div className={styles.profileName}>{user?.name || 'Пользователь'}</div>
-            <button type="button" className={styles.logoutBtn} onClick={onLogout}>
-              Выйти
-            </button>
+            <div className={styles.profileActions}>
+              <button type="button" className={styles.tgBtn} onClick={() => setShowTelegram(true)}>
+                Telegram
+              </button>
+              <button type="button" className={styles.logoutBtn} onClick={onLogout}>
+                Выйти
+              </button>
+            </div>
           </div>
         </div>
       </aside>
+
+      {showTelegram && <TelegramModal onClose={() => setShowTelegram(false)} />}
 
       <main className={styles.main}>
         <header className={styles.topBar}>

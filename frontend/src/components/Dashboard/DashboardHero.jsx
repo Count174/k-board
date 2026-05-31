@@ -91,17 +91,37 @@ export default function DashboardHero() {
     load().catch(() => {});
   }, [loadMeds]);
 
-  const goalsBloomed = useMemo(() => goals.filter((g) => goalProgress(g) >= 1).length, [goals]);
+  const goalStats = useMemo(() => {
+    let bloomed = 0;
+    let growing = 0;
+    let attention = 0;
+    for (const g of goals) {
+      const p = goalProgress(g);
+      if (p >= 1) bloomed += 1;
+      else if (p > 0) growing += 1;
+      else attention += 1;
+    }
+    return { bloomed, growing, attention };
+  }, [goals]);
   const dayTodos = useMemo(() => todos.filter((t) => !t.completed).slice(0, 5), [todos]);
 
   const currentMonth = dayjs().format('MMMM');
+  const hasGoals = goals.length > 0;
 
   return (
     <section className={styles.page}>
       <div className={styles.hero}>
         <div className={styles.heroTop}>Сад сегодня</div>
-        <div className={styles.heroTitle}>Сегодня цветут {goalsBloomed} из {goals.length || 0}</div>
-        <div className={styles.heroSub}>{goalsBloomed} из {goals.length || 0} целей расцветают</div>
+        <div className={styles.heroTitle}>Сегодня цветут {goalStats.bloomed} из {goals.length || 0}</div>
+        {hasGoals ? (
+          <div className={styles.heroStats}>
+            <span className={`${styles.heroStat} ${styles.statGood}`}>🌸 {goalStats.bloomed} расцвели</span>
+            <span className={`${styles.heroStat} ${styles.statMid}`}>🌿 {goalStats.growing} растут</span>
+            <span className={`${styles.heroStat} ${styles.statBad}`}>🥀 {goalStats.attention} ждут внимания</span>
+          </div>
+        ) : (
+          <div className={styles.heroSub}>Добавьте цели — и сад начнёт расти</div>
+        )}
       </div>
 
       <div className={styles.grid}>
@@ -172,8 +192,11 @@ export default function DashboardHero() {
       <div className={styles.card}>
         <div className={styles.cardTitle}>Долгие цели</div>
         <div className={styles.goalRow}>
-          {goals.length ? goals.map((g) => {
-            const p = Math.round(goalProgress(g) * 100);
+          {goals.length ? [...goals]
+            .sort((a, b) => goalProgress(b) - goalProgress(a))
+            .map((g) => {
+            const raw = goalProgress(g);
+            const p = Math.round(raw * 100);
             const type = g.goal_type || 'build_up';
             let meta;
             if (type === 'task') {
@@ -183,12 +206,19 @@ export default function DashboardHero() {
             } else {
               meta = `${fmtGoalValue(g.last_value, g.unit)} / ${fmtGoalValue(g.target, g.unit)}`;
             }
+            const status = raw >= 1 ? 'good' : raw > 0 ? 'mid' : 'bad';
+            const statusLabel = raw >= 1 ? '🌸 Расцвела' : raw > 0 ? '🌿 Растёт' : '🥀 Нужно внимание';
+            const itemClass = status === 'good' ? styles.goalItemGood : status === 'bad' ? styles.goalItemBad : styles.goalItemMid;
+            const fillClass = status === 'bad' ? styles.goalFillBad : styles.goalFill;
             return (
-              <div key={g.id} className={styles.goalItem}>
-                <div className={styles.goalName}>{g.icon ? `${g.icon} ` : ''}{g.title}</div>
+              <div key={g.id} className={`${styles.goalItem} ${itemClass}`}>
+                <div className={styles.goalTopRow}>
+                  <div className={styles.goalName}>{g.icon ? `${g.icon} ` : ''}{g.title}</div>
+                  <span className={`${styles.goalStatus} ${styles[`goalStatus_${status}`]}`}>{statusLabel}</span>
+                </div>
                 <div className={styles.goalMeta}>{meta}</div>
                 <div className={styles.goalTrack}>
-                  <div className={styles.goalFill} style={{ width: `${p}%` }} />
+                  <div className={fillClass} style={{ width: `${p}%` }} />
                 </div>
               </div>
             );

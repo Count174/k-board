@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useState, Fragment } from "react";
+import { useEffect, useMemo, useState } from "react";
 import styles from "./Onboarding.module.css";
-import dayjs from "dayjs";
+import { post } from "../../api/api";
+import { deriveIcon, GOAL_TYPES, UNIT_CHIPS } from "../../utils/goalIcon";
 
 // порядок шагов
 const ORDER = ["welcome", "training", "meds", "goals", "budget", "bot", "finish"];
+
+const WEEK_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+const TELEGRAM_BOT = "whoiskiryabot";
 
 function StepHeader({ title, subtitle }) {
   return (
@@ -23,7 +27,6 @@ export default function OnboardingWizard({ stepKey = "welcome", initialPayload =
 
   const idx = useMemo(() => Math.max(0, ORDER.indexOf(step)), [step]);
   const isFirst = idx === 0;
-  const isLast = ORDER[idx] === "finish";
 
   const go = async (nextKey, patch = {}) => {
     const merged = { ...payload, ...patch };
@@ -39,49 +42,57 @@ export default function OnboardingWizard({ stepKey = "welcome", initialPayload =
   const prev = async () => {
     if (isFirst) return;
     const prevKey = ORDER[Math.max(idx - 1, 0)];
-    await go(prevKey, {}); // не меняем payload
+    await go(prevKey, {});
   };
 
   return (
     <div className={styles.overlay} onClick={onClose}>
       <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-        {/* прогресс */}
         <div className={styles.progress}>
           {ORDER.map((k, i) => (
             <div key={k} className={`${styles.dot} ${i <= idx ? styles.dotActive : ""}`} />
           ))}
         </div>
 
-        {/* шаги */}
-        {step === "welcome" && (
-          <>
-            <StepHeader
-              title="Добро пожаловать в K-Board!"
-              subtitle="Сейчас зададим несколько вопросов и настроим ваш кабинет так, чтобы вы сразу увидели пользу."
-            />
-            <div className={styles.actions}>
-              <button className={styles.secondary} onClick={onClose}>Позже</button>
-              <button className={styles.primary} onClick={() => next()}>Поехали</button>
-            </div>
-          </>
-        )}
-
+        {step === "welcome" && <WelcomeStep onClose={onClose} onNext={next} />}
         {step === "training" && <TrainingStep payload={payload} onNext={next} onBack={prev} />}
         {step === "meds" && <MedsStep payload={payload} onNext={next} onBack={prev} />}
         {step === "goals" && <GoalsStep payload={payload} onNext={next} onBack={prev} />}
         {step === "budget" && <BudgetStep payload={payload} onNext={next} onBack={prev} />}
-        {step === "bot" && <BotStep payload={payload} onNext={next} onBack={prev} />}
-
-        {step === "finish" && (
-          <>
-            <StepHeader title="Готово!" subtitle="Онбординг завершён. Вы всегда сможете всё поменять позднее в настройках." />
-            <div className={styles.actions}>
-              <button className={styles.primary} onClick={onComplete}>Завершить</button>
-            </div>
-          </>
-        )}
+        {step === "bot" && <BotStep onNext={next} onBack={prev} />}
+        {step === "finish" && <FinishStep onComplete={onComplete} />}
       </div>
     </div>
+  );
+}
+
+/* ---------------- WelcomeStep ---------------- */
+function WelcomeStep({ onClose, onNext }) {
+  return (
+    <>
+      <StepHeader
+        title="Добро пожаловать в K-Board"
+        subtitle="Это ваш личный кабинет жизни: финансы, тренировки, здоровье и большие цели в одном месте. Настроим за пару минут — и сразу увидите пользу."
+      />
+      <div className={styles.welcomeList}>
+        <div className={styles.welcomeItem}>
+          <span className={styles.welcomeEmoji}>💰</span>
+          <div className={styles.welcomeText}><b>Финансы и бюджет</b><span>Лимиты по категориям и баланс месяца</span></div>
+        </div>
+        <div className={styles.welcomeItem}>
+          <span className={styles.welcomeEmoji}>💪</span>
+          <div className={styles.welcomeText}><b>Тренировки и здоровье</b><span>Расписание и напоминания о приёмах</span></div>
+        </div>
+        <div className={styles.welcomeItem}>
+          <span className={styles.welcomeEmoji}>🌸</span>
+          <div className={styles.welcomeText}><b>Большие цели</b><span>Видите прогресс — сад «расцветает»</span></div>
+        </div>
+      </div>
+      <div className={styles.actions}>
+        <button className={styles.secondary} onClick={onClose}>Позже</button>
+        <button className={styles.primary} onClick={() => onNext()}>Поехали</button>
+      </div>
+    </>
   );
 }
 
@@ -96,12 +107,12 @@ function TrainingStep({ payload, onNext, onBack }) {
 
   return (
     <>
-      <StepHeader title="Тренировки" subtitle="В какие дни обычно тренируетесь? Это нужно для расписания и напоминаний." />
+      <StepHeader title="Тренировки" subtitle="В какие дни обычно тренируетесь? Составим расписание и будем напоминать. Можно пропустить." />
       <div className={styles.grid}>
         <div className={styles.block}>
           <div className={styles.label}>Дни недели</div>
           <div className={styles.week}>
-            {["Пн","Вт","Ср","Чт","Пт","Сб","Вс"].map((lab, i) => {
+            {WEEK_LABELS.map((lab, i) => {
               const d = i + 1;
               const active = days.includes(d);
               return (
@@ -133,60 +144,48 @@ function TrainingStep({ payload, onNext, onBack }) {
 }
 
 /* ---------------- MedsStep ---------------- */
+function normalizeTime(t) {
+  const s = String(t || "").trim();
+  const m = s.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return "";
+  const hh = String(Math.min(23, Math.max(0, Number(m[1])))).padStart(2, "0");
+  const mm = String(Math.min(59, Math.max(0, Number(m[2])))).padStart(2, "0");
+  return `${hh}:${mm}`;
+}
+
 function MedsStep({ payload, onNext, onBack }) {
-  // один или несколько курсов, которые пользователь соберёт на шаге
   const [items, setItems] = useState(payload.meds || []);
 
-  // локальная форма «как в виджете»
-  const [name, setName] = useState('');
-  const [dosage, setDosage] = useState(''); // например "1 капсула"
-  const [days, setDays] = useState([]);     // массив 1..7 (пн..вс), по умолчанию пусто
-  const [times, setTimes] = useState([]);   // ["09:00", "20:00"]
-  const [timeInput, setTimeInput] = useState('');
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0,10));
-  const [endDate, setEndDate] = useState('');
+  const [name, setName] = useState("");
+  const [dosage, setDosage] = useState("");
+  const [timeInput, setTimeInput] = useState("");
+  const [times, setTimes] = useState([]);
 
-  const toggleDay = (d) => {
-    setDays(prev => prev.includes(d) ? prev.filter(x=>x!==d) : [...prev, d].sort());
-  };
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [days, setDays] = useState([]);
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [endDate, setEndDate] = useState("");
+
+  const toggleDay = (d) => setDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d].sort()));
 
   const addTime = () => {
-    const t = (timeInput || '').trim();
-    if (!/^\d{2}:\d{2}$/.test(t)) return;
-    if (!times.includes(t)) setTimes(prev => [...prev, t].sort());
-    setTimeInput('');
+    const t = normalizeTime(timeInput);
+    if (!t) return;
+    if (!times.includes(t)) setTimes((prev) => [...prev, t].sort());
+    setTimeInput("");
   };
-  const removeTime = (t) => setTimes(prev => prev.filter(x => x !== t));
+  const removeTime = (t) => setTimes((prev) => prev.filter((x) => x !== t));
 
   const makeFrequency = (daysArr) =>
-    Array.isArray(daysArr) && daysArr.length ? `dow:${daysArr.slice().sort((a,b)=>a-b).join(',')}` : 'daily';
+    Array.isArray(daysArr) && daysArr.length ? `dow:${daysArr.slice().sort((a, b) => a - b).join(",")}` : "daily";
 
-  const normalizeTime = (t) => {
-    const s = String(t || "").trim();
-    if (!s) return "";
-    // допускаем "9:00" -> "09:00"
-    const m = s.match(/^(\d{1,2}):(\d{2})$/);
-    if (!m) return "";
-    const hh = String(Math.min(23, Math.max(0, Number(m[1])))).padStart(2, "0");
-    const mm = String(Math.min(59, Math.max(0, Number(m[2])))).padStart(2, "0");
-    return `${hh}:${mm}`;
-  };
-  
-  const canAutoAdd = () => {
-    const n = name.trim();
-    const hasTime = times.length > 0 || !!normalizeTime(timeInput);
-    return !!n && hasTime;
-  };
-
-  const addMedication = () => {
+  const buildItem = () => {
     const n = name.trim();
     if (!n) return null;
-  
     const pending = normalizeTime(timeInput);
     const finalTimes = times.length ? times : (pending ? [pending] : []);
     if (!finalTimes.length) return null;
-  
-    const item = {
+    return {
       name: n,
       dosage: dosage.trim(),
       frequency: makeFrequency(days),
@@ -195,163 +194,123 @@ function MedsStep({ payload, onNext, onBack }) {
       end_date: endDate || null,
       active: 1,
     };
-  
+  };
+
+  const addMedication = () => {
+    const item = buildItem();
+    if (!item) return;
     setItems((prev) => [...prev, item]);
-  
-    // сброс локальной формы
     setName("");
     setDosage("");
-    setDays([]);
     setTimes([]);
     setTimeInput("");
+    setDays([]);
+    setShowAdvanced(false);
     setStartDate(new Date().toISOString().slice(0, 10));
     setEndDate("");
-  
-    return item;
   };
 
-  const removeItem = (idx) => {
-    setItems(prev => prev.filter((_, i) => i !== idx));
-  };
+  const removeItem = (i) => setItems((prev) => prev.filter((_, idx) => idx !== i));
 
   const proceed = () => {
-    // Если в форме что-то введено — попробуем автодобавить
-    if (canAutoAdd()) {
-      const added = addMedication();
-      // если почему-то не добавилось — всё равно не блокируем переход
-      // (но можно подсветить ошибку, если захочешь)
-      const nextItems = added ? [...items, added] : items;
-      onNext({ meds: nextItems });
-      return;
-    }
-  
-    // Если форма пустая — просто идём дальше с тем, что уже есть
-    onNext({ meds: items });
+    const pending = buildItem();
+    onNext({ meds: pending ? [...items, pending] : items });
   };
 
   return (
     <>
       <StepHeader
         title="Добавки и медикаменты"
-        subtitle="Добавьте один или несколько приёмов — напоминания будут приходить в нужные дни и время."
+        subtitle="Укажите название и время приёма — мы будем напоминать. Достаточно одной кнопки «Добавить приём». Шаг необязательный."
       />
 
       <div className={styles.grid}>
         <div className={styles.block}>
           <div className={styles.label}>Название</div>
-          <input
-            className={styles.input}
-            placeholder="Например: Омега-3"
-            value={name}
-            onChange={(e)=>setName(e.target.value)}
-          />
+          <input className={styles.input} placeholder="Например: Омега-3" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
-
         <div className={styles.block}>
           <div className={styles.label}>Дозировка (опционально)</div>
-          <input
-            className={styles.input}
-            placeholder="Например: 1 капсула"
-            value={dosage}
-            onChange={(e)=>setDosage(e.target.value)}
-          />
-        </div>
-      </div>
-
-      <div className={styles.block}>
-        <div className={styles.label}>Дни недели</div>
-        <div className={styles.week}>
-          {['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map((lab, i)=>{
-            const d = i+1;
-            const active = days.includes(d);
-            return (
-              <button
-                key={d}
-                type="button"
-                className={`${styles.weekBtn} ${active ? styles.weekBtnActive : ''}`}
-                onClick={()=>toggleDay(d)}
-              >
-                {lab}
-              </button>
-            );
-          })}
-        </div>
-        <div className={styles.help}>
-          Если ничего не выбрать — будет «каждый день».
+          <input className={styles.input} placeholder="Например: 1 капсула" value={dosage} onChange={(e) => setDosage(e.target.value)} />
         </div>
       </div>
 
       <div className={styles.block}>
         <div className={styles.label}>Время приёма</div>
-        <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+        <div className={styles.inlineRow}>
           <input
-            className={styles.inputSmall}
+            className={`${styles.input} ${styles.timeInput}`}
             placeholder="HH:MM"
             value={timeInput}
-            onChange={(e)=>setTimeInput(e.target.value)}
-            onKeyDown={(e)=>e.key==='Enter' && addTime()}
+            onChange={(e) => setTimeInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addTime()}
           />
-          <button className={styles.ghostBtn} type="button" onClick={addTime}>Добавить приём</button>
-          {times.length>0 && (
+          <button className={styles.ghostBtn} type="button" onClick={addTime}>+ ещё время</button>
+          {times.length > 0 && (
             <div className={styles.chips}>
-              {times.map(t=>(
+              {times.map((t) => (
                 <span key={t} className={styles.chip}>
                   {t}
-                  <button type="button" className={styles.chipX} onClick={()=>removeTime(t)}>×</button>
+                  <button type="button" className={styles.chipX} onClick={() => removeTime(t)}>×</button>
                 </span>
               ))}
             </div>
           )}
         </div>
-        <div className={styles.help}>
-          Можно указать несколько времен (например 09:00 и 21:00).
-        </div>
+        <div className={styles.help}>По умолчанию — каждый день. Для нескольких приёмов добавьте время кнопкой «+ ещё время».</div>
       </div>
 
-      <div className={styles.grid}>
-        <div className={styles.block}>
-          <div className={styles.label}>Начало курса</div>
-          <input
-            className={styles.input}
-            type="date"
-            value={startDate}
-            onChange={(e)=>setStartDate(e.target.value)}
-          />
-        </div>
-        <div className={styles.block}>
-          <div className={styles.label}>Конец курса (опционально)</div>
-          <input
-            className={styles.input}
-            type="date"
-            value={endDate || ''}
-            onChange={(e)=>setEndDate(e.target.value)}
-          />
-        </div>
-      </div>
+      <button type="button" className={styles.disclosure} onClick={() => setShowAdvanced((v) => !v)}>
+        {showAdvanced ? "▲ Скрыть расписание" : "▾ Настроить дни недели и срок курса"}
+      </button>
 
-      <div className={styles.actions} style={{ marginTop: 8 }}>
-        <button className={styles.secondary} type="button" onClick={addMedication}>
-          Добавить приём в список
-        </button>
+      {showAdvanced && (
+        <div className={styles.advanced}>
+          <div className={styles.label}>Дни недели</div>
+          <div className={styles.week}>
+            {WEEK_LABELS.map((lab, i) => {
+              const d = i + 1;
+              const active = days.includes(d);
+              return (
+                <button key={d} type="button" className={`${styles.weekBtn} ${active ? styles.weekBtnActive : ""}`} onClick={() => toggleDay(d)}>
+                  {lab}
+                </button>
+              );
+            })}
+          </div>
+          <div className={styles.grid} style={{ marginTop: 12, marginBottom: 0 }}>
+            <div className={styles.block}>
+              <div className={styles.label}>Начало курса</div>
+              <input className={styles.input} type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </div>
+            <div className={styles.block}>
+              <div className={styles.label}>Конец курса (опционально)</div>
+              <input className={styles.input} type="date" value={endDate || ""} onChange={(e) => setEndDate(e.target.value)} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{ marginTop: 14 }}>
+        <button className={styles.ghostBtn} type="button" onClick={addMedication}>+ Добавить приём</button>
       </div>
 
       {items.length > 0 && (
         <div className={styles.block}>
-          <div className={styles.label}>К добавлению:</div>
+          <div className={styles.label}>Добавлено:</div>
           <div className={styles.list}>
-            {items.map((it, i)=>(
-              <div key={i} className={styles.row} style={{ gridTemplateColumns:'1fr auto' }}>
-                <div>
-                  <div><b>{it.name}</b> {it.dosage ? `— ${it.dosage}` : ''}</div>
-                  <div className={styles.help}>
-                    {it.frequency.startsWith('dow:')
-                      ? `Дни: ${it.frequency.slice(4)}`
-                      : 'Каждый день'
-                    } · Время: {it.times.join(', ')} ·
-                    {it.end_date ? ` ${it.start_date} → ${it.end_date}` : ` c ${it.start_date}`}
+            {items.map((it, i) => (
+              <div key={i} className={styles.listRow}>
+                <div className={styles.listMain}>
+                  <div><b>{it.name}</b>{it.dosage ? ` — ${it.dosage}` : ""}</div>
+                  <div className={styles.listMeta}>
+                    {it.frequency.startsWith("dow:")
+                      ? `Дни: ${it.frequency.slice(4).split(",").map((n) => WEEK_LABELS[Number(n) - 1]).join(", ")}`
+                      : "Каждый день"}
+                    {" · "}{it.times.join(", ")}
                   </div>
                 </div>
-                <button className={styles.rm} onClick={()=>removeItem(i)}>✕</button>
+                <button className={styles.rm} onClick={() => removeItem(i)} aria-label="Удалить">✕</button>
               </div>
             ))}
           </div>
@@ -360,82 +319,116 @@ function MedsStep({ payload, onNext, onBack }) {
 
       <div className={styles.actions}>
         <button className={styles.secondary} onClick={onBack}>Назад</button>
-        <button className={styles.primary} onClick={proceed}>
-          Далее
-        </button>
+        <button className={styles.primary} onClick={proceed}>Далее</button>
       </div>
     </>
   );
 }
 
-/* ---------------- GoalsStep (исправлено) ---------------- */
+/* ---------------- GoalsStep ---------------- */
+function emptyGoal() {
+  return { title: "", goal_type: "build_up", target: "", unit: "" };
+}
+
 function GoalsStep({ payload, onNext, onBack }) {
-  const initial = Array.isArray(payload.goals) && payload.goals.length
-    ? payload.goals
-    : [{ title: '', target: '', unit: '', is_binary: false }];
+  const [goals, setGoals] = useState(
+    Array.isArray(payload.goals) && payload.goals.length ? payload.goals : [emptyGoal()]
+  );
 
-  const [goals, setGoals] = useState(initial);
+  const updateGoal = (i, patch) => setGoals((prev) => prev.map((g, idx) => (idx === i ? { ...g, ...patch } : g)));
+  const addGoal = () => setGoals((prev) => [...prev, emptyGoal()]);
+  const removeGoal = (i) => setGoals((prev) => prev.filter((_, idx) => idx !== i));
 
-  useEffect(() => {
-    // если payload изменился извне — синхронизировать
-    if (payload && Array.isArray(payload.goals)) setGoals(payload.goals);
-  }, [payload]);
-
-  const updateGoal = (i, field, value) => {
-    const next = goals.map((g, idx) => (idx === i ? { ...g, [field]: value } : g));
-    setGoals(next);
+  const proceed = () => {
+    const clean = goals
+      .map((g) => ({
+        title: String(g.title || "").trim(),
+        goal_type: g.goal_type || "build_up",
+        target: g.goal_type === "task" ? 1 : Number(g.target || 0),
+        unit: g.goal_type === "habit" ? (g.unit || "раз") : String(g.unit || "").trim(),
+      }))
+      .filter((g) => g.title);
+    onNext({ goals: clean });
   };
-
-  const addGoal = () => setGoals([...goals, { title: '', target: '', unit: '', is_binary: false }]);
-  const removeGoal = (i) => setGoals(goals.filter((_, idx) => idx !== i));
 
   return (
     <>
-      <StepHeader title="Цели" subtitle="Пара стартовых целей поможет увидеть прогресс." />
-      <div className={styles.block}>
-        <div className={styles.goalList}>
-          {goals.map((g, i) => (
-            <div key={i} className={styles.goalRow}>
-              <input
-                className={styles.inputSmall}
-                placeholder="Название"
-                value={g.title}
-                onChange={e => updateGoal(i, 'title', e.target.value)}
-              />
-              <input
-                className={styles.inputSmall}
-                type="number"
-                placeholder="Цель"
-                value={g.target}
-                onChange={e => updateGoal(i, 'target', e.target.value)}
-              />
-              <input
-                className={styles.inputSmall}
-                placeholder="Единица (₽, кг, книги)"
-                value={g.unit}
-                onChange={e => updateGoal(i, 'unit', e.target.value)}
-              />
-              <label className={styles.goalCheckbox}>
-                <input
-                  type="checkbox"
-                  checked={!!g.is_binary}
-                  onChange={e => updateGoal(i, 'is_binary', e.target.checked)}
-                />
-                Бинарная
-              </label>
-              {i > 0 && <button type="button" className={styles.removeBtn} onClick={() => removeGoal(i)}>Удалить</button>}
-            </div>
-          ))}
-        </div>
+      <StepHeader title="Большие цели" subtitle="Выберите тип цели и опишите её — иконку подберём автоматически. Пара целей поможет сразу видеть прогресс." />
 
-        <div style={{ marginTop: 12 }}>
-          <button type="button" className={styles.ghostBtn} onClick={addGoal}>+ Добавить цель</button>
-        </div>
-      </div>
+      {goals.map((g, i) => {
+        const type = g.goal_type || "build_up";
+        const typeMeta = GOAL_TYPES.find((t) => t.key === type) || GOAL_TYPES[1];
+        const showTargetNumber = type !== "task";
+        const showUnit = type === "build_up" || type === "reduce";
+        return (
+          <div key={i} className={styles.goalCard}>
+            <div className={styles.goalCardHead}>
+              <span className={styles.goalPreview}>
+                <span className={styles.goalPreviewEmoji}>{deriveIcon(g.title)}</span>
+                {g.title ? "иконка цели" : "иконка появится по названию"}
+              </span>
+              {goals.length > 1 && (
+                <button type="button" className={styles.removeBtn} onClick={() => removeGoal(i)}>Удалить</button>
+              )}
+            </div>
+
+            <div className={styles.typePicker}>
+              {GOAL_TYPES.map((t) => (
+                <button
+                  key={t.key}
+                  type="button"
+                  className={`${styles.typeBtn} ${type === t.key ? styles.typeBtnActive : ""}`}
+                  onClick={() => updateGoal(i, { goal_type: t.key })}
+                >
+                  <span className={styles.typeEmoji}>{t.emoji}</span>
+                  <span className={styles.typeLabel}>{t.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className={`${styles.goalFields} ${showTargetNumber ? "" : styles.goalFieldsFull}`}>
+              <input
+                className={styles.input}
+                placeholder={type === "task" ? "Что сделать? Напр. «Сдать права»" : "Название цели"}
+                value={g.title}
+                onChange={(e) => updateGoal(i, { title: e.target.value })}
+              />
+              {showTargetNumber && (
+                <input
+                  className={styles.input}
+                  type="number"
+                  placeholder={type === "habit" ? "Сколько раз в неделю" : "Целевое значение"}
+                  value={g.target}
+                  onChange={(e) => updateGoal(i, { target: e.target.value })}
+                />
+              )}
+            </div>
+
+            {showUnit && (
+              <div className={styles.unitChips}>
+                {UNIT_CHIPS.map((u) => (
+                  <button
+                    key={u}
+                    type="button"
+                    className={`${styles.unitChip} ${g.unit === u ? styles.unitChipActive : ""}`}
+                    onClick={() => updateGoal(i, { unit: u })}
+                  >
+                    {u}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className={styles.typeHint}>{typeMeta.hint}</div>
+          </div>
+        );
+      })}
+
+      <button type="button" className={styles.ghostBtn} onClick={addGoal}>+ Добавить цель</button>
 
       <div className={styles.actions}>
         <button className={styles.secondary} onClick={onBack}>Назад</button>
-        <button className={styles.primary} onClick={() => onNext({ goals })}>Далее</button>
+        <button className={styles.primary} onClick={proceed}>Далее</button>
       </div>
     </>
   );
@@ -447,77 +440,54 @@ function BudgetStep({ payload, onNext, onBack }) {
     payload.budget_preset?.length
       ? payload.budget_preset
       : [
-          { category: 'продукты', amount: 20000 },
-          { category: 'еда вне дома', amount: 15000 },
-          { category: 'транспорт', amount: 5000 },
+          { category: "продукты", amount: 20000 },
+          { category: "еда вне дома", amount: 15000 },
+          { category: "транспорт", amount: 5000 },
         ]
   );
 
   const setRow = (i, key, val) => {
     setRows((prev) =>
-      prev.map((r, idx) =>
-        idx === i ? { ...r, [key]: key === 'amount' ? val.replace(/[^\d]/g, '') : val } : r
-      )
+      prev.map((r, idx) => (idx === i ? { ...r, [key]: key === "amount" ? val.replace(/[^\d]/g, "") : val } : r))
     );
   };
 
-  const add = () => setRows((prev) => [...prev, { category: '', amount: '' }]);
+  const add = () => setRows((prev) => [...prev, { category: "", amount: "" }]);
   const remove = (i) => setRows((prev) => prev.filter((_, idx) => idx !== i));
 
   const goNext = () => {
     const clean = rows
-      .map((r) => ({ category: r.category.trim().toLowerCase(), amount: Number(r.amount) }))
+      .map((r) => ({ category: String(r.category).trim().toLowerCase(), amount: Number(r.amount) }))
       .filter((r) => r.category && r.amount > 0);
     onNext({ budget_preset: clean });
   };
 
   return (
     <>
-      <StepHeader
-        title="Бюджет месяца"
-        subtitle="Поставим лимиты по основным категориям. Можно изменить позже в «Бюджеты»."
-      />
+      <StepHeader title="Бюджет месяца" subtitle="Поставим лимиты по основным категориям. Изменить можно позже в «Настройках»." />
 
-      <div className={styles.budgetTable}>
-        <div className={styles.head}>
-          <div>Категория</div>
-          <div>Сумма, ₽</div>
-        </div>
-
-        {rows.map((r, i) => (
-          <div key={i} className={styles.row}>
-            <button
-              type="button"
-              className={styles.rm}
-              onClick={() => remove(i)}
-              aria-label="Удалить строку"
-              title="Удалить"
-            >
-              ×
-            </button>
-
-            <input
-              className={styles.input}
-              placeholder="категория"
-              value={r.category}
-              onChange={(e) => setRow(i, 'category', e.target.value)}
-            />
-            <input
-              className={`${styles.input} ${styles.amount}`}
-              inputMode="numeric"
-              pattern="[0-9]*"
-              placeholder="0"
-              value={r.amount}
-              onChange={(e) => setRow(i, 'amount', e.target.value)}
-            />
-          </div>
-        ))}
-
-        <button type="button" className={styles.addRow} onClick={add}>
-          + Добавить категорию
-        </button>
-        <div className={styles.help}>Будут сохранены только непустые строки с суммой &gt; 0.</div>
+      <div className={styles.budgetHead}>
+        <div>Категория</div>
+        <div className={styles.amount}>Сумма, ₽</div>
+        <div />
       </div>
+
+      {rows.map((r, i) => (
+        <div key={i} className={styles.budgetRow}>
+          <input className={styles.input} placeholder="категория" value={r.category} onChange={(e) => setRow(i, "category", e.target.value)} />
+          <input
+            className={`${styles.input} ${styles.amount}`}
+            inputMode="numeric"
+            placeholder="0"
+            value={r.amount}
+            onChange={(e) => setRow(i, "amount", e.target.value)}
+          />
+          <button type="button" className={styles.rm} onClick={() => remove(i)} aria-label="Удалить строку">×</button>
+        </div>
+      ))}
+
+      <button type="button" className={styles.addRow} onClick={add}>+ Добавить категорию</button>
+      <div className={styles.help}>Будут сохранены только непустые строки с суммой больше 0.</div>
 
       <div className={styles.actions}>
         <button className={styles.secondary} onClick={onBack}>Назад</button>
@@ -528,18 +498,75 @@ function BudgetStep({ payload, onNext, onBack }) {
 }
 
 /* ---------------- BotStep ---------------- */
-function BotStep({ payload, onNext, onBack }) {
+function BotStep({ onNext, onBack }) {
+  const [token, setToken] = useState(null);
+  const [error, setError] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    post("telegram/generate-token")
+      .then((res) => { if (alive) setToken(res?.token || null); })
+      .catch(() => { if (alive) setError(true); });
+    return () => { alive = false; };
+  }, []);
+
+  const copy = async () => {
+    if (!token) return;
+    try {
+      await navigator.clipboard.writeText(token);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch { /* clipboard unavailable */ }
+  };
+
   return (
     <>
-      <StepHeader title="Telegram-бот" subtitle="Подключите, чтобы получать напоминания и быстро заносить данные." />
-      <div className={styles.block}>
-        <div className={styles.help}>
-          В хедере нажмите на профиль → «Подключить Telegram-бота», следуйте инструкциям в модальном окне.
+      <StepHeader title="Telegram-бот" subtitle="Подключите бота, чтобы получать напоминания и быстро заносить расходы прямо из чата." />
+
+      <div className={styles.tgPanel}>
+        <ol className={styles.tgSteps}>
+          <li>Откройте <a href={`https://t.me/${TELEGRAM_BOT}`} target="_blank" rel="noreferrer">@{TELEGRAM_BOT}</a> и нажмите «Запустить».</li>
+          <li>Отправьте команду <b>/connect</b>.</li>
+          <li>Вставьте этот токен:</li>
+        </ol>
+
+        <div className={styles.tokenRow}>
+          {token ? (
+            <code className={styles.token}>{token}</code>
+          ) : error ? (
+            <code className={styles.token}>Не удалось получить токен — можно подключить позже в настройках</code>
+          ) : (
+            <code className={styles.token}>Генерируем токен…</code>
+          )}
+          <button className={styles.ghostBtn} type="button" onClick={copy} disabled={!token}>
+            {copied ? "Скопировано" : "Копировать"}
+          </button>
+          <a className={styles.primary} href={`https://t.me/${TELEGRAM_BOT}`} target="_blank" rel="noreferrer">Открыть бота</a>
         </div>
+
+        <div className={styles.tgNote}>Никому не сообщайте токен — он привязывает Telegram к вашему аккаунту.</div>
       </div>
+
       <div className={styles.actions}>
         <button className={styles.secondary} onClick={onBack}>Назад</button>
         <button className={styles.primary} onClick={() => onNext()}>Далее</button>
+      </div>
+    </>
+  );
+}
+
+/* ---------------- FinishStep ---------------- */
+function FinishStep({ onComplete }) {
+  return (
+    <>
+      <div className={styles.finishBadge}>🌸</div>
+      <StepHeader
+        title="Готово! Сад посажен"
+        subtitle="Мы сохранили ваши данные. Открываем главный экран — следите, как расцветают цели, и заносите данные через приложение или Telegram."
+      />
+      <div className={styles.actions} style={{ justifyContent: "center" }}>
+        <button className={styles.primary} onClick={onComplete}>На главный экран</button>
       </div>
     </>
   );
