@@ -63,6 +63,7 @@ export default function DashboardHero() {
   const [meds, setMeds] = useState([]);
   const [medsModalOpen, setMedsModalOpen] = useState(false);
   const [workoutWeek, setWorkoutWeek] = useState(null);
+  const [score, setScore] = useState(null);
 
   const loadMeds = useCallback(async () => {
     const medsRaw = await get('medications').catch(() => []);
@@ -86,42 +87,60 @@ export default function DashboardHero() {
         balance: Number(summaryRaw?.balance || 0),
       });
       setWorkoutWeek(scoreRaw?.breakdown?.health?.workouts || null);
+      setScore(scoreRaw || null);
       await loadMeds();
     };
     load().catch(() => {});
   }, [loadMeds]);
 
-  const goalStats = useMemo(() => {
-    let bloomed = 0;
-    let growing = 0;
-    let attention = 0;
-    for (const g of goals) {
-      const p = goalProgress(g);
-      if (p >= 1) bloomed += 1;
-      else if (p > 0) growing += 1;
-      else attention += 1;
-    }
-    return { bloomed, growing, attention };
-  }, [goals]);
+  const gardenBeds = useMemo(() => {
+    const fin = score?.breakdown?.finance?.score;
+    const wk = score?.breakdown?.health?.workouts?.score;
+    const md = score?.breakdown?.health?.meds?.score;
+    const goalsScore = goals.length
+      ? goals.reduce((s, g) => s + goalProgress(g), 0) / goals.length
+      : null;
+    return [
+      { key: 'finance', emoji: '💰', label: 'Финансы', score: fin == null ? null : clamp01(fin / 100) },
+      { key: 'workouts', emoji: '💪', label: 'Тренировки', score: wk == null ? null : clamp01(wk / 100) },
+      { key: 'meds', emoji: '💊', label: 'Приёмы', score: md == null ? null : clamp01(md / 100) },
+      { key: 'goals', emoji: '🌸', label: 'Цели', score: goalsScore },
+    ];
+  }, [score, goals]);
+
+  const garden = useMemo(() => {
+    const active = gardenBeds.filter((b) => b.score != null);
+    const bloomed = active.filter((b) => b.score >= 0.7).length;
+    return { total: active.length, bloomed };
+  }, [gardenBeds]);
+
   const dayTodos = useMemo(() => todos.filter((t) => !t.completed).slice(0, 5), [todos]);
 
   const currentMonth = dayjs().format('MMMM');
-  const hasGoals = goals.length > 0;
 
   return (
     <section className={styles.page}>
       <div className={styles.hero}>
         <div className={styles.heroTop}>Сад сегодня</div>
-        <div className={styles.heroTitle}>Сегодня цветут {goalStats.bloomed} из {goals.length || 0}</div>
-        {hasGoals ? (
-          <div className={styles.heroStats}>
-            <span className={`${styles.heroStat} ${styles.statGood}`}>🌸 {goalStats.bloomed} расцвели</span>
-            <span className={`${styles.heroStat} ${styles.statMid}`}>🌿 {goalStats.growing} растут</span>
-            <span className={`${styles.heroStat} ${styles.statBad}`}>🥀 {goalStats.attention} ждут внимания</span>
-          </div>
-        ) : (
-          <div className={styles.heroSub}>Добавьте цели — и сад начнёт расти</div>
-        )}
+        <div className={styles.heroTitle}>Сегодня цветут {garden.bloomed} из {garden.total}</div>
+        <div className={styles.heroSub}>Здоровье сада по основным направлениям</div>
+        <div className={styles.bedRow}>
+          {gardenBeds.map((bed) => {
+            if (bed.score == null) {
+              return (
+                <span key={bed.key} className={`${styles.bed} ${styles.bedMuted}`}>
+                  {bed.emoji} {bed.label} · нет данных
+                </span>
+              );
+            }
+            const st = bed.score >= 0.7 ? 'Good' : bed.score >= 0.4 ? 'Mid' : 'Bad';
+            return (
+              <span key={bed.key} className={`${styles.bed} ${styles[`bed${st}`]}`}>
+                {bed.emoji} {bed.label} · {Math.round(bed.score * 100)}%
+              </span>
+            );
+          })}
+        </div>
       </div>
 
       <div className={styles.grid}>
@@ -207,7 +226,7 @@ export default function DashboardHero() {
               meta = `${fmtGoalValue(g.last_value, g.unit)} / ${fmtGoalValue(g.target, g.unit)}`;
             }
             const status = raw >= 1 ? 'good' : raw > 0 ? 'mid' : 'bad';
-            const statusLabel = raw >= 1 ? '🌸 Расцвела' : raw > 0 ? '🌿 Растёт' : '🥀 Нужно внимание';
+            const statusLabel = raw >= 1 ? '🌸 Цветёт' : raw > 0 ? '🌿 Растёт' : '🥀 Внимание';
             const itemClass = status === 'good' ? styles.goalItemGood : status === 'bad' ? styles.goalItemBad : styles.goalItemMid;
             const fillClass = status === 'bad' ? styles.goalFillBad : styles.goalFill;
             return (

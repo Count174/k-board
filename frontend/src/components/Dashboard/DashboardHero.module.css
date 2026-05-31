@@ -29,38 +29,43 @@
   color: #cbd5e1;
 }
 
-.heroStats {
+.bedRow {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 10px;
+  margin-top: 12px;
 }
 
-.heroStat {
+.bed {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 12px;
+  padding: 6px 12px;
   border-radius: 999px;
   font-size: 14px;
   font-weight: 600;
   border: 1px solid transparent;
 }
 
-.statGood {
+.bedGood {
   background: rgba(134, 239, 172, 0.12);
   border-color: rgba(134, 239, 172, 0.35);
   color: #bbf7d0;
 }
-.statMid {
+.bedMid {
   background: rgba(153, 246, 228, 0.1);
   border-color: rgba(153, 246, 228, 0.3);
   color: #99f6e4;
 }
-.statBad {
+.bedBad {
   background: rgba(251, 191, 36, 0.1);
   border-color: rgba(251, 191, 36, 0.35);
   color: #fcd34d;
+}
+.bedMuted {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: #94a3b8;
 }
 
 .grid {
@@ -228,13 +233,15 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
+  margin-bottom: 4px;
 }
 
 .goalStatus {
-  flex-shrink: 0;
-  font-size: 12px;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  font-size: 11px;
   font-weight: 600;
-  padding: 2px 8px;
+  padding: 3px 8px;
   border-radius: 999px;
   white-space: nowrap;
 }
@@ -243,8 +250,11 @@
 .goalStatus_bad { background: rgba(251, 191, 36, 0.12); color: #fcd34d; }
 
 .goalName {
-  font-size: 20px;
-  margin-bottom: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 18px;
+  line-height: 1.25;
 }
 
 .goalMeta {
