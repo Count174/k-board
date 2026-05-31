@@ -1,5 +1,6 @@
 const db = require('../db/db');
 const dayjs = require('dayjs');
+const { deriveIcon } = require('../utils/goalIcon');
 
 function run(sql, params = []) {
   return new Promise((resolve, reject) => {
@@ -170,14 +171,16 @@ exports.complete = async (req, res) => {
         if (exists) continue;
 
         const isBinary = g?.is_binary ? 1 : 0;
+        const goalType = isBinary ? 'task' : 'build_up';
         const rawTarget = g?.target;
         const target = isBinary ? 1 : Math.max(0, Number(rawTarget || 0));
         const unit = String(g?.unit || '').trim();
+        const icon = deriveIcon(title);
 
         await run(
-          `INSERT INTO goals (user_id, title, current, target, unit, is_binary, image)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [userId, title, 0, target, unit, isBinary, '']
+          `INSERT INTO goals (user_id, title, current, target, unit, is_binary, image, goal_type, icon, direction, checkin_freq)
+           VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, 'increase', 'weekly')`,
+          [userId, title, 0, target, unit, isBinary, goalType, icon]
         );
       }
     }

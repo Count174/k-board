@@ -33,12 +33,27 @@ function weekRangeISO() {
   };
 }
 
+function clamp01(n) { return Math.max(0, Math.min(1, n)); }
+
 function goalProgress(goal) {
+  const type = goal?.goal_type || 'build_up';
   const target = Number(goal?.target || 0);
-  const value = Number(goal?.last_value || 0);
-  if (!target) return 0;
-  if (goal?.direction === 'decrease') return Math.max(0, Math.min(1, target / Math.max(1, value)));
-  return Math.max(0, Math.min(1, value / target));
+  const value = goal?.last_value == null ? null : Number(goal.last_value);
+  const start = goal?.start_value == null ? null : Number(goal.start_value);
+
+  if (type === 'task') return goal?.is_completed ? 1 : 0;
+  if (type === 'habit') return target ? clamp01((goal?.period_count || 0) / target) : 0;
+
+  if (type === 'reduce') {
+    if (value == null) return 0;
+    if (value <= target) return 1;
+    const s = start != null ? start : value;
+    return s <= target ? 0 : clamp01((s - value) / (s - target));
+  }
+
+  if (!target || value == null) return 0;
+  const s = start != null ? start : 0;
+  return target <= s ? (value >= target ? 1 : 0) : clamp01((value - s) / (target - s));
 }
 
 export default function DashboardHero() {
@@ -159,12 +174,19 @@ export default function DashboardHero() {
         <div className={styles.goalRow}>
           {goals.length ? goals.map((g) => {
             const p = Math.round(goalProgress(g) * 100);
+            const type = g.goal_type || 'build_up';
+            let meta;
+            if (type === 'task') {
+              meta = g.is_completed ? 'выполнено' : 'в работе';
+            } else if (type === 'habit') {
+              meta = `${g.period_count || 0} / ${g.target} ${g.unit || 'раз'} за неделю`;
+            } else {
+              meta = `${fmtGoalValue(g.last_value, g.unit)} / ${fmtGoalValue(g.target, g.unit)}`;
+            }
             return (
               <div key={g.id} className={styles.goalItem}>
-                <div className={styles.goalName}>{g.title}</div>
-                <div className={styles.goalMeta}>
-                  {fmtGoalValue(g.last_value, g.unit)} / {fmtGoalValue(g.target, g.unit)}
-                </div>
+                <div className={styles.goalName}>{g.icon ? `${g.icon} ` : ''}{g.title}</div>
+                <div className={styles.goalMeta}>{meta}</div>
                 <div className={styles.goalTrack}>
                   <div className={styles.goalFill} style={{ width: `${p}%` }} />
                 </div>

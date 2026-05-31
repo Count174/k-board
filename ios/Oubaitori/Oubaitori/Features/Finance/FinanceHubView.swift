@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct FinanceHubView: View {
+    @EnvironmentObject private var deepLink: PushDeepLinkRouter
     @State private var balance: Double = 0
     @State private var incomes: Double = 0
     @State private var expenses: Double = 0
@@ -66,6 +67,13 @@ struct FinanceHubView: View {
             .refreshable { await load() }
             .sheet(isPresented: $showAddTx) {
                 AddTransactionSheet(initialType: addTxType) { await load() }
+            }
+            .onChange(of: deepLink.showFinanceAddExpense) { _, show in
+                if show {
+                    addTxType = "expense"
+                    showAddTx = true
+                    deepLink.clearFinanceAdd()
+                }
             }
         }
     }

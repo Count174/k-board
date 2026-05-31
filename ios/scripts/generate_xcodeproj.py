@@ -20,6 +20,11 @@ BUNDLE_ID = "ru.oubaitori.app"
 DEPLOYMENT_TARGET = "17.0"
 SWIFT_VERSION = "5.9"
 
+# Push Notifications требуют платный Apple Developer Program.
+# Personal (бесплатный) Apple ID не поддерживает capability — сборка падает.
+# Включить (True) после оформления платного аккаунта.
+ENABLE_PUSH = False
+
 
 def uid(seed: str) -> str:
     return hashlib.md5(f"oubaitori:{seed}".encode()).hexdigest()[:24].upper()
@@ -63,7 +68,7 @@ def main() -> None:
         "target", "sources_phase", "resources_phase", "frameworks_phase",
         "product_ref", "project_config_list", "target_config_list",
         "debug_project", "release_project", "debug_target", "release_target",
-        "assets_ref", "assets_build", "plist_ref",
+        "assets_ref", "assets_build", "plist_ref", "entitlements_ref",
     ]}
 
     file_refs: dict[str, str] = {}
@@ -108,6 +113,8 @@ def main() -> None:
         a(f"\t\t{file_refs[k]} /* {sf.name} */ = {{isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = {sf.name}; sourceTree = \"<group>\"; }};")
     a(f"\t\t{ids['assets_ref']} /* Assets.xcassets */ = {{isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = \"<group>\"; }};")
     a(f"\t\t{ids['plist_ref']} /* Info.plist */ = {{isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = \"<group>\"; }};")
+    if ENABLE_PUSH:
+        a(f"\t\t{ids['entitlements_ref']} /* Oubaitori.entitlements */ = {{isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Oubaitori.entitlements; sourceTree = \"<group>\"; }};")
     a("/* End PBXFileReference section */\n")
 
     a("/* Begin PBXFrameworksBuildPhase section */")
@@ -146,6 +153,8 @@ def main() -> None:
         kids = group_children(node, rel)
         if node.path == "Oubaitori":
             kids = kids + [ids["plist_ref"], ids["assets_ref"]]
+            if ENABLE_PUSH:
+                kids = kids + [ids["entitlements_ref"]]
         a(f"\t\t{gid} = {{")
         a("\t\t\tisa = PBXGroup;")
         a(f"\t\t\tchildren = ({', '.join(kids)},);")
@@ -222,8 +231,11 @@ def main() -> None:
     a("\t\t};")
     a("/* End PBXSourcesBuildPhase section */\n")
 
+    entitlements_setting = (
+        "\t\t\t\tCODE_SIGN_ENTITLEMENTS = Oubaitori/Oubaitori.entitlements;\n" if ENABLE_PUSH else ""
+    )
     target_settings = f"""				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_STYLE = Automatic;
+{entitlements_setting}				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				ENABLE_PREVIEWS = YES;

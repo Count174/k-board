@@ -2,6 +2,8 @@ import SwiftUI
 
 struct WorkoutPlanDetailView: View {
     let planId: Int
+    var planName: String = "План"
+
     @State private var plan: WorkoutPlanDTO?
     @State private var error: String?
 
@@ -37,12 +39,8 @@ struct WorkoutPlanDetailView: View {
                                             .font(DesignTokens.Typography.caption)
                                             .foregroundStyle(DesignTokens.Colors.textSecondary)
                                     }
-                                    if let detail = ex.sets_detail, !detail.isEmpty {
+                                    if let detail = ex.displayDetail {
                                         Text(detail)
-                                            .font(DesignTokens.Typography.callout)
-                                            .foregroundStyle(DesignTokens.Colors.accent)
-                                    } else if let sets = ex.sets, let reps = ex.reps {
-                                        Text("\(sets) × \(reps)")
                                             .font(DesignTokens.Typography.callout)
                                             .foregroundStyle(DesignTokens.Colors.accent)
                                     }
@@ -66,7 +64,7 @@ struct WorkoutPlanDetailView: View {
             }
         }
         .obScreenBackground(showPetals: false)
-        .navigationTitle(plan?.name ?? "План")
+        .navigationTitle(plan?.name ?? planName)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
     }

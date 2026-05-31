@@ -10,10 +10,11 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@parse/node-apn": "^8.1.0",
     "bcrypt": "^5.1.1",
     "cookie-parser": "^1.4.7",
-    "dayjs": "^1.11.10",
     "cors": "^2.8.5",
+    "dayjs": "^1.11.10",
     "dotenv": "^16.4.5",
     "express": "^5.1.0",
     "https-proxy-agent": "^5.0.1",

@@ -1,12 +1,5 @@
 const dayjs = require('dayjs');
-const {
-  ensureSchema,
-  getPendingSessionsForDate,
-  setSessionStatus,
-  markNotified,
-  formatPlanTelegramMessage,
-  moscowTodayISO,
-} = require('../utils/workoutPlanService');
+const { ensureSchema, setSessionStatus } = require('../utils/workoutPlanService');
 
 function getUserId(db, chatId) {
   return new Promise((resolve) => {
@@ -55,40 +48,7 @@ function registerWorkoutPlanBot(bot, db) {
     }
   });
 
-  /** 08:00 МСК — план тренировки и кнопки */
-  const cron = require('node-cron');
-  cron.schedule('0 5 * * *', async () => {
-    const today = moscowTodayISO();
-    db.all('SELECT chat_id, user_id FROM telegram_users', async (err, users) => {
-      if (err || !users?.length) return;
-
-      for (const { chat_id, user_id } of users) {
-        try {
-          const sessions = await getPendingSessionsForDate(user_id, today);
-          if (!sessions.length) continue;
-
-          for (const session of sessions) {
-            const text = formatPlanTelegramMessage(session);
-            const keyboard = {
-              inline_keyboard: [
-                [
-                  { text: '✅ Пришёл на тренировку', callback_data: `wps:done:${session.session_id}` },
-                  { text: '⏭ Сегодня пропустил', callback_data: `wps:skip:${session.session_id}` },
-                ],
-              ],
-            };
-            await bot.sendMessage(chat_id, `Доброе утро! Сегодня тренировка:\n\n${text}`, {
-              parse_mode: 'HTML',
-              reply_markup: keyboard,
-            });
-            await markNotified(session.session_id);
-          }
-        } catch (e) {
-          console.error(`workout morning notify ${chat_id}:`, e);
-        }
-      }
-    });
-  });
+  // Утренние напоминания о тренировках — backend/reminders/workoutReminders.js (push + Telegram)
 }
 
 module.exports = { registerWorkoutPlanBot };

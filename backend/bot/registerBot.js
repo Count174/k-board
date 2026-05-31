@@ -2191,60 +2191,7 @@ cron.schedule('0 13 * * 1', () => {
   });
 }, { timezone: 'Europe/Moscow' });
 
-// Напоминания о лекарствах (каждую минуту)
-cron.schedule('* * * * *', () => {
-  const now = new Date();
-  const hhmm = now.toTimeString().slice(0, 5);
-  const today = now.toISOString().slice(0, 10);
-
-  db.all(
-    `SELECT m.*, tu.chat_id
-       FROM medications m
-       JOIN telegram_users tu ON tu.user_id = m.user_id
-      WHERE m.active = 1
-        AND m.start_date <= ?
-        AND (m.end_date IS NULL OR m.end_date >= ?)`,
-    [today, today],
-    (err, rows) => {
-      if (err || !rows?.length) return;
-
-      for (const m of rows) {
-        let times = [];
-        try { times = JSON.parse(m.times || '[]'); } catch { times = []; }
-        if (!shouldNotifyToday(m.frequency, now)) continue;
-
-        if (times.includes(hhmm)) {
-          db.get(
-            `SELECT 1 FROM medication_notifications
-              WHERE medication_id = ? AND notify_date = ? AND notify_time = ?`,
-            [m.id, today, hhmm],
-            (e, r) => {
-              if (e) return;
-              if (r) return;
-
-              const text = `💊 Напоминание: выпей *${m.name}*${m.dosage ? `, ${m.dosage}` : ''} (${hhmm})`;
-              bot.sendMessage(m.chat_id, text, {
-                parse_mode: 'Markdown',
-                reply_markup: {
-                  inline_keyboard: [[
-                    { text: '✅ Выпил', callback_data: `med:take:${m.id}:${today}:${hhmm}` },
-                    { text: '⏭ Пропустил', callback_data: `med:skip:${m.id}:${today}:${hhmm}` }
-                  ]]
-                }
-              });
-
-              db.run(
-                `INSERT OR IGNORE INTO medication_notifications (medication_id, notify_date, notify_time, sent)
-                 VALUES (?, ?, ?, 1)`,
-                [m.id, today, hhmm]
-              );
-            }
-          );
-        }
-      }
-    }
-  );
-}, { timezone: 'Europe/Moscow' });
+// Напоминания о лекарствах — backend/reminders/medicationReminders.js (push + Telegram)
 
 // Очистка старых отметок по лекарствам (вс 03:00 МСК)
 cron.schedule('0 3 * * 0', () => {
@@ -2563,23 +2510,7 @@ cron.schedule('30 21 * * *', () => {
   });
 }, { timezone: 'Europe/Moscow' });
 
-// Напоминание занести расходы, если за день не было ни одной транзакции (19:30 МСК)
-cron.schedule('30 19 * * *', () => {
-  const today = new Date().toISOString().slice(0, 10);
-  db.all('SELECT user_id, chat_id FROM telegram_users', [], (err, rows) => {
-    if (err) return;
-    rows.forEach((r) => {
-      db.get(
-        'SELECT 1 FROM finances WHERE user_id = ? AND date(date) = ? LIMIT 1',
-        [r.user_id, today],
-        (e, row) => {
-          if (e || row) return;
-          bot.sendMessage(r.chat_id, '💸 Сегодня ещё не было расходов. Занести траты? Напиши в чат, например: -500 кофе').catch(() => {});
-        }
-      );
-    });
-  });
-}, { timezone: 'Europe/Moscow' });
+// Напоминание о расходах — backend/reminders/expenseReminders.js (19:30 МСК, push + Telegram)
 
 // WHOOP: синхронизация сна/восстановления в БД (11:50 МСК)
 cron.schedule('50 11 * * *', () => {

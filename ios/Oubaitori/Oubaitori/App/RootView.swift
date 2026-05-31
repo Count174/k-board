@@ -27,6 +27,7 @@ struct RootView: View {
             OBTabBarAppearance.apply()
             if auth.isAuthenticated {
                 try? await auth.loadMe()
+                await PushNotificationService.shared.registerIfNeeded()
             }
             bootstrapped = true
         }

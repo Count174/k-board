@@ -52,6 +52,7 @@ final class AuthRepository: ObservableObject {
     }
 
     func logout() async {
+        await PushNotificationService.shared.unregisterFromServer()
         let refresh = KeychainStore.load(key: KeychainStore.Keys.refreshToken)
         _ = try? await APIClient.shared.requestVoid(
             "POST",
@@ -72,5 +73,6 @@ final class AuthRepository: ObservableObject {
         try KeychainStore.save(refresh, key: KeychainStore.Keys.refreshToken)
         currentUser = res.user
         isAuthenticated = true
+        Task { await PushNotificationService.shared.registerIfNeeded() }
     }
 }

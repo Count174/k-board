@@ -5,6 +5,7 @@ const authMiddleware = require('../middleware/authMiddleware');
 
 router.get('/', authMiddleware, controller.getAll);
 router.post('/', authMiddleware, controller.create);
+router.patch('/:id', authMiddleware, controller.update);
 router.delete('/:id', authMiddleware, controller.remove);
 
 router.get('/due-checkins', authMiddleware, controller.getDueCheckins);

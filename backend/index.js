@@ -42,6 +42,10 @@ const accountsRoutes = require('./routes/accounts');
 const movingRoutes = require('./routes/moving');
 const workoutsRoutes = require('./routes/workouts');
 const dailyChecksRoutes = require('./routes/dailyChecks');
+const devicesRoutes = require('./routes/devices');
+const { startReminderSchedules } = require('./reminders/schedule');
+const { ensurePushSchema } = require('./utils/pushDeviceStore');
+const { ensureGoalsSchema } = require('./db/migrate_goals');
 const { bootstrapDefaultAccountsForAllUsers } = require('./utils/accountsService');
 const { ensureRefreshTokensSchema } = require('./utils/authTokens');
 
@@ -151,6 +155,7 @@ app.use('/api/accounts', accountsRoutes);
 app.use('/api/moving', movingRoutes);
 app.use('/api/workouts', workoutsRoutes);
 app.use('/api/daily-checks', dailyChecksRoutes);
+app.use('/api/devices', devicesRoutes);
 
 // Статика: favicon, прочие картинки и пресеты целей (public/assets/goals/goal-01.jpg …)
 app.get('/favicon.png', (req, res) => res.sendFile(path.join(publicPath, 'favicon.png')));
@@ -163,12 +168,19 @@ app.use('/app/assets/goals', express.static(path.join(publicPath, 'assets/goals'
 Promise.all([
   bootstrapDefaultAccountsForAllUsers().catch((e) => console.error('accounts bootstrap failed:', e)),
   ensureRefreshTokensSchema().catch((e) => console.error('refresh_tokens schema failed:', e)),
+  ensurePushSchema().catch((e) => console.error('push_devices schema failed:', e)),
+  ensureGoalsSchema().catch((e) => console.error('goals schema failed:', e)),
 ]).finally(() => {
     app.listen(PORT, async () => {
       const envPath = path.join(__dirname, '.env');
       console.log(`✅ Server running on port ${PORT}`);
       console.log('[boot] process.cwd()=', process.cwd());
       console.log('[boot] .env=', envPath, 'exists=', fs.existsSync(envPath), 'BOT_TOKEN=', process.env.BOT_TOKEN ? 'yes' : 'NO');
+      try {
+        startReminderSchedules();
+      } catch (e) {
+        console.error('startReminderSchedules error:', e?.message || e);
+      }
       if (!telegramBotEnabled) {
         console.log('ℹ️ Telegram-бот отключён (TELEGRAM_BOT_ENABLED=0)');
         return;

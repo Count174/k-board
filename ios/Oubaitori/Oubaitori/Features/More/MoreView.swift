@@ -32,12 +32,19 @@ struct MoreView: View {
                     }
 
                     Section("Сад") {
-                        navLink("Тренировки", icon: "figure.strengthtraining.traditional") { WorkoutsView() }
+                        NavigationLink {
+                            WorkoutsView()
+                        } label: {
+                            Label("Тренировки", systemImage: "figure.strengthtraining.traditional")
+                                .foregroundStyle(DesignTokens.Colors.textPrimary)
+                        }
+                        .listRowBackground(DesignTokens.Colors.card)
                         navLink("Лекарства", icon: "pills.fill") { MedicationsView() }
                         navLink("История жизни", icon: "clock.arrow.circlepath") { HistoryView() }
                     }
 
                     Section("Аккаунт") {
+                        navLink("Уведомления", icon: "bell.badge") { NotificationSettingsView() }
                         navLink("Настройки", icon: "gearshape") { SettingsView() }
                         navLink("WHOOP", icon: "waveform.path.ecg") { WhoopPlaceholderView() }
                     }
