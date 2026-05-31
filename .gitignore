@@ -1,2 +1,24 @@
 backend/.env
 backend/data/moving-todos.json
+
+# Dependencies (не храним в git — ставятся через npm install)
+node_modules/
+**/node_modules/
+
+# Build / cache
+.vite/
+**/.vite/
+dist/
+frontend/dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+
+# iOS / Xcode
+ios/**/DerivedData/
+ios/**/*.xcuserstate
+ios/**/xcuserdata/
