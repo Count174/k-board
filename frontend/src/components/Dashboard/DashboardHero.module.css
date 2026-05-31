@@ -145,6 +145,46 @@
   margin-bottom: 8px;
 }
 
+.whoopRow {
+  margin-bottom: 10px;
+}
+
+.whoopPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  background: rgba(134, 239, 172, 0.1);
+  border: 1px solid rgba(134, 239, 172, 0.3);
+  color: #bbf7d0;
+}
+
+.whoopDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.6);
+}
+
+.whoopBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  background: rgba(153, 246, 228, 0.1);
+  border: 1px solid rgba(153, 246, 228, 0.3);
+  color: #99f6e4;
+}
+.whoopBtn:hover { background: rgba(153, 246, 228, 0.16); }
+
 .healthList {
   display: flex;
   flex-direction: column;

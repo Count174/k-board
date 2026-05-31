@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react';
 import dayjs from 'dayjs';
 import { Settings2 } from 'lucide-react';
-import { get } from '../../api/api';
+import { get, post } from '../../api/api';
 import Modal from '../Modal';
 import MedicationsWidget from '../MedicationsWidget/MedicationsWidget';
 import styles from './DashboardHero.module.css';
@@ -64,10 +64,18 @@ export default function DashboardHero() {
   const [medsModalOpen, setMedsModalOpen] = useState(false);
   const [workoutWeek, setWorkoutWeek] = useState(null);
   const [score, setScore] = useState(null);
+  const [whoop, setWhoop] = useState(null);
 
   const loadMeds = useCallback(async () => {
     const medsRaw = await get('medications').catch(() => []);
     setMeds((Array.isArray(medsRaw) ? medsRaw : []).filter((m) => Number(m.active) === 1));
+  }, []);
+
+  const connectWhoop = useCallback(async () => {
+    try {
+      const res = await post('whoop/connect');
+      if (res?.url) window.location.href = res.url;
+    } catch { /* ignore */ }
   }, []);
 
   useEffect(() => {
@@ -88,6 +96,7 @@ export default function DashboardHero() {
       });
       setWorkoutWeek(scoreRaw?.breakdown?.health?.workouts || null);
       setScore(scoreRaw || null);
+      get('whoop/status').then((s) => setWhoop(s || null)).catch(() => setWhoop(null));
       await loadMeds();
     };
     load().catch(() => {});
@@ -175,6 +184,21 @@ export default function DashboardHero() {
               <Settings2 size={22} strokeWidth={2} />
             </button>
           </div>
+
+          {whoop?.configured ? (
+            <div className={styles.whoopRow}>
+              {whoop.connected ? (
+                <span className={styles.whoopPill}>
+                  <span className={styles.whoopDot} />
+                  WHOOP{whoop.recovery?.recoveryScore != null ? ` · восстановление ${Math.round(whoop.recovery.recoveryScore)}%` : ' подключён'}
+                </span>
+              ) : (
+                <button type="button" className={styles.whoopBtn} onClick={connectWhoop}>
+                  Подключить WHOOP
+                </button>
+              )}
+            </div>
+          ) : null}
           <div className={styles.healthList}>
             {meds.length ? (
               meds.map((m) => (

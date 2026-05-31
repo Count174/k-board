@@ -195,10 +195,17 @@ async function refreshIfNeeded(connection) {
     throw err;
   }
 
+  // WHOOP ротирует refresh-токены: чтобы получить новый refresh_token
+  // с продлённым сроком жизни, в запросе обновления обязателен scope=offline.
+  // Без него refresh_token не продлевается и интеграция отваливается через ~2 недели.
   const tokenData = await fetchWhoopToken({
     grant_type: 'refresh_token',
     refresh_token: connection.refresh_token,
+    scope: 'offline',
   });
+  if (!tokenData?.refresh_token) {
+    console.warn('whoop refresh returned no new refresh_token', { user_id: connection.user_id });
+  }
   await saveConnection(connection.user_id, tokenData);
   return getConnection(connection.user_id);
 }
