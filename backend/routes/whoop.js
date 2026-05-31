@@ -73,8 +73,9 @@ router.post('/connect', authMiddleware, async (req, res) => {
 
 router.get('/callback', async (req, res) => {
   const { code, state, error } = req.query || {};
-  const successRedirect = process.env.WHOOP_SUCCESS_REDIRECT || '/dashboard?whoop=connected';
-  const failRedirect = process.env.WHOOP_FAIL_REDIRECT || '/dashboard?whoop=failed';
+  // SPA смонтировано под /app, поэтому редирект ведёт на /app/dashboard (иначе 404)
+  const successRedirect = process.env.WHOOP_SUCCESS_REDIRECT || '/app/dashboard?whoop=connected';
+  const failRedirect = process.env.WHOOP_FAIL_REDIRECT || '/app/dashboard?whoop=failed';
 
   try {
     if (error) {
