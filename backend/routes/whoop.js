@@ -26,15 +26,29 @@ router.get('/status', authMiddleware, async (req, res) => {
     }
 
     let recovery = null;
+    let needsReauth = false;
     try {
       recovery = await getLatestRecovery(req.userId);
     } catch (e) {
+      const msg = String(e?.message || '').toLowerCase();
+      // Признаки протухшей сессии: нет/невалиден refresh_token, 401, malformed-запрос обмена токена
+      if (
+        e?.status === 401 ||
+        msg.includes('refresh_token') ||
+        msg.includes('invalid') ||
+        msg.includes('malformed') ||
+        msg.includes('missing') ||
+        msg.includes('expired')
+      ) {
+        needsReauth = true;
+      }
       console.error('whoop.status recovery error:', e.message || e);
     }
 
     return res.json({
       configured: true,
       connected: true,
+      needs_reauth: needsReauth,
       recovery,
     });
   } catch (e) {

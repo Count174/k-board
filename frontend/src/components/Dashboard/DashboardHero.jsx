@@ -187,15 +187,24 @@ export default function DashboardHero() {
 
           {whoop?.configured ? (
             <div className={styles.whoopRow}>
-              {whoop.connected ? (
-                <span className={styles.whoopPill}>
-                  <span className={styles.whoopDot} />
-                  WHOOP{whoop.recovery?.recoveryScore != null ? ` · восстановление ${Math.round(whoop.recovery.recoveryScore)}%` : ' подключён'}
-                </span>
-              ) : (
+              {!whoop.connected ? (
                 <button type="button" className={styles.whoopBtn} onClick={connectWhoop}>
                   Подключить WHOOP
                 </button>
+              ) : whoop.needs_reauth ? (
+                <button type="button" className={`${styles.whoopBtn} ${styles.whoopBtnWarn}`} onClick={connectWhoop}>
+                  ⚠️ Сессия WHOOP истекла — переподключить
+                </button>
+              ) : (
+                <span className={styles.whoopConnected}>
+                  <span className={styles.whoopPill}>
+                    <span className={styles.whoopDot} />
+                    WHOOP{whoop.recovery?.recoveryScore != null ? ` · восстановление ${Math.round(whoop.recovery.recoveryScore)}%` : ' подключён'}
+                  </span>
+                  <button type="button" className={styles.whoopReconnect} onClick={connectWhoop}>
+                    Переподключить
+                  </button>
+                </span>
               )}
             </div>
           ) : null}
