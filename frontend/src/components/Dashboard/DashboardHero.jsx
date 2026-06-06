@@ -235,7 +235,8 @@ export default function DashboardHero() {
 
   const dayTodos = useMemo(() => todos.filter((t) => !t.completed), [todos]);
 
-  const currentMonth = dayjs().format('MMMM');
+  const MONTHS_RU = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+  const currentMonth = MONTHS_RU[dayjs().month()];
 
   const submitCheckin = async () => {
     if (!checkinGoal || !checkinValue || checkinBusy) return;
@@ -455,13 +456,19 @@ export default function DashboardHero() {
           </div>
 
           {medsSummary.total > 0 && (
-            <div className={styles.summaryRow}>
-              <span className={styles.summaryLabel}>💊 Приёмы сегодня</span>
-              <span className={`${styles.summaryValue} ${medsSummary.taken >= medsSummary.total ? styles.summaryPos : ''}`}>
-                {medsSummary.taken} из {medsSummary.total}
-                {medsSummary.nextMedName ? ` · ${medsSummary.nextMedName}${medsSummary.nextMedTime ? ` ${medsSummary.nextMedTime}` : ''}` : ''}
-              </span>
-            </div>
+            <>
+              <div className={styles.summaryRow}>
+                <span className={styles.summaryLabel}>💊 Приёмы сегодня</span>
+                <span className={`${styles.summaryValue} ${medsSummary.taken >= medsSummary.total ? styles.summaryPos : ''}`}>
+                  {medsSummary.taken} из {medsSummary.total}
+                </span>
+              </div>
+              {medsSummary.nextMedName && (
+                <div className={styles.summaryHint}>
+                  ближайший: {medsSummary.nextMedName}{medsSummary.nextMedTime ? ` · ${medsSummary.nextMedTime}` : ''}
+                </div>
+              )}
+            </>
           )}
 
           {workoutWeek?.source === 'workout_plans' && workoutWeek.planned > 0 && (
