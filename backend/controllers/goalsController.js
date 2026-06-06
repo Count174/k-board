@@ -1,5 +1,6 @@
 const db = require('../db/db');
 const { deriveIcon, DEFAULT_ICON } = require('../utils/goalIcon');
+const { syncGoal } = require('../utils/goalSyncService');
 
 const all = (sql, p = []) => new Promise((res, rej) =>
   db.all(sql, p, (e, r) => e ? rej(e) : res(r || []))
@@ -98,6 +99,7 @@ async function computeAverageStatus(goalId, userId, row) {
   const tgt = Number(row.target || 0);
   const dir = row.direction || 'increase';
   const window = Math.max(1, Number(row.avg_window || 7));
+  const aggregation = row.source_aggregation || 'mean';
 
   const borderDate = new Date();
   borderDate.setDate(borderDate.getDate() - window + 1);
@@ -110,30 +112,31 @@ async function computeAverageStatus(goalId, userId, row) {
     [userId, goalId, border]
   );
 
-  if (!rows.length) return { progress_percent: 0, status: null, current_average: null };
+  if (!rows.length) return { progress_percent: 0, status: null, current_value: null };
 
-  const avg = rows.reduce((s, r) => s + Number(r.value || 0), 0) / rows.length;
-  const roundedAvg = parseFloat(avg.toFixed(2));
+  const sum = rows.reduce((s, r) => s + Number(r.value || 0), 0);
+  const metric = aggregation === 'sum' ? sum : sum / rows.length;
+  const roundedMetric = parseFloat(metric.toFixed(2));
 
   let progressPct = 0;
   if (tgt > 0) {
     progressPct = dir === 'decrease'
-      ? Math.round(Math.max(0, Math.min(1, avg <= tgt ? 1 : tgt / avg)) * 100)
-      : Math.round(Math.max(0, Math.min(1, avg / tgt)) * 100);
+      ? Math.round(Math.max(0, Math.min(1, metric <= tgt ? 1 : tgt / metric)) * 100)
+      : Math.round(Math.max(0, Math.min(1, metric / tgt)) * 100);
   }
 
   let status;
   if (dir === 'decrease') {
-    if (avg <= tgt) status = 'on_track';
-    else if (avg <= tgt * 1.1) status = 'at_risk';
+    if (metric <= tgt) status = 'on_track';
+    else if (metric <= tgt * 1.1) status = 'at_risk';
     else status = 'off_track';
   } else {
-    if (avg >= tgt) status = 'on_track';
-    else if (avg >= tgt * 0.9) status = 'at_risk';
+    if (metric >= tgt) status = 'on_track';
+    else if (metric >= tgt * 0.9) status = 'at_risk';
     else status = 'off_track';
   }
 
-  return { progress_percent: progressPct, status, current_average: roundedAvg };
+  return { progress_percent: progressPct, status, current_value: roundedMetric };
 }
 
 async function computeMilestoneStatus(goalId, userId, row) {
@@ -189,6 +192,7 @@ async function computeMilestoneStatus(goalId, userId, row) {
 
 function toBaseDto(r) {
   const goalType = normalizeType(r.goal_type);
+  const sourceParams = (() => { try { return JSON.parse(r.source_params || 'null'); } catch { return null; } })();
   return {
     id: r.id,
     title: r.title,
@@ -202,13 +206,17 @@ function toBaseDto(r) {
     start_date: r.start_date || null,
     target_date: r.target_date || null,
     avg_window: Number(r.avg_window || 7),
+    source_type: r.source_type || null,
+    source_params: sourceParams,
+    source_aggregation: r.source_aggregation || 'mean',
+    last_synced_at: r.last_synced_at || null,
     is_completed: Number(r.is_completed || 0) === 1,
     last_value: r.last_value == null ? null : Number(r.last_value),
     last_date: r.last_date || null,
     progress_percent: 0,
     status: null,
     required_pace: null,
-    current_average: null,
+    current_value: null,
     milestones: [],
   };
 }
@@ -233,7 +241,7 @@ async function enrichDto(dto, userId, rawRow) {
     const computed = await computeAverageStatus(id, userId, rawRow);
     dto.progress_percent = computed.progress_percent;
     dto.status = computed.status;
-    dto.current_average = computed.current_average;
+    dto.current_value = computed.current_value;
   }
 
   if (goal_type === 'milestone') {
@@ -312,6 +320,9 @@ exports.create = async (req, res) => {
       target_date = null,
       direction = 'increase',
       avg_window = 7,
+      source_type = null,
+      source_params = null,
+      source_aggregation = 'mean',
       initial_value,
       initial_date,
     } = req.body;
@@ -334,14 +345,19 @@ exports.create = async (req, res) => {
     const tgtDate = target_date ? String(target_date).slice(0, 10) : null;
     const startDate = start_date ? String(start_date).slice(0, 10) : null;
     const window = Math.max(1, Math.min(90, Number(avg_window || 7)));
+    const srcType = source_type || null;
+    const srcParams = source_params ? JSON.stringify(source_params) : null;
+    const srcAgg = source_aggregation === 'sum' ? 'sum' : 'mean';
 
     const ins = await run(
       `INSERT INTO goals
         (user_id, title, target, unit, image, direction, checkin_freq, is_completed,
-         goal_type, icon, start_value, start_date, target_date, avg_window, current)
-       VALUES (?, ?, ?, ?, '', ?, 'weekly', 0, ?, ?, ?, ?, ?, ?, 0)`,
+         goal_type, icon, start_value, start_date, target_date, avg_window,
+         source_type, source_params, source_aggregation, current)
+       VALUES (?, ?, ?, ?, '', ?, 'weekly', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
       [req.userId, t, tgt, String(unit || '').trim(), dir,
-       goalType, resolvedIcon, startVal, startDate, tgtDate, window]
+       goalType, resolvedIcon, startVal, startDate, tgtDate, window,
+       srcType, srcParams, srcAgg]
     );
     const goalId = ins.lastID;
 
@@ -355,6 +371,11 @@ exports.create = async (req, res) => {
          VALUES (?, ?, ?, ?, 0)`,
         [req.userId, goalId, d, seedValue]
       );
+    }
+
+    // Немедленный синк если источник задан
+    if (srcType) {
+      syncGoal(goalId, req.userId).catch(() => {});
     }
 
     const dto = await fetchGoalDto(req.userId, goalId);
@@ -410,6 +431,17 @@ exports.update = async (req, res) => {
     }
     if (b.is_completed !== undefined) { sets.push('is_completed = ?'); params.push(b.is_completed ? 1 : 0); }
     if (b.icon !== undefined && String(b.icon).trim()) { sets.push('icon = ?'); params.push(String(b.icon).trim()); }
+    if (b.source_type !== undefined) {
+      sets.push('source_type = ?'); params.push(b.source_type || null);
+    }
+    if (b.source_params !== undefined) {
+      sets.push('source_params = ?');
+      params.push(b.source_params ? JSON.stringify(b.source_params) : null);
+    }
+    if (b.source_aggregation !== undefined) {
+      sets.push('source_aggregation = ?');
+      params.push(b.source_aggregation === 'sum' ? 'sum' : 'mean');
+    }
 
     if (!sets.length) {
       const dto = await fetchGoalDto(req.userId, id);
@@ -591,6 +623,22 @@ exports.updateMilestone = async (req, res) => {
   } catch (e) {
     console.error('goals.updateMilestone error:', e);
     res.status(500).json({ error: 'milestone_update_failed' });
+  }
+};
+
+/**
+ * POST /api/goals/:id/sync — ручной триггер синка из источника
+ */
+exports.syncNow = async (req, res) => {
+  try {
+    const { id } = req.params;
+    await syncGoal(Number(id), req.userId);
+    const dto = await fetchGoalDto(req.userId, id);
+    if (!dto) return res.status(404).json({ error: 'goal_not_found' });
+    res.json(dto);
+  } catch (e) {
+    console.error('goals.syncNow error:', e);
+    res.status(500).json({ error: 'sync_failed' });
   }
 };
 

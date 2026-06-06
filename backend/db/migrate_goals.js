@@ -68,6 +68,10 @@ async function ensureGoalsSchema() {
   await addColumnIfMissing(cols, 'goals', 'is_completed', 'is_completed INTEGER DEFAULT 0');
   await addColumnIfMissing(cols, 'goals', 'archived_at', 'archived_at TEXT');
   await addColumnIfMissing(cols, 'goals', 'avg_window', 'avg_window INTEGER DEFAULT 7');
+  await addColumnIfMissing(cols, 'goals', 'source_type', 'source_type TEXT');
+  await addColumnIfMissing(cols, 'goals', 'source_params', 'source_params TEXT');
+  await addColumnIfMissing(cols, 'goals', 'source_aggregation', "source_aggregation TEXT DEFAULT 'mean'");
+  await addColumnIfMissing(cols, 'goals', 'last_synced_at', 'last_synced_at TEXT');
 
   await run(`
     CREATE TABLE IF NOT EXISTS goal_checkins (
@@ -105,6 +109,10 @@ async function ensureGoalsSchema() {
   await run(
     `CREATE INDEX IF NOT EXISTS idx_goal_milestones_goal ON goal_milestones(goal_id, sort_order)`
   );
+
+  // auto_synced=1 помечает чек-ины, созданные автоматически из источника данных
+  const ciCols = await getColumns('goal_checkins');
+  await addColumnIfMissing(ciCols, 'goal_checkins', 'auto_synced', 'auto_synced INTEGER DEFAULT 0');
 
   await backfill();
 }

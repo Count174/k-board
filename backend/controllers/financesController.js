@@ -1,5 +1,6 @@
 const db = require('../db/db');
 const { normalizeCurrency, normalizeDate, getRateToRubForDate } = require('../utils/fxService');
+const { syncGoalsForUser } = require('../utils/goalSyncService');
 const {
   getAccountById,
   ensureDefaultAccountForUser,
@@ -319,6 +320,7 @@ exports.create = async (req, res) => {
   try {
     const created = await insertFinanceRecord(req.userId, req.body);
     res.status(201).json(created);
+    if (created.type === 'expense') syncGoalsForUser(req.userId, 'finance_category').catch(() => {});
   } catch (e) {
     console.error('finances.create error:', e);
     const { status, body } = mapInsertErrorToHttp(e);
@@ -362,6 +364,7 @@ exports.createBulk = async (req, res) => {
     }
     await run('COMMIT');
     res.status(201).json({ created, count: created.length });
+    if (created.some(r => r.type === 'expense')) syncGoalsForUser(req.userId, 'finance_category').catch(() => {});
   } catch (e) {
     await run('ROLLBACK').catch(() => {});
     console.error('finances.createBulk error:', e);
@@ -465,6 +468,7 @@ exports.importXlsx = async (req, res) => {
       skipped_count: allSkipped.length,
       skipped_breakdown,
     });
+    if (created.some(r => r.type === 'expense')) syncGoalsForUser(req.userId, 'finance_category').catch(() => {});
   } catch (e) {
     await run('ROLLBACK').catch(() => {});
     console.error('finances.importXlsx error:', e);

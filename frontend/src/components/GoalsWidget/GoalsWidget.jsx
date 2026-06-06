@@ -5,6 +5,7 @@ import styles from './GoalsWidget.module.css';
 import Toast from '../Toast';
 import dayjs from 'dayjs';
 import { deriveIcon, GOAL_TYPES, UNIT_CHIPS } from '../../utils/goalIcon';
+import { detectSource, SOURCE_LABELS } from '../../utils/goalSourceDetect';
 
 function formatMoney(v) {
   return new Intl.NumberFormat('ru-RU').format(Math.round(v || 0));
@@ -36,6 +37,9 @@ const EMPTY_FORM = {
   target_date: '',
   direction: 'increase',
   avg_window: 7,
+  source_type: '',
+  source_params: {},
+  source_aggregation: 'mean',
 };
 
 function TypePicker({ value, onChange }) {
@@ -74,6 +78,11 @@ export default function GoalsWidget() {
   // inline step add state: goalId → text
   const [stepInputs, setStepInputs] = useState({});
 
+  // source suggestion state
+  const [sourceDismissedFor, setSourceDismissedFor] = useState('');
+  const [suggestionCategory, setSuggestionCategory] = useState('');
+  const [suggestionCatOpen, setSuggestionCatOpen] = useState(false);
+
   async function reload() {
     const data = await get('goals?include_completed=1');
     setGoals(Array.isArray(data) ? data : []);
@@ -82,6 +91,14 @@ export default function GoalsWidget() {
   useEffect(() => { reload().catch(console.error); }, []);
 
   const previewIcon = useMemo(() => deriveIcon(form.title), [form.title]);
+
+  const activeSuggestion = useMemo(() => {
+    if (isEditing || form.source_type) return null;
+    if (!form.title || form.title.trim().length < 3) return null;
+    if (form.title === sourceDismissedFor) return null;
+    return detectSource(form.title);
+  }, [form.title, form.source_type, sourceDismissedFor, isEditing]);
+
   const activeGoals = useMemo(() => goals.filter((g) => !g.is_completed), [goals]);
   const completedGoals = useMemo(() => goals.filter((g) => g.is_completed), [goals]);
 
@@ -94,7 +111,13 @@ export default function GoalsWidget() {
 
   const goalTypeMeta = (key) => GOAL_TYPES.find((t) => t.key === key) || GOAL_TYPES[0];
 
-  const openCreate = () => { setForm(EMPTY_FORM); setOpenForm(true); };
+  const resetSuggestion = () => {
+    setSourceDismissedFor('');
+    setSuggestionCategory('');
+    setSuggestionCatOpen(false);
+  };
+
+  const openCreate = () => { setForm(EMPTY_FORM); resetSuggestion(); setOpenForm(true); };
   const openEdit = (goal) => {
     setForm({
       id: goal.id,
@@ -107,8 +130,41 @@ export default function GoalsWidget() {
       target_date: goal.target_date || '',
       direction: goal.direction || 'increase',
       avg_window: goal.avg_window || 7,
+      source_type: goal.source_type || '',
+      source_params: goal.source_params || {},
+      source_aggregation: goal.source_aggregation || 'mean',
     });
+    resetSuggestion();
     setOpenForm(true);
+  };
+
+  const applySource = (suggestion, category) => {
+    setForm((f) => ({
+      ...f,
+      source_type: suggestion.source_type,
+      source_aggregation: suggestion.source_aggregation,
+      source_params: category ? { category } : {},
+      unit: f.unit || suggestion.unit_hint || f.unit,
+    }));
+    setSuggestionCatOpen(false);
+  };
+
+  const acceptSuggestion = () => {
+    if (!activeSuggestion) return;
+    if (activeSuggestion.source_type === 'finance_category' && !activeSuggestion.suggested_category) {
+      setSuggestionCatOpen(true);
+    } else {
+      applySource(activeSuggestion, activeSuggestion.suggested_category || null);
+    }
+  };
+
+  const dismissSuggestion = () => {
+    setSourceDismissedFor(form.title);
+    setSuggestionCatOpen(false);
+  };
+
+  const clearSource = () => {
+    setForm((f) => ({ ...f, source_type: '', source_params: {}, source_aggregation: 'mean' }));
   };
 
   const saveGoal = async (e) => {
@@ -124,6 +180,9 @@ export default function GoalsWidget() {
       unit: (form.unit || '').trim(),
       target_date: form.target_date || null,
       direction: form.direction,
+      source_type: form.source_type || null,
+      source_params: form.source_type ? JSON.stringify(form.source_params || {}) : null,
+      source_aggregation: form.source_type ? (form.source_aggregation || 'mean') : null,
     };
 
     if (form.goal_type === 'target') {
@@ -218,6 +277,12 @@ export default function GoalsWidget() {
             <div className={styles.typeTagRow}>
               <span className={styles.typeTag}>{meta.emoji} {meta.label}</span>
               <StatusBadge status={goal.status} />
+              {goal.source_type && (
+                <span className={styles.sourceBadge}>
+                  🔄 {SOURCE_LABELS[goal.source_type] || goal.source_type}
+                  {goal.source_params?.category ? `: ${goal.source_params.category}` : ''}
+                </span>
+              )}
             </div>
 
             {/* ── TARGET ── */}
@@ -264,7 +329,7 @@ export default function GoalsWidget() {
                   <div className={styles.meta}>
                     <div className={styles.metaLabel}>Среднее ({goal.avg_window || 7} дн.)</div>
                     <div className={styles.metaVal}>
-                      {goal.current_average != null ? fmtValue(goal.current_average, goal.unit) : '—'}
+                      {goal.current_value != null ? fmtValue(goal.current_value, goal.unit) : '—'}
                     </div>
                   </div>
                   <div className={styles.meta}>
@@ -396,6 +461,40 @@ export default function GoalsWidget() {
               required
             />
           </div>
+
+          {/* Source suggestion banner */}
+          {activeSuggestion && !suggestionCatOpen && (
+            <div className={styles.sourceBanner}>
+              <span className={styles.sourceBannerText}>🔄 Связать с {activeSuggestion.label}?</span>
+              <button type="button" className={styles.sourceYesBtn} onClick={acceptSuggestion}>Да</button>
+              <button type="button" className={styles.sourceNoBtn} onClick={dismissSuggestion}>Нет</button>
+            </div>
+          )}
+          {activeSuggestion && suggestionCatOpen && (
+            <div className={styles.sourceBanner}>
+              <span className={styles.sourceBannerText}>Категория расходов:</span>
+              <input
+                className={styles.stepInput}
+                placeholder="напр. кофе"
+                value={suggestionCategory}
+                onChange={(e) => setSuggestionCategory(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && applySource(activeSuggestion, suggestionCategory)}
+                autoFocus
+              />
+              <button type="button" className={styles.sourceYesBtn}
+                onClick={() => applySource(activeSuggestion, suggestionCategory)}>
+                Привязать
+              </button>
+              <button type="button" className={styles.sourceNoBtn} onClick={dismissSuggestion}>Нет</button>
+            </div>
+          )}
+          {form.source_type && (
+            <div className={styles.sourceConnected}>
+              🔄 {SOURCE_LABELS[form.source_type] || form.source_type}
+              {form.source_params?.category ? `: ${form.source_params.category}` : ''}
+              <button type="button" className={styles.sourceClearBtn} onClick={clearSource}>×</button>
+            </div>
+          )}
 
           {/* TARGET fields */}
           {form.goal_type === 'target' && (

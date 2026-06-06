@@ -1014,6 +1014,8 @@ function upsertWhoopDailyMetric(userId, patch) {
   });
 }
 
+const { syncGoalsForUser } = require('../utils/goalSyncService');
+
 async function syncWhoopDailyForUser(userId) {
   let sleepErr = null;
   let recoveryErr = null;
@@ -1062,6 +1064,10 @@ async function syncWhoopDailyForUser(userId) {
   if (sleep?.sleepHours != null) {
     await upsertDailyCheck(userId, { date: metricDate, sleep_hours: sleep.sleepHours });
   }
+
+  // Синкаем цели, привязанные к WHOOP
+  syncGoalsForUser(userId, 'whoop_sleep').catch(() => {});
+  syncGoalsForUser(userId, 'whoop_recovery').catch(() => {});
 
   return { sleep, recovery, metricDate, sleepErr, recoveryErr };
 }

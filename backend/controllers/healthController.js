@@ -1,4 +1,5 @@
 const db = require('../db/db');
+const { syncGoalsForUser } = require('../utils/goalSyncService');
 
 exports.getHealthData = (req, res) => {
   db.all('SELECT * FROM health WHERE user_id = ? ORDER BY date DESC, time DESC', [req.userId], (err, rows) => {
@@ -20,6 +21,7 @@ exports.addHealthEntry = (req, res) => {
     function (err) {
       if (err) return res.status(500).json({ error: err.message });
       res.json({ success: true, id: this.lastID });
+      if (type === 'training') syncGoalsForUser(req.userId, 'workouts').catch(() => {});
     }
   );
 };
