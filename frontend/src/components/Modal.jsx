@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import ReactDOM from "react-dom";
 import styles from "./Modal.module.css";
 
 export default function Modal({ open, onClose, children, title, wide }) {
@@ -9,7 +10,7 @@ export default function Modal({ open, onClose, children, title, wide }) {
   }, [open, onClose]);
 
   if (!open) return null;
-  return (
+  return ReactDOM.createPortal(
     <div className={styles.backdrop} onClick={onClose}>
       <div
         className={`${styles.window} ${wide ? styles.windowWide : ""}`}
@@ -21,6 +22,7 @@ export default function Modal({ open, onClose, children, title, wide }) {
         </div>
         <div className={`${styles.body} ${wide ? styles.bodyWide : ""}`}>{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
