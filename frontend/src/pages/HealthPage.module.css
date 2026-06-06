@@ -1,0 +1,77 @@
+.whoopCard {
+  border: 1px solid rgba(134, 239, 172, 0.18);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+
+.whoopCardTitle {
+  font-size: 18px;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin-bottom: 12px;
+}
+
+.whoopRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.whoopPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  background: rgba(134, 239, 172, 0.1);
+  border: 1px solid rgba(134, 239, 172, 0.3);
+  color: #bbf7d0;
+}
+
+.whoopDot {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.6);
+}
+
+.whoopBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: rgba(153, 246, 228, 0.1);
+  border: 1px solid rgba(153, 246, 228, 0.3);
+  color: #99f6e4;
+}
+.whoopBtn:hover { background: rgba(153, 246, 228, 0.18); }
+
+.whoopBtnWarn {
+  background: rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.4);
+  color: #fcd34d;
+}
+.whoopBtnWarn:hover { background: rgba(251, 191, 36, 0.22); }
+
+.whoopReconnect {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 13px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  padding: 0;
+}
+.whoopReconnect:hover { color: #cbd5e1; }

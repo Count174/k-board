@@ -14,6 +14,7 @@ import GoalsPage from './GoalsPage';
 import BudgetPage from './BudgetPage';
 import LoansPage from './LoansPage';
 import WorkoutsPage from './WorkoutsPage';
+import HealthPage from './HealthPage';
 import AppShell from '../components/layout/AppShell';
 import '../styles/index.css';
 
@@ -90,6 +91,7 @@ export default function App() {
           <Route path="budget" element={<BudgetPage />} />
           <Route path="loans" element={<LoansPage />} />
           <Route path="workouts" element={<WorkoutsPage />} />
+          <Route path="health" element={<HealthPage />} />
           <Route path="history" element={<UserHistoryPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
