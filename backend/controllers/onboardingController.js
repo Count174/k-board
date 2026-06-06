@@ -157,15 +157,17 @@ exports.complete = async (req, res) => {
       }
     }
 
-    // 3) ЦЕЛИ: payload.goals — массив {title, goal_type, target, unit}
-    //    goal_type: task | build_up | reduce | habit (старый is_binary тоже поддержан)
+    // 3) ЦЕЛИ: payload.goals — массив {title, goal_type, target, unit, direction}
+    //    goal_type: target | average | milestone
     if (Array.isArray(payload.goals) && payload.goals.length) {
-      const ALLOWED_TYPES = ['task', 'build_up', 'reduce', 'habit'];
+      const ALLOWED_TYPES = ['target', 'average', 'milestone'];
+      // Маппинг легаси типов из старого онбординга
+      const LEGACY_MAP = { build_up: 'target', reduce: 'target', task: 'milestone', habit: 'average' };
+
       for (const g of payload.goals) {
         const title = String(g?.title || '').trim();
-        if (!title) continue; // без названия не добавляем
+        if (!title) continue;
 
-        // не плодим дубликаты по названию цели
         const exists = await get(
           `SELECT id FROM goals WHERE user_id = ? AND LOWER(TRIM(title)) = LOWER(TRIM(?))`,
           [userId, title]
@@ -174,22 +176,19 @@ exports.complete = async (req, res) => {
 
         let goalType = String(g?.goal_type || '').trim();
         if (!ALLOWED_TYPES.includes(goalType)) {
-          // обратная совместимость со старым форматом
-          goalType = g?.is_binary ? 'task' : 'build_up';
+          goalType = LEGACY_MAP[goalType] || (g?.is_binary ? 'milestone' : 'target');
         }
 
-        const isBinary = goalType === 'task' ? 1 : 0;
-        const target = goalType === 'task' ? 1 : Math.max(0, Number(g?.target || 0));
-        const unit = goalType === 'habit'
-          ? String(g?.unit || 'раз').trim()
-          : String(g?.unit || '').trim();
-        const direction = goalType === 'reduce' ? 'decrease' : 'increase';
+        const target = goalType === 'milestone' ? 0 : Math.max(0, Number(g?.target || 0));
+        const unit = String(g?.unit || '').trim();
+        const direction = g?.direction === 'decrease' ? 'decrease' : 'increase';
         const icon = deriveIcon(title);
+        const avgWindow = goalType === 'average' ? Math.max(1, Number(g?.avg_window || 7)) : 7;
 
         await run(
-          `INSERT INTO goals (user_id, title, current, target, unit, is_binary, image, goal_type, icon, direction, checkin_freq)
-           VALUES (?, ?, ?, ?, ?, ?, '', ?, ?, ?, 'weekly')`,
-          [userId, title, 0, target, unit, isBinary, goalType, icon, direction]
+          `INSERT INTO goals (user_id, title, current, target, unit, image, goal_type, icon, direction, checkin_freq, avg_window)
+           VALUES (?, ?, 0, ?, ?, '', ?, ?, ?, 'weekly', ?)`,
+          [userId, title, target, unit, goalType, icon, direction, avgWindow]
         );
       }
     }

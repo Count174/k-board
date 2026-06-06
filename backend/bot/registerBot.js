@@ -490,7 +490,7 @@ async function getDueGoals(userId) {
   const rows = await dbAll(
     `
     SELECT
-      g.id, g.title, g.target, g.unit, g.direction, g.image,
+      g.id, g.title, g.target, g.unit, g.direction, g.goal_type,
       (SELECT gc.value
          FROM goal_checkins gc
         WHERE gc.user_id=g.user_id AND gc.goal_id=g.id
@@ -505,6 +505,7 @@ async function getDueGoals(userId) {
     WHERE g.user_id=?
       AND (g.archived_at IS NULL OR g.archived_at = '')
       AND IFNULL(g.is_completed,0)=0
+      AND g.goal_type != 'milestone'
     ORDER BY g.created_at DESC
     `,
     [userId]
@@ -1408,18 +1409,35 @@ bot.on('message', async (msg) => {
     });
   }
 
-  // 5) /goals (оставил как было; можно обновить на goal_checkins отдельным шагом)
+  // 5) /goals
   if (text === '/goals') {
     return getUserId(chatId, (userId) => {
       if (!userId) return bot.sendMessage(chatId, '❌ Вы не привязаны к пользователю в системе.');
-      db.all('SELECT title, current, target, is_binary FROM goals WHERE user_id = ?', [userId], (err, rows) => {
-        if (err || !rows.length) return bot.sendMessage(chatId, 'Нет целей.');
-        const list = rows.map(g => {
-          const progress = g.is_binary ? (g.current ? 100 : 0) : Math.round((g.current / g.target) * 100);
-          return `🎯 ${g.title} — ${progress}%`;
-        }).join('\n');
-        bot.sendMessage(chatId, `🎯 Цели:\n${list}`);
-      });
+      db.all(
+        `SELECT g.title, g.goal_type, g.target, g.unit, g.direction, g.is_completed,
+           (SELECT gc.value FROM goal_checkins gc WHERE gc.user_id=g.user_id AND gc.goal_id=g.id
+            ORDER BY date(gc.date) DESC, gc.id DESC LIMIT 1) AS last_value
+         FROM goals g
+         WHERE g.user_id=?
+           AND IFNULL(g.is_completed,0)=0
+           AND (g.archived_at IS NULL OR g.archived_at='')
+         ORDER BY g.created_at DESC`,
+        [userId],
+        (err, rows) => {
+          if (err || !rows.length) return bot.sendMessage(chatId, 'Нет активных целей.');
+          const list = rows.map(g => {
+            const type = g.goal_type || 'target';
+            if (type === 'milestone') return `🏁 ${g.title}`;
+            const cur = g.last_value != null ? Number(g.last_value) : 0;
+            const tgt = Number(g.target || 0);
+            const pct = tgt > 0 ? Math.round((cur / tgt) * 100) : 0;
+            const icon = type === 'average' ? '📊' : '📈';
+            const u = g.unit ? ` ${g.unit}` : '';
+            return `${icon} ${g.title}: ${cur}${u} / ${tgt}${u} (${pct}%)`;
+          }).join('\n');
+          bot.sendMessage(chatId, `🎯 Активные цели:\n${list}`);
+        }
+      );
     });
   }
 
@@ -1872,7 +1890,7 @@ bot.on('callback_query', async (query) => {
       if (!userId) return bot.answerCallbackQuery(query.id, { text: 'Нет привязки.', show_alert: true });
 
       const goal = await dbGet(
-        `SELECT id, title, target, unit, direction
+        `SELECT id, title, target, unit, direction, goal_type
            FROM goals
           WHERE id=? AND user_id=?`,
         [goalId, userId]
@@ -1887,15 +1905,17 @@ bot.on('callback_query', async (query) => {
           unit: goal.unit || '',
           direction: goal.direction || 'increase',
           target: Number(goal.target || 0),
+          goal_type: goal.goal_type || 'target',
           did_something: 1,
         }
       };
 
       await bot.answerCallbackQuery(query.id, { text: `Ок, обновим: ${goal.title}` });
 
+      const isAvg = goal.goal_type === 'average';
       return bot.sendMessage(
         chatId,
-        `🎯 *${goal.title}*\nВведи *текущее значение* (числом).${goal.unit ? `\nЕдиница: *${goal.unit}*` : ''}`,
+        `🎯 *${goal.title}*\nВведи ${isAvg ? '*значение за сегодня*' : '*текущее значение*'} (числом).${goal.unit ? `\nЕдиница: *${goal.unit}*` : ''}`,
         { parse_mode: 'Markdown' }
       );
     });

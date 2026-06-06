@@ -327,7 +327,7 @@ function MedsStep({ payload, onNext, onBack }) {
 
 /* ---------------- GoalsStep ---------------- */
 function emptyGoal() {
-  return { title: "", goal_type: "build_up", target: "", unit: "" };
+  return { title: "", goal_type: "target", target: "", unit: "", direction: "increase" };
 }
 
 function GoalsStep({ payload, onNext, onBack }) {
@@ -343,9 +343,10 @@ function GoalsStep({ payload, onNext, onBack }) {
     const clean = goals
       .map((g) => ({
         title: String(g.title || "").trim(),
-        goal_type: g.goal_type || "build_up",
-        target: g.goal_type === "task" ? 1 : Number(g.target || 0),
-        unit: g.goal_type === "habit" ? (g.unit || "раз") : String(g.unit || "").trim(),
+        goal_type: g.goal_type || "target",
+        target: g.goal_type === "milestone" ? 0 : Number(g.target || 0),
+        unit: String(g.unit || "").trim(),
+        direction: g.direction || "increase",
       }))
       .filter((g) => g.title);
     onNext({ goals: clean });
@@ -353,13 +354,15 @@ function GoalsStep({ payload, onNext, onBack }) {
 
   return (
     <>
-      <StepHeader title="Большие цели" subtitle="Выберите тип цели и опишите её — иконку подберём автоматически. Пара целей поможет сразу видеть прогресс." />
+      <StepHeader
+        title="Большие цели"
+        subtitle="Выберите тип цели — иконку подберём автоматически. Пара целей поможет сразу видеть прогресс."
+      />
 
       {goals.map((g, i) => {
-        const type = g.goal_type || "build_up";
-        const typeMeta = GOAL_TYPES.find((t) => t.key === type) || GOAL_TYPES[1];
-        const showTargetNumber = type !== "task";
-        const showUnit = type === "build_up" || type === "reduce";
+        const type = g.goal_type || "target";
+        const typeMeta = GOAL_TYPES.find((t) => t.key === type) || GOAL_TYPES[0];
+        const showNumeric = type === "target" || type === "average";
         return (
           <div key={i} className={styles.goalCard}>
             <div className={styles.goalCardHead}>
@@ -386,40 +389,64 @@ function GoalsStep({ payload, onNext, onBack }) {
               ))}
             </div>
 
-            <div className={`${styles.goalFields} ${showTargetNumber ? "" : styles.goalFieldsFull}`}>
+            <div className={`${styles.goalFields} ${showNumeric ? "" : styles.goalFieldsFull}`}>
               <input
                 className={styles.input}
-                placeholder={type === "task" ? "Что сделать? Напр. «Сдать права»" : "Название цели"}
+                placeholder={type === "milestone" ? "Что нужно сделать? Напр. «Прочитать книгу»" : "Название цели"}
                 value={g.title}
                 onChange={(e) => updateGoal(i, { title: e.target.value })}
               />
-              {showTargetNumber && (
+              {showNumeric && (
                 <input
                   className={styles.input}
                   type="number"
-                  placeholder={type === "habit" ? "Сколько раз в неделю" : "Целевое значение"}
+                  placeholder={type === "average" ? "Целевое среднее" : "Целевое значение"}
                   value={g.target}
                   onChange={(e) => updateGoal(i, { target: e.target.value })}
                 />
               )}
             </div>
 
-            {showUnit && (
-              <div className={styles.unitChips}>
-                {UNIT_CHIPS.map((u) => (
-                  <button
-                    key={u}
-                    type="button"
-                    className={`${styles.unitChip} ${g.unit === u ? styles.unitChipActive : ""}`}
-                    onClick={() => updateGoal(i, { unit: u })}
-                  >
-                    {u}
-                  </button>
-                ))}
-              </div>
+            {showNumeric && (
+              <>
+                <div className={styles.unitChips}>
+                  {UNIT_CHIPS.map((u) => (
+                    <button
+                      key={u}
+                      type="button"
+                      className={`${styles.unitChip} ${g.unit === u ? styles.unitChipActive : ""}`}
+                      onClick={() => updateGoal(i, { unit: u })}
+                    >
+                      {u}
+                    </button>
+                  ))}
+                </div>
+                {type === "target" && (
+                  <div className={styles.dirRow}>
+                    <button
+                      type="button"
+                      className={`${styles.dirChip} ${g.direction !== "decrease" ? styles.dirChipActive : ""}`}
+                      onClick={() => updateGoal(i, { direction: "increase" })}
+                    >
+                      📈 Расти
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.dirChip} ${g.direction === "decrease" ? styles.dirChipActive : ""}`}
+                      onClick={() => updateGoal(i, { direction: "decrease" })}
+                    >
+                      📉 Снизить
+                    </button>
+                  </div>
+                )}
+              </>
             )}
 
-            <div className={styles.typeHint}>{typeMeta.hint}</div>
+            {type === "milestone" && (
+              <div className={styles.typeHint}>Шаги добавите позже прямо на карточке цели.</div>
+            )}
+
+            {type !== "milestone" && <div className={styles.typeHint}>{typeMeta.hint}</div>}
           </div>
         );
       })}

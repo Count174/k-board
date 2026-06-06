@@ -119,11 +119,50 @@
 .iconBtnDanger{ color:#ffb4b4; }
 .iconBtn:hover, .iconBtnDanger:hover{ background: rgba(255,255,255,.12); }
 
+.typeTagRow{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin:6px 0 10px;
+  flex-wrap:wrap;
+}
 .typeTag{
   display:inline-block;
-  margin:6px 0 10px;
   font-size:12px;
   color:#9aa0b4;
+}
+
+/* ── Status badges ── */
+.statusBadge{
+  display:inline-block;
+  padding:2px 10px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:700;
+  letter-spacing:.02em;
+}
+.statusOnTrack{
+  background: rgba(134, 239, 172, 0.18);
+  color:#86efac;
+  border:1px solid rgba(134, 239, 172, 0.35);
+}
+.statusAtRisk{
+  background: rgba(251, 191, 36, 0.15);
+  color:#fbbf24;
+  border:1px solid rgba(251, 191, 36, 0.35);
+}
+.statusOffTrack{
+  background: rgba(248, 113, 113, 0.15);
+  color:#f87171;
+  border:1px solid rgba(248, 113, 113, 0.35);
+}
+
+/* ── Pace text ── */
+.paceText{
+  font-size:12px;
+  color:#a7f3d0;
+  margin-top:6px;
+  opacity:.9;
 }
 
 .sectionTitle{
@@ -278,11 +317,11 @@
 /* ===== Type picker ===== */
 .typeGrid{
   display:grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap:8px;
 }
 @media (max-width: 720px){
-  .typeGrid{ grid-template-columns: repeat(2, 1fr); }
+  .typeGrid{ grid-template-columns: repeat(3, 1fr); }
 }
 .typeTile{
   display:flex;
@@ -348,4 +387,117 @@
   gap:6px;
   font-size:12px;
   color:#b7c2d3;
+}
+
+/* ===== Direction toggle ===== */
+.dirRow{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.dirLabel{ font-size:12px; color:#b7c2d3; }
+.dirBtn{
+  padding:6px 14px;
+  border-radius:999px;
+  cursor:pointer;
+  font-size:12px;
+  font-weight:600;
+  background: rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.10);
+  color:#cbd5e1;
+}
+.dirBtn:hover{ background: rgba(255,255,255,.09); }
+.dirActive{
+  background: rgba(134, 239, 172, 0.18);
+  border-color: rgba(134, 239, 172, 0.55);
+  color:#d1fae5;
+}
+
+/* ===== Milestone ===== */
+.milestoneList{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  margin-bottom:8px;
+}
+.milestoneItem{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.milestoneCheck{
+  width:20px;
+  height:20px;
+  border-radius:6px;
+  border:2px solid rgba(255,255,255,.18);
+  background:transparent;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:12px;
+  font-weight:700;
+  color:#86efac;
+  flex-shrink:0;
+}
+.milestoneChecked{
+  background: rgba(134, 239, 172, 0.2);
+  border-color: rgba(134, 239, 172, 0.6);
+}
+.milestoneTxt{
+  flex:1;
+  font-size:13px;
+  color:#e2e8f0;
+}
+.milestoneStrike{
+  text-decoration:line-through;
+  color:#9aa0b4;
+}
+.stepDeleteBtn{
+  background:transparent;
+  border:none;
+  color:#9aa0b4;
+  cursor:pointer;
+  font-size:16px;
+  padding:0 2px;
+  line-height:1;
+}
+.stepDeleteBtn:hover{ color:#f87171; }
+
+.stepAddRow{
+  display:flex;
+  gap:8px;
+  margin-top:4px;
+}
+.stepInput{
+  flex:1;
+  padding:8px 10px;
+  border:none;
+  border-radius:10px;
+  background: rgba(255,255,255,.05);
+  border:1px solid rgba(255,255,255,.07);
+  color:#fff;
+  font-size:13px;
+}
+.stepInput::placeholder{ color:#6b7280; }
+.stepAddBtn{
+  padding:8px 14px;
+  border-radius:10px;
+  background: rgba(134, 239, 172, 0.15);
+  border:1px solid rgba(134, 239, 172, 0.3);
+  color:#86efac;
+  cursor:pointer;
+  font-weight:700;
+  font-size:16px;
+}
+.stepAddBtn:hover{ background: rgba(134, 239, 172, 0.25); }
+
+.milestoneHint{
+  font-size:12px;
+  color:#9aa0b4;
+  padding:8px 12px;
+  background: rgba(255,255,255,.03);
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,.06);
 }

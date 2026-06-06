@@ -12,4 +12,8 @@ router.get('/due-checkins', authMiddleware, controller.getDueCheckins);
 router.get('/:id/checkins', authMiddleware, controller.getCheckins);
 router.post('/:id/checkins', authMiddleware, controller.createCheckin);
 
+router.post('/:id/milestones', authMiddleware, controller.createMilestone);
+router.patch('/:id/milestones/:sid', authMiddleware, controller.updateMilestone);
+router.delete('/:id/milestones/:sid', authMiddleware, controller.deleteMilestone);
+
 module.exports = router;

@@ -1,9 +1,9 @@
 'use strict';
 
 // Идемпотентная миграция целей:
-// - добавляет недостающие колонки в goals (goal_type, icon, start_value, target_date, direction, checkin_freq, is_completed, archived_at)
-// - создаёт таблицу goal_checkins, если её нет
-// - бэкофиллит goal_type и icon для существующих строк
+// - добавляет недостающие колонки в goals
+// - создаёт goal_checkins и goal_milestones если нет
+// - бэкофиллит goal_type, icon и ремаппит старые типы → новые
 //
 // Запуск вручную: node backend/db/migrate_goals.js
 // Также вызывается при старте сервера через ensureGoalsSchema().
@@ -58,14 +58,16 @@ async function ensureGoalsSchema() {
   `);
 
   const cols = await getColumns('goals');
-  await addColumnIfMissing(cols, 'goals', 'goal_type', "goal_type TEXT NOT NULL DEFAULT 'build_up'");
+  await addColumnIfMissing(cols, 'goals', 'goal_type', "goal_type TEXT NOT NULL DEFAULT 'target'");
   await addColumnIfMissing(cols, 'goals', 'icon', 'icon TEXT');
   await addColumnIfMissing(cols, 'goals', 'start_value', 'start_value REAL');
+  await addColumnIfMissing(cols, 'goals', 'start_date', 'start_date TEXT');
   await addColumnIfMissing(cols, 'goals', 'target_date', 'target_date TEXT');
   await addColumnIfMissing(cols, 'goals', 'direction', "direction TEXT DEFAULT 'increase'");
   await addColumnIfMissing(cols, 'goals', 'checkin_freq', "checkin_freq TEXT DEFAULT 'weekly'");
   await addColumnIfMissing(cols, 'goals', 'is_completed', 'is_completed INTEGER DEFAULT 0');
   await addColumnIfMissing(cols, 'goals', 'archived_at', 'archived_at TEXT');
+  await addColumnIfMissing(cols, 'goals', 'avg_window', 'avg_window INTEGER DEFAULT 7');
 
   await run(`
     CREATE TABLE IF NOT EXISTS goal_checkins (
@@ -86,12 +88,31 @@ async function ensureGoalsSchema() {
     `CREATE INDEX IF NOT EXISTS idx_goal_checkins_goal ON goal_checkins(goal_id, date)`
   );
 
+  await run(`
+    CREATE TABLE IF NOT EXISTS goal_milestones (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      goal_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      title TEXT NOT NULL,
+      done INTEGER DEFAULT 0,
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(goal_id) REFERENCES goals(id) ON DELETE CASCADE,
+      FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+    )
+  `);
+
+  await run(
+    `CREATE INDEX IF NOT EXISTS idx_goal_milestones_goal ON goal_milestones(goal_id, sort_order)`
+  );
+
   await backfill();
 }
 
+// Старые типы → новые
+const TYPE_MAP = { build_up: 'target', reduce: 'target', task: 'milestone', habit: 'average' };
+
 async function backfill() {
-  // Схема goals на разных машинах отличается (legacy is_binary может отсутствовать),
-  // поэтому выбираем только реально существующие колонки.
   const cols = await getColumns('goals');
   const hasBinary = cols.has('is_binary');
 
@@ -104,13 +125,19 @@ async function backfill() {
     const params = [];
 
     const isBinary = hasBinary && Number(r.is_binary) === 1;
-    if (!r.goal_type || r.goal_type === '') {
+    let currentType = r.goal_type || '';
+
+    // Нормализуем пустой тип
+    if (!currentType) {
+      currentType = isBinary ? 'task' : 'build_up';
+    } else if (isBinary && currentType === 'build_up') {
+      currentType = 'task';
+    }
+
+    // Ремаппим старые типы в новые
+    if (TYPE_MAP[currentType]) {
       updates.push('goal_type = ?');
-      params.push(isBinary ? 'task' : 'build_up');
-    } else if (isBinary && r.goal_type === 'build_up') {
-      // строка из старого онбординга: бинарная цель ошибочно как build_up
-      updates.push('goal_type = ?');
-      params.push('task');
+      params.push(TYPE_MAP[currentType]);
     }
 
     if (!r.icon || r.icon === '') {

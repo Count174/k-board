@@ -372,6 +372,27 @@
   color: #fff;
 }
 
+.dirRow {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+.dirChip {
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  color: #cbd5e1;
+  cursor: pointer;
+  font-size: 12px;
+}
+.dirChipActive {
+  border-color: rgba(249, 168, 212, 0.6);
+  background: rgba(249, 168, 212, 0.12);
+  color: #fff;
+}
+
 .removeBtn {
   background: transparent;
   border: 1px solid rgba(248, 113, 113, 0.3);

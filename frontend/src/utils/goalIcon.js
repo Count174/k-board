@@ -38,10 +38,9 @@ export function deriveIcon(title) {
 }
 
 export const GOAL_TYPES = [
-  { key: 'task', emoji: '✅', label: 'Выполнить', hint: 'Сделать и закрыть (выполнено / не выполнено)' },
-  { key: 'build_up', emoji: '📈', label: 'Прибавить', hint: 'Накопить или достичь числа (больше = лучше)' },
-  { key: 'reduce', emoji: '📉', label: 'Избавиться', hint: 'Снизить значение (меньше = лучше)' },
-  { key: 'habit', emoji: '🔁', label: 'Привычка', hint: 'Делать регулярно N раз в неделю' },
+  { key: 'target', emoji: '📈', label: 'К цели', hint: 'Накопить или снизить значение к дате — с темпом и дедлайном' },
+  { key: 'average', emoji: '📊', label: 'Среднее', hint: 'Держать среднее значение за период (напр., часы сна, шаги/день)' },
+  { key: 'milestone', emoji: '🏁', label: 'Шаги', hint: 'Многоступенчатая цель: отмечай шаги по одному' },
 ];
 
-export const UNIT_CHIPS = ['₽', 'кг', 'км', 'раз', 'книг', 'ч', 'шт'];
+export const UNIT_CHIPS = ['₽', 'кг', 'км', 'ч', 'раз', 'шт', 'кал'];
