@@ -293,16 +293,19 @@ export default function DashboardHero() {
           {gardenBeds.map((bed) => {
             if (bed.score == null) {
               return (
-                <span key={bed.key} className={`${styles.bed} ${styles.bedMuted}`}>
-                  {bed.emoji} {bed.label} · нет данных
-                </span>
+                <div key={bed.key} className={`${styles.bed} ${styles.bedMuted}`}>
+                  {bed.label}
+                  <span style={{ fontSize: '13px' }}>нет данных</span>
+                </div>
               );
             }
-            const st = bed.score >= 0.7 ? 'Good' : bed.score >= 0.4 ? 'Mid' : 'Bad';
+            const c = bed.score >= 0.7 ? 'var(--bloom)' : bed.score >= 0.4 ? 'var(--grow)' : 'var(--attention)';
             return (
-              <span key={bed.key} className={`${styles.bed} ${styles[`bed${st}`]}`}>
-                {bed.emoji} {bed.label} · {Math.round(bed.score * 100)}%
-              </span>
+              <div key={bed.key} className={styles.bed} style={{ color: c }}>
+                <span className={styles.bedSoil} style={{ height: `${Math.round(bed.score * 100)}%`, background: `linear-gradient(180deg, ${c}22, ${c}14)` }} />
+                <span style={{ fontSize: '13px', color: 'var(--text-mute)', fontWeight: 600 }}>{bed.label}</span>
+                <span style={{ fontSize: '22px', fontWeight: 600, letterSpacing: '-0.02em' }}>{Math.round(bed.score * 100)}%</span>
+              </div>
             );
           })}
         </div>
@@ -505,10 +508,10 @@ export default function DashboardHero() {
                   : g.status === 'at_risk' ? 'mid'
                   : 'bad';
                 const statusLabel =
-                  p >= 100 ? '🌸 Цветёт'
-                  : st === 'good' ? '🌿 Растёт'
-                  : st === 'mid' ? '⚠️ Внимание'
-                  : '🥀 Отстаёт';
+                  p >= 100 ? 'Цветёт'
+                  : st === 'good' ? 'Растёт'
+                  : st === 'mid' ? 'Внимание'
+                  : 'Отстаёт';
                 const itemCls =
                   st === 'good' ? styles.goalItemGood
                   : st === 'mid' ? styles.goalItemMid

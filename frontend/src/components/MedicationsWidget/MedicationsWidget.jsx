@@ -1,3 +1,4 @@
+import Icon from "../ui/Icon";
 import React, { useEffect, useMemo, useState } from "react";
 import styles from "./MedicationsWidget.module.css";
 import { get, post } from "../../api/api";
@@ -505,7 +506,7 @@ export default function MedicationsWidget({ hideHeading = false }) {
           <li key={it.id} className={styles.item}>
             <div className={styles.itemMain}>
               <div className={styles.itemTitle}>
-                💊 {it.name} <span className={styles.dosage}>{it.dosage}</span>
+                <Icon name="pill" size={16} /> {it.name} <span className={styles.dosage}>{it.dosage}</span>
               </div>
 
               {/* new: meta badges */}
@@ -551,7 +552,7 @@ export default function MedicationsWidget({ hideHeading = false }) {
               <li key={it.id} className={`${styles.item} ${styles.itemDisabled}`}>
                 <div className={styles.itemMain}>
                   <div className={styles.itemTitle}>
-                    💊 {it.name} <span className={styles.dosage}>{it.dosage}</span>
+                    <Icon name="pill" size={16} /> {it.name} <span className={styles.dosage}>{it.dosage}</span>
                   </div>
 
                   {/* new: meta badges */}

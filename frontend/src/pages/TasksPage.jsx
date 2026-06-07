@@ -85,7 +85,7 @@ export default function TasksPage() {
   return (
     <section className={board.page}>
       <div className={board.titleRow}>
-        <h1 className={board.title}>Задачи 庭</h1>
+        <h1 className={board.title}>Задачи</h1>
         <div className={board.addRow}>
           <input
             className={board.addInput}

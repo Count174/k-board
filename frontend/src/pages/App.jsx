@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Dashboard from './Dashboard';
 import LoginPage from './LoginPage';
 import RegisterPage from './RegisterPage';
@@ -16,6 +16,7 @@ import LoansPage from './LoansPage';
 import WorkoutsPage from './WorkoutsPage';
 import HealthPage from './HealthPage';
 import AppShell from '../components/layout/AppShell';
+import '../styles/brand.css';
 import '../styles/index.css';
 
 // Временный лендинг-заглушка (потом заменишь на реальный компонент)
@@ -38,10 +39,9 @@ function PrivateRoute({ children }) {
 }
 
 function PrivateLayout() {
-  const location = useLocation();
   return (
     <PrivateRoute>
-      <AppShell pathname={location.pathname} />
+      <AppShell />
     </PrivateRoute>
   );
 }
