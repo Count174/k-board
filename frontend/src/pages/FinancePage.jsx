@@ -40,48 +40,36 @@ function fmtDate(s) {
   return `${d.getDate()} ${MONTHS_RU[d.getMonth()]}`;
 }
 
-function CashFlowChart({ transactions, month }) {
-  const data = useMemo(() => {
-    const [y, m] = month.split('-').map(Number);
-    const now = new Date();
-    const isCurrentMonth = y === now.getFullYear() && m === now.getMonth() + 1;
-    // only render up to today for current month, full month for past months
-    const maxDay = isCurrentMonth ? now.getDate() : new Date(y, m, 0).getDate();
-    const daily = Array(maxDay).fill(0);
-    const filled = new Set();
-    transactions.forEach((t) => {
-      const d = new Date(t.date);
-      if (d.getFullYear() !== y || d.getMonth() + 1 !== m) return;
-      const idx = d.getDate() - 1;
-      if (idx >= maxDay) return;
-      const amt = Number(t.amount_rub ?? t.amount ?? 0);
-      daily[idx] += t.type === 'income' ? amt : -amt;
-      filled.add(idx);
-    });
-    // only include days that have transactions
-    const bars = daily
-      .map((v, i) => ({ v, idx: i, hasTx: filled.has(i) }))
-      .filter((b) => b.hasTx)
-      .map((b) => ({ v: b.v, pos: b.v >= 0 }));
-    const max = Math.max(...bars.map((b) => Math.abs(b.v)), 1);
-    return { bars: bars.map((b) => ({ ...b, pct: Math.abs(b.v) / max })), count: filled.size };
-  }, [transactions, month]);
-
-  const { bars, count } = data;
-  const H = 44, bW = 6, gap = 3, W = Math.max(bars.length * (bW + gap), 10);
+function SpendingRing({ income, expenses }) {
+  const pct = income > 0 ? Math.min(100, Math.round(expenses / income * 100)) : 0;
+  const color = pct < 70 ? 'var(--bloom)' : pct < 100 ? 'var(--attention)' : 'oklch(0.72 0.16 25)';
+  const r = 40, cx = 50, cy = 50;
+  const circ = 2 * Math.PI * r;
+  const dash = (pct / 100) * circ;
   return (
-    <div className={styles.chartWrap}>
-      <svg width={W} height={H} style={{ display: 'block', overflow: 'visible' }}>
-        {bars.map((b, i) => {
-          const h = Math.max(3, Math.round(b.pct * H * 0.88));
-          const x = i * (bW + gap);
-          const y = b.pos ? H / 2 - h : H / 2;
-          return <rect key={i} x={x} y={y} width={bW} height={h}
-            fill={b.pos ? 'var(--bloom)' : 'oklch(0.72 0.08 25)'} opacity={0.8} rx={1} />;
-        })}
-        <line x1={0} y1={H / 2} x2={W} y2={H / 2} stroke="var(--line-2)" strokeWidth={0.5} />
+    <div className={styles.ringWrap}>
+      <svg width={100} height={100} viewBox="0 0 100 100" style={{ display: 'block', flexShrink: 0 }}>
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke="var(--surf-2)" strokeWidth={9} />
+        {pct > 0 && (
+          <circle cx={cx} cy={cy} r={r} fill="none"
+            stroke={color} strokeWidth={9}
+            strokeDasharray={`${dash} ${circ - dash}`}
+            strokeLinecap="round"
+            transform="rotate(-90 50 50)" />
+        )}
+        <text x={50} y={46} textAnchor="middle" fill={color} fontSize="17" fontWeight="600" fontFamily="var(--font-display)">{pct}%</text>
+        <text x={50} y={62} textAnchor="middle" fill="var(--text-mute)" fontSize="10">потрачено</text>
       </svg>
-      <div className={styles.chartSub}>чистый поток · {count} дн.</div>
+      <div className={styles.ringMeta}>
+        <div className={styles.ringRow}>
+          <span className={styles.ringLabel}>↑ Доходы</span>
+          <span className={styles.ringVal} style={{ color: 'var(--bloom)' }}>{money(income)}</span>
+        </div>
+        <div className={styles.ringRow}>
+          <span className={styles.ringLabel}>↓ Расходы</span>
+          <span className={styles.ringVal}>{money(expenses)}</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -132,6 +120,16 @@ export default function FinancePage() {
 
   const recent = useMemo(() => transactions.slice(0, 5), [transactions]);
 
+  const totals = useMemo(() => {
+    let income = 0, expenses = 0;
+    transactions.forEach((t) => {
+      const amt = Math.abs(Number(t.amount_rub ?? t.amount ?? 0));
+      if (t.type === 'income') income += amt;
+      else expenses += amt;
+    });
+    return { income, expenses };
+  }, [transactions]);
+
   const [y, m] = month.split('-').map(Number);
   const monthLabel = `${MONTHS_NOM[m - 1]} ${y}`;
   const prev = prevMonth(month);
@@ -162,7 +160,7 @@ export default function FinancePage() {
             </div>
           )}
         </div>
-        <CashFlowChart transactions={transactions} month={month} />
+        <SpendingRing income={totals.income} expenses={totals.expenses} />
       </div>
 
       <div className={styles.grid}>
