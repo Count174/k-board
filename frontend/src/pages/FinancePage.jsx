@@ -1,6 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { get } from '../api/api';
 import styles from '../styles/FinanceBoard.module.css';
+import { Car, Utensils, ShoppingBag, Bus, Coffee, Wallet2, Home, CircleDollarSign, BookOpen, Dumbbell } from 'lucide-react';
+
+const txIconByText = (txt) => {
+  const t = String(txt || '').toLowerCase();
+  if (t.includes('коф') || t.includes('coffee')) return Coffee;
+  if (t.includes('метро') || t.includes('транспор') || t.includes('автобус')) return Bus;
+  if (t.includes('такси') || t.includes('taxi')) return Car;
+  if (t.includes('еда') || t.includes('обед') || t.includes('ужин') || t.includes('каф') || t.includes('рестор') || t.includes('столов')) return Utensils;
+  if (t.includes('дом') || t.includes('жиль') || t.includes('аренд') || t.includes('квартир')) return Home;
+  if (t.includes('супермаркет') || t.includes('продукт') || t.includes('лента') || t.includes('перекрёст') || t.includes('пятёроч')) return ShoppingBag;
+  if (t.includes('зарплат') || t.includes('доход') || t.includes('оплат')) return CircleDollarSign;
+  if (t.includes('книг') || t.includes('обучен') || t.includes('курс')) return BookOpen;
+  if (t.includes('спорт') || t.includes('зал') || t.includes('фитнес')) return Dumbbell;
+  return Wallet2;
+};
 
 const MONTHS_RU  = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
 const MONTHS_NOM = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
@@ -28,32 +43,41 @@ function fmtDate(s) {
 function CashFlowChart({ transactions, month }) {
   const data = useMemo(() => {
     const [y, m] = month.split('-').map(Number);
-    const days = new Date(y, m, 0).getDate();
-    const daily = Array(days).fill(0);
+    const now = new Date();
+    const isCurrentMonth = y === now.getFullYear() && m === now.getMonth() + 1;
+    // only render up to today for current month, full month for past months
+    const maxDay = isCurrentMonth ? now.getDate() : new Date(y, m, 0).getDate();
+    const daily = Array(maxDay).fill(0);
     const filled = new Set();
     transactions.forEach((t) => {
       const d = new Date(t.date);
       if (d.getFullYear() !== y || d.getMonth() + 1 !== m) return;
       const idx = d.getDate() - 1;
+      if (idx >= maxDay) return;
       const amt = Number(t.amount_rub ?? t.amount ?? 0);
       daily[idx] += t.type === 'income' ? amt : -amt;
       filled.add(idx);
     });
-    const max = Math.max(...daily.map(Math.abs), 1);
-    return { bars: daily.map((v) => ({ v, pct: Math.abs(v) / max, pos: v >= 0 })), count: filled.size };
+    // only include days that have transactions
+    const bars = daily
+      .map((v, i) => ({ v, idx: i, hasTx: filled.has(i) }))
+      .filter((b) => b.hasTx)
+      .map((b) => ({ v: b.v, pos: b.v >= 0 }));
+    const max = Math.max(...bars.map((b) => Math.abs(b.v)), 1);
+    return { bars: bars.map((b) => ({ ...b, pct: Math.abs(b.v) / max })), count: filled.size };
   }, [transactions, month]);
 
   const { bars, count } = data;
-  const H = 44, bW = 3, gap = 1, W = bars.length * (bW + gap);
+  const H = 44, bW = 6, gap = 3, W = Math.max(bars.length * (bW + gap), 10);
   return (
     <div className={styles.chartWrap}>
       <svg width={W} height={H} style={{ display: 'block', overflow: 'visible' }}>
         {bars.map((b, i) => {
-          const h = Math.max(2, Math.round(b.pct * H * 0.9));
+          const h = Math.max(3, Math.round(b.pct * H * 0.88));
           const x = i * (bW + gap);
           const y = b.pos ? H / 2 - h : H / 2;
           return <rect key={i} x={x} y={y} width={bW} height={h}
-            fill={b.pos ? 'var(--bloom)' : 'oklch(0.72 0.08 25)'} opacity={0.75} rx={1} />;
+            fill={b.pos ? 'var(--bloom)' : 'oklch(0.72 0.08 25)'} opacity={0.8} rx={1} />;
         })}
         <line x1={0} y1={H / 2} x2={W} y2={H / 2} stroke="var(--line-2)" strokeWidth={0.5} />
       </svg>
@@ -169,10 +193,11 @@ export default function FinancePage() {
             const amt = Math.abs(Number(t.amount_rub ?? t.amount ?? 0));
             const isInc = t.type === 'income';
             const label = t.comment || t.category_name || t.category || 'Операция';
+            const TxIcon = txIconByText(label);
             return (
               <div key={t.id} className={styles.tx}>
                 <div className={styles.txLeft}>
-                  <span className={`${styles.txIcon} ${isInc ? styles.txIconInc : ''}`}>{isInc ? '↑' : '↓'}</span>
+                  <span className={`${styles.txIcon} ${isInc ? styles.txIconInc : ''}`}><TxIcon size={15} /></span>
                   <div>
                     <div className={styles.txComment}>{label}</div>
                     <div className={styles.txDate}>{fmtDate(t.date)}</div>
