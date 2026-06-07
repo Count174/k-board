@@ -1,63 +1,89 @@
-/* ============================================================================
-   FinanceBoard.module.css  —  редизайн (drop-in). Класс-имена 1:1.
-   Убраны: «волна», свечения, 6 разноцветных градиентных баров, 31px суммы.
-   Категории — единая палитра (hue одной L/C). Доход bloom, расход нейтральный.
-   ============================================================================ */
-
+/* FinanceBoard.module.css — redesign */
 .page { display: flex; flex-direction: column; gap: 12px; }
-.top { display: flex; justify-content: space-between; align-items: flex-end; }
-.title { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: clamp(26px, 3vw, 32px); letter-spacing: -0.02em; }
-.monthInput { border-radius: var(--r-md); background: var(--surf-2); border: 1px solid var(--line-2); color: var(--text-dim); padding: 9px 14px; }
 
-.hero {
-  border: 1px solid var(--line);
-  border-radius: var(--r-xl);
-  padding: 24px 26px;
-  position: relative;
-  overflow: hidden;
-  background: radial-gradient(110% 160% at 100% 0%, var(--grow-bg) 0%, transparent 55%), var(--surf-1);
+/* ── Page header ──────────────────────────────────────────────── */
+.pageTop { display: flex; justify-content: space-between; align-items: flex-end; }
+.pageLabel { font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-mute); margin-bottom: 6px; }
+.pageTitle { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: clamp(28px, 3.5vw, 40px); letter-spacing: -0.02em; line-height: 1.05; }
+
+.monthChip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: var(--r-pill);
+  border: 1px solid var(--line-2); background: var(--surf-2);
+  color: var(--text-dim); font-size: 14px; cursor: pointer; position: relative;
 }
-.heroTitle { font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-mute); margin-bottom: 10px; }
-.heroValue { font-family: var(--font-display); font-weight: 400; font-size: clamp(44px, 5vw, 60px); color: var(--bloom); letter-spacing: -0.02em; line-height: 0.95; }
-/* «волна» убрана — оставлен пустой класс для совместимости с JSX */
-.wave { display: none; }
+.monthChip:hover { background: var(--surf-1); }
+.monthHidden { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
 
+/* ── Hero ─────────────────────────────────────────────────────── */
+.hero {
+  border: 1px solid var(--line); border-radius: var(--r-xl);
+  padding: 24px 26px; background: var(--surf-1);
+  display: flex; align-items: center; justify-content: space-between; gap: 20px;
+}
+.heroLeft { flex: 1; min-width: 0; }
+.heroLabel { font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-mute); margin-bottom: 8px; }
+.heroBalance { font-family: var(--font-display); font-size: clamp(44px, 5vw, 60px); font-weight: 400; letter-spacing: -0.02em; line-height: 0.95; color: var(--bloom); }
+
+.heroChip {
+  display: inline-flex; align-items: center; gap: 5px;
+  margin-top: 12px; padding: 6px 12px; border-radius: var(--r-pill);
+  font-size: 13px; font-weight: 600;
+}
+.chipPos { background: var(--bloom-bg); color: var(--bloom); border: 1px solid oklch(0.78 0.135 150 / 0.3); }
+.chipNeg { background: var(--att-bg); color: var(--attention); border: 1px solid oklch(0.82 0.12 78 / 0.3); }
+
+/* ── Chart ────────────────────────────────────────────────────── */
+.chartWrap { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; flex-shrink: 0; }
+.chartSub { font-size: 12px; color: var(--text-mute); }
+
+/* ── Cards ────────────────────────────────────────────────────── */
 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-.card { border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surf-1); padding: 18px; }
-.cardTitle { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 14px; }
+.card { border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surf-1); padding: 18px; min-width: 0; }
+.cardHead { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 14px; }
+.cardTitle { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; }
+.cardSub { font-size: 13px; color: var(--text-mute); font-variant-numeric: tabular-nums; }
+.cardLink { font-size: 13px; color: var(--text-mute); background: none; border: none; cursor: pointer; }
+.cardLink:hover { color: var(--text-dim); }
+.muted { color: var(--text-mute); font-size: 14px; padding: 8px 0; }
 
-.barRow { display: grid; grid-template-columns: 120px 1fr 45px; align-items: center; gap: 12px; margin-bottom: 12px; }
-.barName { color: var(--text-dim); font-size: 14px; }
+/* ── Categories ───────────────────────────────────────────────── */
+.barRow { display: grid; grid-template-columns: 12px 1fr auto 38px; align-items: center; gap: 10px; margin-bottom: 12px; }
+.catDot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.barName { color: var(--text-dim); font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .barTrack { height: 6px; border-radius: var(--r-pill); background: var(--surf-2); overflow: hidden; }
 .barFill { height: 100%; border-radius: inherit; }
-/* единая палитра категорий: одинаковые L/C, меняется только hue */
-.c0 { background: oklch(0.80 0.06 150); }
-.c1 { background: oklch(0.80 0.06 30); }
-.c2 { background: oklch(0.80 0.06 205); }
-.c3 { background: oklch(0.80 0.06 95); }
-.c4 { background: oklch(0.80 0.06 290); }
-.c5 { background: oklch(0.80 0.06 340); }
-.barPct { color: var(--text-mute); text-align: right; font-variant-numeric: tabular-nums; }
+.barPct { color: var(--text-mute); text-align: right; font-size: 14px; font-variant-numeric: tabular-nums; }
 
+/* ── Transactions ─────────────────────────────────────────────── */
 .tx { display: flex; justify-content: space-between; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--line); }
 .tx:last-child { border-bottom: none; }
 .txLeft { display: flex; align-items: center; gap: 12px; }
-.txIconWrap { width: 36px; height: 36px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line); background: var(--surf-2); color: var(--text-dim); }
-.txIconIncome { color: var(--bloom); background: var(--bloom-bg); border-color: oklch(0.78 0.135 150 / 0.3); }
-.txIconExpense { color: var(--text-dim); background: var(--surf-2); }
+.txIcon {
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surf-2); border: 1px solid var(--line);
+  color: var(--text-dim); font-size: 13px; font-weight: 600;
+}
+.txIconInc { background: var(--bloom-bg); border-color: oklch(0.78 0.135 150 / 0.3); color: var(--bloom); }
 .txComment { font-size: 14px; font-weight: 500; }
-.txDate { font-size: 12.5px; color: var(--text-mute); }
-.txAmount { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.txDate { font-size: 12.5px; color: var(--text-mute); margin-top: 2px; }
+.txAmt { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .inc { color: var(--bloom); }
 .exp { color: var(--text); }
 
-.budgetGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
-.budgetItem { background: var(--surf-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: 13px 14px; min-width: 0; }
-.budgetHead { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 9px; }
-.budgetCategory { min-width: 0; flex: 1; font-size: 13.5px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
-.budgetAmount { flex-shrink: 0; white-space: nowrap; font-variant-numeric: tabular-nums; text-align: right; font-size: 12.5px; color: var(--text-mute); }
+/* ── Budget ───────────────────────────────────────────────────── */
+.budgetGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.budgetItem { background: var(--surf-2); border: 1px solid var(--line); border-radius: var(--r-md); padding: 13px 14px; }
+.budgetHead { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.budgetName { font-size: 14px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.budgetAmt { font-size: 12px; color: var(--text-mute); white-space: nowrap; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .budgetTrack { height: 6px; border-radius: var(--r-pill); background: var(--surf-1); overflow: hidden; }
 .budgetFill { height: 100%; border-radius: inherit; background: var(--bloom); }
+.budgetOver { background: var(--attention); }
+.budgetSub { font-size: 12px; color: var(--text-mute); margin-top: 6px; }
+.budgetSubOver { color: var(--attention); }
 
+/* ── Responsive ───────────────────────────────────────────────── */
 @media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } }
-@media (max-width: 560px) { .budgetGrid { grid-template-columns: 1fr; } }
+@media (max-width: 600px)  { .budgetGrid { grid-template-columns: 1fr 1fr; } }

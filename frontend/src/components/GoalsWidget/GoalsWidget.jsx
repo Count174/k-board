@@ -7,52 +7,28 @@ import dayjs from 'dayjs';
 import { deriveIcon, GOAL_TYPES, UNIT_CHIPS } from '../../utils/goalIcon';
 import { detectSource, SOURCE_LABELS } from '../../utils/goalSourceDetect';
 
-function formatMoney(v) {
-  return new Intl.NumberFormat('ru-RU').format(Math.round(v || 0));
-}
-
 function fmtValue(v, unit) {
   if (v == null) return '—';
   const n = Number(v);
-  if (unit === '₽') return `${formatMoney(n)} ₽`;
-  return `${n % 1 === 0 ? formatMoney(n) : n}${unit ? ` ${unit}` : ''}`;
-}
-
-const STATUS_LABELS = { on_track: 'Растёт', at_risk: 'Внимание', off_track: 'Отстаёт' };
-const STATUS_CLS = { on_track: styles.statusOnTrack, at_risk: styles.statusAtRisk, off_track: styles.statusOffTrack };
-
-function StatusBadge({ status }) {
-  if (!status || !STATUS_LABELS[status]) return null;
-  return <span className={`${styles.statusBadge} ${STATUS_CLS[status]}`}>{STATUS_LABELS[status]}</span>;
+  if (unit === '₽') return new Intl.NumberFormat('ru-RU').format(Math.round(n));
+  return n % 1 === 0
+    ? new Intl.NumberFormat('ru-RU').format(Math.round(n))
+    : String(n).replace('.', ',');
 }
 
 const EMPTY_FORM = {
-  id: null,
-  goal_type: 'target',
-  title: '',
-  target: '',
-  unit: '',
-  start_value: '',
-  start_date: '',
-  target_date: '',
-  direction: 'increase',
-  avg_window: 7,
-  source_type: '',
-  source_params: {},
-  source_aggregation: 'mean',
+  id: null, goal_type: 'target', title: '', target: '', unit: '',
+  start_value: '', start_date: '', target_date: '', direction: 'increase',
+  avg_window: 7, source_type: '', source_params: {}, source_aggregation: 'mean',
 };
 
 function TypePicker({ value, onChange }) {
   return (
     <div className={styles.typeGrid}>
       {GOAL_TYPES.map((t) => (
-        <button
-          key={t.key}
-          type="button"
+        <button key={t.key} type="button"
           className={`${styles.typeTile} ${value === t.key ? styles.typeActive : ''}`}
-          onClick={() => onChange(t.key)}
-          title={t.hint}
-        >
+          onClick={() => onChange(t.key)} title={t.hint}>
           <span className={styles.typeEmoji}>{t.emoji}</span>
           <span className={styles.typeLabel}>{t.label}</span>
         </button>
@@ -74,11 +50,8 @@ export default function GoalsWidget() {
   const [openCheckin, setOpenCheckin] = useState(false);
   const [checkinGoal, setCheckinGoal] = useState(null);
   const [checkinValue, setCheckinValue] = useState('');
-
-  // inline step add state: goalId → text
   const [stepInputs, setStepInputs] = useState({});
 
-  // source suggestion state
   const [sourceDismissedFor, setSourceDismissedFor] = useState('');
   const [suggestionCategory, setSuggestionCategory] = useState('');
   const [suggestionCatOpen, setSuggestionCatOpen] = useState(false);
@@ -99,8 +72,12 @@ export default function GoalsWidget() {
     return detectSource(form.title);
   }, [form.title, form.source_type, sourceDismissedFor, isEditing]);
 
-  const activeGoals = useMemo(() => goals.filter((g) => !g.is_completed), [goals]);
-  const completedGoals = useMemo(() => goals.filter((g) => g.is_completed), [goals]);
+  const activeGoals    = useMemo(() => goals.filter((g) => !g.is_completed), [goals]);
+  const completedGoals = useMemo(() => goals.filter((g) =>  g.is_completed), [goals]);
+  const avgProgress    = useMemo(() => {
+    if (!activeGoals.length) return 0;
+    return Math.round(activeGoals.reduce((s, g) => s + (g.progress_percent || 0), 0) / activeGoals.length);
+  }, [activeGoals]);
 
   const dueInfo = useMemo(() => {
     const border = dayjs().subtract(6, 'day');
@@ -111,37 +88,24 @@ export default function GoalsWidget() {
 
   const goalTypeMeta = (key) => GOAL_TYPES.find((t) => t.key === key) || GOAL_TYPES[0];
 
-  const resetSuggestion = () => {
-    setSourceDismissedFor('');
-    setSuggestionCategory('');
-    setSuggestionCatOpen(false);
-  };
-
+  const resetSuggestion = () => { setSourceDismissedFor(''); setSuggestionCategory(''); setSuggestionCatOpen(false); };
   const openCreate = () => { setForm(EMPTY_FORM); resetSuggestion(); setOpenForm(true); };
-  const openEdit = (goal) => {
+  const openEdit   = (goal) => {
     setForm({
-      id: goal.id,
-      goal_type: goal.goal_type || 'target',
-      title: goal.title || '',
+      id: goal.id, goal_type: goal.goal_type || 'target', title: goal.title || '',
       target: goal.goal_type === 'milestone' ? '' : String(goal.target ?? ''),
-      unit: goal.unit || '',
-      start_value: goal.start_value == null ? '' : String(goal.start_value),
-      start_date: goal.start_date || '',
-      target_date: goal.target_date || '',
-      direction: goal.direction || 'increase',
-      avg_window: goal.avg_window || 7,
-      source_type: goal.source_type || '',
-      source_params: goal.source_params || {},
+      unit: goal.unit || '', start_value: goal.start_value == null ? '' : String(goal.start_value),
+      start_date: goal.start_date || '', target_date: goal.target_date || '',
+      direction: goal.direction || 'increase', avg_window: goal.avg_window || 7,
+      source_type: goal.source_type || '', source_params: goal.source_params || {},
       source_aggregation: goal.source_aggregation || 'mean',
     });
-    resetSuggestion();
-    setOpenForm(true);
+    resetSuggestion(); setOpenForm(true);
   };
 
   const applySource = (suggestion, category) => {
     setForm((f) => ({
-      ...f,
-      source_type: suggestion.source_type,
+      ...f, source_type: suggestion.source_type,
       source_aggregation: suggestion.source_aggregation,
       source_params: category ? { category } : {},
       unit: f.unit || suggestion.unit_hint || f.unit,
@@ -158,33 +122,22 @@ export default function GoalsWidget() {
     }
   };
 
-  const dismissSuggestion = () => {
-    setSourceDismissedFor(form.title);
-    setSuggestionCatOpen(false);
-  };
-
-  const clearSource = () => {
-    setForm((f) => ({ ...f, source_type: '', source_params: {}, source_aggregation: 'mean' }));
-  };
+  const dismissSuggestion = () => { setSourceDismissedFor(form.title); setSuggestionCatOpen(false); };
+  const clearSource = () => { setForm((f) => ({ ...f, source_type: '', source_params: {}, source_aggregation: 'mean' })); };
 
   const saveGoal = async (e) => {
     e?.preventDefault?.();
     const title = (form.title || '').trim();
     if (!title) return;
     if (form.goal_type !== 'milestone' && (form.target === '' || form.target == null)) return;
-
     const payload = {
-      title,
-      goal_type: form.goal_type,
+      title, goal_type: form.goal_type,
       target: form.goal_type === 'milestone' ? 0 : Number(form.target || 0),
-      unit: (form.unit || '').trim(),
-      target_date: form.target_date || null,
-      direction: form.direction,
-      source_type: form.source_type || null,
+      unit: (form.unit || '').trim(), target_date: form.target_date || null,
+      direction: form.direction, source_type: form.source_type || null,
       source_params: form.source_type ? JSON.stringify(form.source_params || {}) : null,
       source_aggregation: form.source_type ? (form.source_aggregation || 'mean') : null,
     };
-
     if (form.goal_type === 'target') {
       if (form.start_value !== '') payload.start_value = Number(form.start_value);
       if (form.start_date) payload.start_date = form.start_date;
@@ -193,7 +146,6 @@ export default function GoalsWidget() {
       payload.avg_window = Number(form.avg_window || 7);
       if (form.start_date) payload.start_date = form.start_date;
     }
-
     if (isEditing) {
       const updated = await patch(`goals/${form.id}`, payload);
       setGoals((prev) => prev.map((g) => (g.id === updated.id ? updated : g)));
@@ -203,8 +155,7 @@ export default function GoalsWidget() {
       setGoals((prev) => [created, ...prev]);
       showToast('🎯 Готово', 'Цель создана');
     }
-    setForm(EMPTY_FORM);
-    setOpenForm(false);
+    setForm(EMPTY_FORM); setOpenForm(false);
   };
 
   const handleDeleteGoal = async (id) => {
@@ -227,12 +178,8 @@ export default function GoalsWidget() {
   const saveCheckin = async (e) => {
     e?.preventDefault?.();
     if (!checkinGoal || checkinValue === '') return;
-    await post(`goals/${checkinGoal.id}/checkins`, {
-      value: Number(checkinValue),
-      date: dayjs().format('YYYY-MM-DD'),
-    });
-    setOpenCheckin(false);
-    setCheckinGoal(null);
+    await post(`goals/${checkinGoal.id}/checkins`, { value: Number(checkinValue), date: dayjs().format('YYYY-MM-DD') });
+    setOpenCheckin(false); setCheckinGoal(null);
     await reload();
     showToast('✅ Обновлено', 'Чек-ин сохранён');
   };
@@ -256,184 +203,143 @@ export default function GoalsWidget() {
   };
 
   const renderCard = (goal) => {
-    const type = goal.goal_type || 'target';
-    const meta = goalTypeMeta(type);
-    const pct = goal.progress_percent || 0;
+    const type   = goal.goal_type || 'target';
+    const meta   = goalTypeMeta(type);
+    const pct    = Math.round(goal.progress_percent || 0);
+    const status = goal.status || 'on_track';
+
+    const statusLabel = pct >= 100 ? 'цветёт'
+      : status === 'on_track' ? 'растёт'
+      : status === 'at_risk'  ? 'внимание'
+      : 'отстаёт';
+    const sCls = pct >= 100 || status === 'on_track' ? styles.sBadgeGood
+      : status === 'at_risk' ? styles.sBadgeMid
+      : styles.sBadgeBad;
+
+    const unit = goal.unit ? ` ${goal.unit}` : '';
+
+    let current, target_, dynamics, footnote;
+    if (type === 'target') {
+      current  = fmtValue(goal.last_value, goal.unit);
+      target_  = fmtValue(goal.target, goal.unit);
+      dynamics = goal.required_pace || '—';
+      footnote = goal.last_date ? `чек-ин ${dayjs(goal.last_date).format('DD.MM')}` : 'нет данных';
+    } else if (type === 'average') {
+      current  = fmtValue(goal.current_value, goal.unit);
+      target_  = fmtValue(goal.target, goal.unit);
+      dynamics = goal.required_pace || '—';
+      footnote = `среднее за ${goal.avg_window || 7} дн.`;
+    } else {
+      const done  = (goal.milestones || []).filter((s) => s.done).length;
+      const total = (goal.milestones || []).length;
+      current  = String(done);
+      target_  = String(total);
+      dynamics = goal.required_pace || '—';
+      footnote = `${done} из ${total} шагов`;
+    }
+
+    const fillCls = pct >= 70 ? styles.fillGood : pct >= 40 ? styles.fillMid : styles.fillBad;
 
     return (
       <div key={goal.id} className={`${styles.card} ${goal.is_completed ? styles.cardDone : ''}`}>
-        <div className={styles.cardRow}>
-          <div className={styles.iconBadge} aria-hidden>{goal.icon || deriveIcon(goal.title)}</div>
-
-          <div className={styles.cardBody}>
-            <div className={styles.cardHead}>
-              <div className={styles.cardTitle}>{goal.title}</div>
-              <div className={styles.cardActions}>
-                <button className={styles.iconBtn} onClick={() => openEdit(goal)} title="Редактировать">✏️</button>
-                <button className={styles.iconBtnDanger} onClick={() => handleDeleteGoal(goal.id)} title="Удалить">🗑️</button>
-              </div>
-            </div>
-
-            <div className={styles.typeTagRow}>
-              <span className={styles.typeTag}>{meta.emoji} {meta.label}</span>
-              <StatusBadge status={goal.status} />
-              {goal.source_type && (
-                <span className={styles.sourceBadge}>
-                  🔄 {SOURCE_LABELS[goal.source_type] || goal.source_type}
-                  {goal.source_params?.category ? `: ${goal.source_params.category}` : ''}
-                </span>
-              )}
-            </div>
-
-            {/* ── TARGET ── */}
-            {type === 'target' && (
-              <>
-                <div className={styles.metaRow}>
-                  <div className={styles.meta}>
-                    <div className={styles.metaLabel}>Текущее</div>
-                    <div className={styles.metaVal}>{fmtValue(goal.last_value, goal.unit)}</div>
-                  </div>
-                  <div className={styles.meta}>
-                    <div className={styles.metaLabel}>Цель</div>
-                    <div className={styles.metaVal}>{fmtValue(goal.target, goal.unit)}</div>
-                  </div>
-                  {goal.target_date && (
-                    <div className={styles.meta}>
-                      <div className={styles.metaLabel}>Дедлайн</div>
-                      <div className={styles.metaVal}>{dayjs(goal.target_date).format('DD.MM.YY')}</div>
-                    </div>
-                  )}
-                </div>
-                <div className={styles.progress}>
-                  <div className={styles.progressTrack}>
-                    <div className={styles.progressFill} style={{ width: `${pct}%` }} />
-                  </div>
-                  <div className={styles.progressPct}>{pct}%</div>
-                </div>
-                {goal.required_pace && (
-                  <div className={styles.paceText}>⏱ {goal.required_pace}</div>
-                )}
-                <div className={styles.cardFooter}>
-                  <div className={styles.lastDate}>
-                    {goal.last_date ? `чек-ин: ${dayjs(goal.last_date).format('DD.MM')}` : 'нет чек-инов'}
-                  </div>
-                  <button className={styles.secondaryBtn} onClick={() => openCheckinFor(goal)}>Обновить</button>
-                </div>
-              </>
-            )}
-
-            {/* ── AVERAGE ── */}
-            {type === 'average' && (
-              <>
-                <div className={styles.metaRow}>
-                  <div className={styles.meta}>
-                    <div className={styles.metaLabel}>Среднее ({goal.avg_window || 7} дн.)</div>
-                    <div className={styles.metaVal}>
-                      {goal.current_value != null ? fmtValue(goal.current_value, goal.unit) : '—'}
-                    </div>
-                  </div>
-                  <div className={styles.meta}>
-                    <div className={styles.metaLabel}>{goal.direction === 'decrease' ? 'Не больше' : 'Не меньше'}</div>
-                    <div className={styles.metaVal}>{fmtValue(goal.target, goal.unit)}</div>
-                  </div>
-                  {goal.target_date && (
-                    <div className={styles.meta}>
-                      <div className={styles.metaLabel}>Дедлайн</div>
-                      <div className={styles.metaVal}>{dayjs(goal.target_date).format('DD.MM.YY')}</div>
-                    </div>
-                  )}
-                </div>
-                <div className={styles.progress}>
-                  <div className={styles.progressTrack}>
-                    <div className={styles.progressFill} style={{ width: `${pct}%` }} />
-                  </div>
-                  <div className={styles.progressPct}>{pct}%</div>
-                </div>
-                <div className={styles.cardFooter}>
-                  <div className={styles.lastDate}>
-                    {goal.last_date ? `замер: ${dayjs(goal.last_date).format('DD.MM')}` : 'нет замеров'}
-                  </div>
-                  <button className={styles.secondaryBtn} onClick={() => openCheckinFor(goal)}>Добавить замер</button>
-                </div>
-              </>
-            )}
-
-            {/* ── MILESTONE ── */}
-            {type === 'milestone' && (
-              <>
-                <div className={styles.milestoneList}>
-                  {(goal.milestones || []).map((step) => (
-                    <div key={step.id} className={styles.milestoneItem}>
-                      <button
-                        className={`${styles.milestoneCheck} ${step.done ? styles.milestoneChecked : ''}`}
-                        onClick={() => toggleStep(goal, step)}
-                        title={step.done ? 'Снять отметку' : 'Отметить'}
-                      >
-                        {step.done ? '✓' : ''}
-                      </button>
-                      <span className={`${styles.milestoneTxt} ${step.done ? styles.milestoneStrike : ''}`}>
-                        {step.title}
-                      </span>
-                      <button className={styles.stepDeleteBtn} onClick={() => deleteStep(goal, step)} title="Удалить шаг">×</button>
-                    </div>
-                  ))}
-                </div>
-
-                {(goal.milestones || []).length > 0 && (
-                  <div className={styles.progress}>
-                    <div className={styles.progressTrack}>
-                      <div className={styles.progressFill} style={{ width: `${pct}%` }} />
-                    </div>
-                    <div className={styles.progressPct}>{pct}%</div>
-                  </div>
-                )}
-                {goal.required_pace && (
-                  <div className={styles.paceText}>⏱ {goal.required_pace}</div>
-                )}
-
-                <div className={styles.stepAddRow}>
-                  <input
-                    className={styles.stepInput}
-                    placeholder="Новый шаг..."
-                    value={stepInputs[goal.id] || ''}
-                    onChange={(e) => setStepInputs((prev) => ({ ...prev, [goal.id]: e.target.value }))}
-                    onKeyDown={(e) => e.key === 'Enter' && addStep(goal)}
-                  />
-                  <button className={styles.stepAddBtn} onClick={() => addStep(goal)}>+</button>
-                </div>
-
-                {!goal.is_completed && (
-                  <div className={styles.cardFooter}>
-                    <div className={styles.lastDate}>
-                      {goal.target_date ? `до ${dayjs(goal.target_date).format('DD.MM.YYYY')}` : 'без срока'}
-                    </div>
-                    <button
-                      className={goal.is_completed ? styles.secondaryBtn : styles.primaryBtn}
-                      onClick={() => toggleComplete(goal)}
-                    >
-                      {goal.is_completed ? 'Вернуть' : 'Завершить'}
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
+        {/* top row */}
+        <div className={styles.cardTop}>
+          <div className={styles.cardIcon}>{goal.icon || deriveIcon(goal.title)}</div>
+          <div className={styles.cardInfo}>
+            <div className={styles.cardTitle}>{goal.title}</div>
+            <span className={styles.typeChip}>{meta.label}</span>
+          </div>
+          <div className={styles.cardMeta}>
+            <span className={`${styles.sBadge} ${sCls}`}>
+              <span className={styles.sDot} />
+              {statusLabel}
+            </span>
+            <button className={styles.iconBtn} onClick={() => openEdit(goal)} title="Редактировать">✏️</button>
+            <button className={styles.iconBtnDanger} onClick={() => handleDeleteGoal(goal.id)} title="Удалить">🗑️</button>
           </div>
         </div>
+
+        {/* stat grid */}
+        <div className={styles.statGrid}>
+          <div className={styles.stat}>
+            <div className={styles.statLabel}>Сейчас</div>
+            <div className={styles.statVal}>{current}<span className={styles.statUnit}>{unit}</span></div>
+          </div>
+          <div className={styles.stat}>
+            <div className={styles.statLabel}>Цель</div>
+            <div className={styles.statVal}>{target_}<span className={styles.statUnit}>{unit}</span></div>
+          </div>
+          <div className={styles.stat}>
+            <div className={styles.statLabel}>Динамика</div>
+            <div className={`${styles.statVal} ${styles.statDyn}`}>{dynamics}</div>
+          </div>
+        </div>
+
+        {/* milestone steps */}
+        {type === 'milestone' && (
+          <>
+            <div className={styles.milestoneList}>
+              {(goal.milestones || []).map((step) => (
+                <div key={step.id} className={styles.milestoneItem}>
+                  <button
+                    className={`${styles.milestoneCheck} ${step.done ? styles.milestoneChecked : ''}`}
+                    onClick={() => toggleStep(goal, step)}
+                  >{step.done ? '✓' : ''}</button>
+                  <span className={`${styles.milestoneTxt} ${step.done ? styles.milestoneStrike : ''}`}>{step.title}</span>
+                  <button className={styles.stepDeleteBtn} onClick={() => deleteStep(goal, step)}>×</button>
+                </div>
+              ))}
+            </div>
+            <div className={styles.stepAddRow}>
+              <input
+                className={styles.stepInput}
+                placeholder="Новый шаг..."
+                value={stepInputs[goal.id] || ''}
+                onChange={(e) => setStepInputs((p) => ({ ...p, [goal.id]: e.target.value }))}
+                onKeyDown={(e) => e.key === 'Enter' && addStep(goal)}
+              />
+              <button className={styles.stepAddBtn} onClick={() => addStep(goal)}>+</button>
+            </div>
+          </>
+        )}
+
+        {/* progress bar */}
+        <div className={styles.progressBar}>
+          <div className={`${styles.progressFill} ${fillCls}`} style={{ width: `${Math.min(100, pct)}%` }} />
+        </div>
+        <div className={styles.cardBottom}>
+          <div className={styles.footnote}>{footnote}</div>
+          <div className={styles.pctLabel}>{pct}%</div>
+        </div>
+
+        {type !== 'milestone' && !goal.is_completed && (
+          <button className={styles.checkinBtn} onClick={() => openCheckinFor(goal)}>+ обновить прогресс</button>
+        )}
+        {goal.is_completed && (
+          <button className={styles.secondaryBtn} style={{ marginTop: 10, width: '100%' }} onClick={() => toggleComplete(goal)}>
+            Вернуть в работу
+          </button>
+        )}
       </div>
     );
   };
 
   return (
     <div className={styles.widget}>
-      <div className={styles.header}>
+      <div className={styles.pageHeader}>
         <div>
-          <h2 className={styles.title}>🎯 Цели</h2>
-          {dueInfo > 0 && (
-            <div className={styles.subtitle}>Без чек-ина больше недели: <b>{dueInfo}</b></div>
-          )}
+          <h1 className={styles.pageTitle}>Цели и кредиты</h1>
+          <p className={styles.pageSub}>
+            Прогресс целей и обязательств
+            {activeGoals.length > 0 && ` · ${activeGoals.length} активных, средний прогресс ${avgProgress}%`}
+          </p>
         </div>
-        <button className={styles.primaryBtn} onClick={openCreate}>+ Добавить цель</button>
+        <button className={styles.primaryBtn} onClick={openCreate}>+ Новая цель</button>
       </div>
+
+      {dueInfo > 0 && (
+        <div className={styles.dueHint}>Без чек-ина больше недели: <b>{dueInfo}</b></div>
+      )}
 
       <div className={styles.grid}>{activeGoals.map(renderCard)}</div>
 
@@ -453,16 +359,11 @@ export default function GoalsWidget() {
           <div className={styles.titleRow}>
             <div className={styles.iconPreview} aria-hidden>{previewIcon}</div>
             <input
-              className={styles.input}
-              type="text"
-              placeholder="Название цели"
-              value={form.title}
-              onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-              required
+              className={styles.input} type="text" placeholder="Название цели"
+              value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} required
             />
           </div>
 
-          {/* Source suggestion banner */}
           {activeSuggestion && !suggestionCatOpen && (
             <div className={styles.sourceBanner}>
               <span className={styles.sourceBannerText}>🔄 Связать с {activeSuggestion.label}?</span>
@@ -474,17 +375,12 @@ export default function GoalsWidget() {
             <div className={styles.sourceBanner}>
               <span className={styles.sourceBannerText}>Категория расходов:</span>
               <input
-                className={styles.stepInput}
-                placeholder="напр. кофе"
-                value={suggestionCategory}
-                onChange={(e) => setSuggestionCategory(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && applySource(activeSuggestion, suggestionCategory)}
-                autoFocus
+                className={styles.stepInput} placeholder="напр. кофе"
+                value={suggestionCategory} onChange={(e) => setSuggestionCategory(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && applySource(activeSuggestion, suggestionCategory)} autoFocus
               />
               <button type="button" className={styles.sourceYesBtn}
-                onClick={() => applySource(activeSuggestion, suggestionCategory)}>
-                Привязать
-              </button>
+                onClick={() => applySource(activeSuggestion, suggestionCategory)}>Привязать</button>
               <button type="button" className={styles.sourceNoBtn} onClick={dismissSuggestion}>Нет</button>
             </div>
           )}
@@ -496,25 +392,14 @@ export default function GoalsWidget() {
             </div>
           )}
 
-          {/* TARGET fields */}
           {form.goal_type === 'target' && (
             <>
               <div className={styles.modalRow2}>
-                <input
-                  className={styles.input}
-                  type="number"
+                <input className={styles.input} type="number"
                   placeholder={form.direction === 'decrease' ? 'Снизить до' : 'Целевое значение'}
-                  value={form.target}
-                  onChange={(e) => setForm((f) => ({ ...f, target: e.target.value }))}
-                  required
-                />
-                <input
-                  className={styles.input}
-                  type="text"
-                  placeholder="Единица (₽, кг, км…)"
-                  value={form.unit}
-                  onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
-                />
+                  value={form.target} onChange={(e) => setForm((f) => ({ ...f, target: e.target.value }))} required />
+                <input className={styles.input} type="text" placeholder="Единица (₽, кг, км…)"
+                  value={form.unit} onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))} />
               </div>
               <div className={styles.chips}>
                 {UNIT_CHIPS.map((u) => (
@@ -524,25 +409,15 @@ export default function GoalsWidget() {
               </div>
               <div className={styles.dirRow}>
                 <span className={styles.dirLabel}>Направление:</span>
-                <button type="button"
-                  className={`${styles.dirBtn} ${form.direction === 'increase' ? styles.dirActive : ''}`}
-                  onClick={() => setForm((f) => ({ ...f, direction: 'increase' }))}>
-                  📈 Расти
-                </button>
-                <button type="button"
-                  className={`${styles.dirBtn} ${form.direction === 'decrease' ? styles.dirActive : ''}`}
-                  onClick={() => setForm((f) => ({ ...f, direction: 'decrease' }))}>
-                  📉 Снизить
-                </button>
+                <button type="button" className={`${styles.dirBtn} ${form.direction === 'increase' ? styles.dirActive : ''}`}
+                  onClick={() => setForm((f) => ({ ...f, direction: 'increase' }))}>📈 Расти</button>
+                <button type="button" className={`${styles.dirBtn} ${form.direction === 'decrease' ? styles.dirActive : ''}`}
+                  onClick={() => setForm((f) => ({ ...f, direction: 'decrease' }))}>📉 Снизить</button>
               </div>
               <div className={styles.modalRow2}>
-                <input
-                  className={styles.input}
-                  type="number"
+                <input className={styles.input} type="number"
                   placeholder={form.direction === 'decrease' ? 'Старт (откуда)' : 'Стартовое значение'}
-                  value={form.start_value}
-                  onChange={(e) => setForm((f) => ({ ...f, start_value: e.target.value }))}
-                />
+                  value={form.start_value} onChange={(e) => setForm((f) => ({ ...f, start_value: e.target.value }))} />
                 <label className={styles.fieldLabel}>
                   Дата старта
                   <input className={styles.input} type="date" value={form.start_date}
@@ -552,25 +427,13 @@ export default function GoalsWidget() {
             </>
           )}
 
-          {/* AVERAGE fields */}
           {form.goal_type === 'average' && (
             <>
               <div className={styles.modalRow2}>
-                <input
-                  className={styles.input}
-                  type="number"
-                  placeholder="Целевое среднее"
-                  value={form.target}
-                  onChange={(e) => setForm((f) => ({ ...f, target: e.target.value }))}
-                  required
-                />
-                <input
-                  className={styles.input}
-                  type="text"
-                  placeholder="Единица (ч, раз, шт…)"
-                  value={form.unit}
-                  onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))}
-                />
+                <input className={styles.input} type="number" placeholder="Целевое среднее"
+                  value={form.target} onChange={(e) => setForm((f) => ({ ...f, target: e.target.value }))} required />
+                <input className={styles.input} type="text" placeholder="Единица (ч, раз, шт…)"
+                  value={form.unit} onChange={(e) => setForm((f) => ({ ...f, unit: e.target.value }))} />
               </div>
               <div className={styles.chips}>
                 {UNIT_CHIPS.map((u) => (
@@ -580,23 +443,16 @@ export default function GoalsWidget() {
               </div>
               <div className={styles.dirRow}>
                 <span className={styles.dirLabel}>Хочу:</span>
-                <button type="button"
-                  className={`${styles.dirBtn} ${form.direction === 'increase' ? styles.dirActive : ''}`}
-                  onClick={() => setForm((f) => ({ ...f, direction: 'increase' }))}>
-                  не меньше ↑
-                </button>
-                <button type="button"
-                  className={`${styles.dirBtn} ${form.direction === 'decrease' ? styles.dirActive : ''}`}
-                  onClick={() => setForm((f) => ({ ...f, direction: 'decrease' }))}>
-                  не больше ↓
-                </button>
+                <button type="button" className={`${styles.dirBtn} ${form.direction === 'increase' ? styles.dirActive : ''}`}
+                  onClick={() => setForm((f) => ({ ...f, direction: 'increase' }))}>не меньше ↑</button>
+                <button type="button" className={`${styles.dirBtn} ${form.direction === 'decrease' ? styles.dirActive : ''}`}
+                  onClick={() => setForm((f) => ({ ...f, direction: 'decrease' }))}>не больше ↓</button>
               </div>
               <div className={styles.modalRow2}>
                 <label className={styles.fieldLabel}>
                   Окно (дней)
                   <input className={styles.input} type="number" min="1" max="90"
-                    value={form.avg_window}
-                    onChange={(e) => setForm((f) => ({ ...f, avg_window: e.target.value }))} />
+                    value={form.avg_window} onChange={(e) => setForm((f) => ({ ...f, avg_window: e.target.value }))} />
                 </label>
                 <label className={styles.fieldLabel}>
                   Дата старта
@@ -607,19 +463,14 @@ export default function GoalsWidget() {
             </>
           )}
 
-          {/* MILESTONE: only title + deadline */}
           {form.goal_type === 'milestone' && (
             <div className={styles.milestoneHint}>Шаги добавляются прямо на карточке после создания цели.</div>
           )}
 
           <label className={styles.fieldLabel}>
             Дедлайн (необязательно)
-            <input
-              className={styles.input}
-              type="date"
-              value={form.target_date || ''}
-              onChange={(e) => setForm((f) => ({ ...f, target_date: e.target.value }))}
-            />
+            <input className={styles.input} type="date" value={form.target_date || ''}
+              onChange={(e) => setForm((f) => ({ ...f, target_date: e.target.value }))} />
           </label>
 
           <div className={styles.actions}>
@@ -634,12 +485,9 @@ export default function GoalsWidget() {
         <form className={styles.modalForm} onSubmit={saveCheckin}>
           <div className={styles.checkinTitle}>{checkinGoal?.title}</div>
           <input
-            className={styles.input}
-            type="number"
+            className={styles.input} type="number"
             placeholder={checkinGoal?.goal_type === 'average' ? 'Значение за сегодня' : 'Текущее значение'}
-            value={checkinValue}
-            onChange={(e) => setCheckinValue(e.target.value)}
-            required
+            value={checkinValue} onChange={(e) => setCheckinValue(e.target.value)} required
           />
           <div className={styles.actions}>
             <button type="button" className={styles.secondaryBtn} onClick={() => setOpenCheckin(false)}>Отмена</button>
