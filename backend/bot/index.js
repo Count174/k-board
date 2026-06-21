@@ -73,7 +73,17 @@ async function initTelegramBot() {
       console.warn('[telegram] deleteWebHook:', e?.message || e);
     }
     try {
-      bot.on('polling_error', (err) => console.error('[telegram] polling_error:', err?.message || err));
+      let pollingRestartTimer = null;
+      bot.on('polling_error', (err) => {
+        console.error('[telegram] polling_error:', err?.message || err);
+        if (pollingRestartTimer) return;
+        pollingRestartTimer = setTimeout(async () => {
+          pollingRestartTimer = null;
+          console.log('[telegram] polling restart after error...');
+          try { await bot.stopPolling(); } catch (_) {}
+          try { bot.startPolling(); } catch (e) { console.error('[telegram] polling restart failed:', e?.message || e); }
+        }, 10_000);
+      });
       bot.startPolling();
       console.log(
         '🤖 Telegram: long polling (TELEGRAM_USE_POLLING=1) — вебхук снят, апдейты через getUpdates. Публичный URL для Telegram не нужен.'
