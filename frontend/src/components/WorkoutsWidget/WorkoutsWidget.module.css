@@ -28,8 +28,20 @@
 .input, .select, .textarea {
   width: 100%; padding: 10px 12px; border-radius: var(--r-md);
   border: 1px solid var(--line-2); background: var(--surf-2); color: var(--text);
+  font-family: inherit; font-size: 14px; line-height: 1.4;
+}
+.select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7' viewBox='0 0 12 7'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+  cursor: pointer;
 }
 .input:focus, .select:focus, .textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--bloom-bg); }
+.input[type="number"] { appearance: textfield; }
+.input[type="number"]::-webkit-outer-spin-button,
+.input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .textarea { min-height: 72px; resize: vertical; }
 .inputInline { width: auto; min-width: 120px; }
 
