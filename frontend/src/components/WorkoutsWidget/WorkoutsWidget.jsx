@@ -146,15 +146,6 @@ export default function WorkoutsWidget() {
     setModalOpen(true);
   };
 
-  const togglePlanDay = (day) => {
-    setForm((prev) => {
-      const set = new Set(prev.weekdays || []);
-      if (set.has(day)) set.delete(day);
-      else set.add(day);
-      return { ...prev, weekdays: [...set].sort((a, b) => a - b) };
-    });
-  };
-
   const updateExercise = (index, field, value) => {
     setForm((prev) => {
       const exercises = [...prev.exercises];
@@ -264,12 +255,6 @@ export default function WorkoutsWidget() {
     await load();
   };
 
-  const weekdaysLabel = (days) =>
-    (days || [])
-      .map((d) => WEEKDAY_LABELS[d - 1])
-      .filter(Boolean)
-      .join(', ') || 'как в настройках';
-
   return (
     <div className={styles.wrap}>
       <div className={styles.card}>
@@ -344,7 +329,7 @@ export default function WorkoutsWidget() {
                 <div>
                   <div className={styles.planName}>{plan.name}</div>
                   <div className={styles.planMeta}>
-                    {plan.sport_label} · {weekdaysLabel(plan.weekdays)} · {plan.exercises?.length || 0} упр.
+                    {plan.sport_label} · {plan.exercises?.length || 0} упр.
                     {!plan.active ? ' · выкл.' : ''}
                   </div>
                 </div>
@@ -389,30 +374,6 @@ export default function WorkoutsWidget() {
             placeholder="Описание (необязательно)"
             value={form.description}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-          />
-          <div className={styles.muted}>Дни плана (пусто = общие тренировочные дни)</div>
-          <div className={styles.weekRow}>
-            {WEEKDAY_LABELS.map((label, i) => {
-              const day = i + 1;
-              const active = form.weekdays?.includes(day);
-              return (
-                <button
-                  key={day}
-                  type="button"
-                  className={`${styles.dayBtn} ${active ? styles.dayBtnActive : ''}`}
-                  onClick={() => togglePlanDay(day)}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </div>
-          <input
-            type="time"
-            className={styles.input}
-            placeholder="Время уведомления"
-            value={form.notify_time || ''}
-            onChange={(e) => setForm((f) => ({ ...f, notify_time: e.target.value }))}
           />
 
           <div className={styles.cardTitle} style={{ fontSize: 16, marginTop: 8 }}>

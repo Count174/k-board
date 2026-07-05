@@ -3,8 +3,7 @@
    Изменения редизайна помечены  /* ✦ redesign */  /*
    ============================================================================ */
 
-/* ✦ redesign: добавлен Newsreader для крупных чисел/заголовков */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Hanken+Grotesk:wght@400;500;600&display=swap');
 
 /* токены подключаются отдельно: import './brand.css' в App.jsx */
 

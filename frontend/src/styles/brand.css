@@ -51,7 +51,7 @@
 
   /* ── Типографика ───────────────────────────────────────────── */
   --font-ui:      'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-display: 'Newsreader', Georgia, 'Times New Roman', serif; /* крупные числа/заголовки */
+  --font-display: 'Hanken Grotesk', 'Inter', sans-serif;
 
   /* ============================================================
      АЛИАСЫ обратной совместимости — удалить после миграции

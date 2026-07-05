@@ -18,7 +18,8 @@ db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS finances (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      type TEXT NOT NULL, -- income / expense
+      user_id INTEGER,
+      type TEXT NOT NULL,
       category TEXT NOT NULL,
       amount REAL NOT NULL,
       date TEXT DEFAULT CURRENT_TIMESTAMP,
@@ -29,6 +30,7 @@ db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS todos (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
       text TEXT NOT NULL,
       due_date TEXT,
       time TEXT,
@@ -56,6 +58,7 @@ db.serialize(() => {
   db.run(`
     CREATE TABLE IF NOT EXISTS health (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
       type TEXT NOT NULL,
       date TEXT NOT NULL,
       time TEXT NOT NULL,
