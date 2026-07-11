@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import styles from './BudgetWidget.module.css';
 import { get, post, remove } from '../../api/api';
 
@@ -9,8 +9,13 @@ const fmtNum = (v) => {
   return Number.isFinite(n) ? n.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) : '—';
 };
 
+function shiftMonth(ym, delta) {
+  const [y, m] = ym.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 export default function BudgetWidget() {
-  const monthInputRef = useRef(null);
   const [month, setMonth] = useState(() => {
     const d = new Date();
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -71,16 +76,11 @@ export default function BudgetWidget() {
     <div className={styles.widget}>
       <div className={styles.header}>
         <h3 className={styles.title}>Бюджет на месяц</h3>
-        <button type="button" className={styles.monthChip} onClick={() => monthInputRef.current?.showPicker()}>
-          📅 {monthLabel}
-        </button>
-        <input
-          ref={monthInputRef}
-          className={styles.monthHidden}
-          type="month"
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-        />
+        <div className={styles.monthNav}>
+          <button type="button" className={styles.monthArrow} onClick={() => setMonth(shiftMonth(month, -1))}>‹</button>
+          <span className={styles.monthNavLabel}>{monthLabel}</span>
+          <button type="button" className={styles.monthArrow} onClick={() => setMonth(shiftMonth(month, 1))}>›</button>
+        </div>
       </div>
 
       <div className={styles.summary}>

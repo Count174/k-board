@@ -6,14 +6,17 @@
 .pageLabel { font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-mute); margin-bottom: 6px; }
 .pageTitle { margin: 0; font-family: var(--font-display); font-weight: 400; font-size: clamp(28px, 3.5vw, 40px); letter-spacing: -0.02em; line-height: 1.05; }
 
-.monthChip {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 8px 14px; border-radius: var(--r-pill);
-  border: 1px solid var(--line-2); background: var(--surf-2);
-  color: var(--text-dim); font-size: 14px; cursor: pointer; position: relative;
+.monthNav {
+  display: inline-flex; align-items: center; gap: 2px;
+  border: 1px solid var(--line-2); border-radius: var(--r-pill);
+  background: var(--surf-2); overflow: hidden;
 }
-.monthChip:hover { background: var(--surf-1); }
-.monthHidden { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; top: 0; left: 0; }
+.monthArrow {
+  background: none; border: none; color: var(--text-mute); cursor: pointer;
+  padding: 8px 12px; font-size: 18px; line-height: 1; display: flex; align-items: center;
+}
+.monthArrow:hover { background: var(--surf-1); color: var(--text); }
+.monthNavLabel { font-size: 14px; color: var(--text-dim); padding: 0 4px; white-space: nowrap; }
 
 /* ── Hero ─────────────────────────────────────────────────────── */
 .hero {

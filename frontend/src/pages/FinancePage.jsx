@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { get } from '../api/api';
 import styles from '../styles/FinanceBoard.module.css';
@@ -29,6 +29,11 @@ const money = (v) => `${fmt(v)} ₽`;
 function prevMonth(ym) {
   const [y, m] = ym.split('-').map(Number);
   return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, '0')}`;
+}
+
+function nextMonth(ym) {
+  const [y, m] = ym.split('-').map(Number);
+  return m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
 }
 
 function monthEnd(ym) {
@@ -147,7 +152,6 @@ export default function FinancePage() {
   }, [transactions]);
 
   const navigate = useNavigate();
-  const monthInputRef = useRef(null);
   const [y, m] = month.split('-').map(Number);
   const monthLabel = `${MONTHS_NOM[m - 1]} ${y}`;
   const prev = prevMonth(month);
@@ -170,16 +174,11 @@ export default function FinancePage() {
           >
             + Операция
           </button>
-          <button type="button" className={styles.monthChip} onClick={() => monthInputRef.current?.showPicker()}>
-            📅 {monthLabel}
-          </button>
-          <input
-            ref={monthInputRef}
-            type="month"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className={styles.monthHidden}
-          />
+          <div className={styles.monthNav}>
+            <button type="button" className={styles.monthArrow} onClick={() => setMonth(prevMonth(month))}>‹</button>
+            <span className={styles.monthNavLabel}>{monthLabel}</span>
+            <button type="button" className={styles.monthArrow} onClick={() => setMonth(nextMonth(month))}>›</button>
+          </div>
         </div>
       </div>
 
