@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import styles from './BudgetWidget.module.css';
 import { get, post, remove } from '../../api/api';
 
+const MONTHS_NOM = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+
 const fmtNum = (v) => {
   const n = Number(v);
   return Number.isFinite(n) ? n.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) : '—';
@@ -61,16 +63,22 @@ export default function BudgetWidget() {
     }
   };
 
+  const [y, m] = month.split('-').map(Number);
+  const monthLabel = `${MONTHS_NOM[m - 1]} ${y}`;
+
   return (
     <div className={styles.widget}>
       <div className={styles.header}>
         <h3 className={styles.title}>Бюджет на месяц</h3>
-        <input
-          className={styles.monthInput}
-          type="month"
-          value={month}
-          onChange={(e) => setMonth(e.target.value)}
-        />
+        <label className={styles.monthChip}>
+          📅 {monthLabel}
+          <input
+            className={styles.monthHidden}
+            type="month"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+          />
+        </label>
       </div>
 
       <div className={styles.summary}>

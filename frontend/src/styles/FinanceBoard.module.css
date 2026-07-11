@@ -13,7 +13,7 @@
   color: var(--text-dim); font-size: 14px; cursor: pointer; position: relative;
 }
 .monthChip:hover { background: var(--surf-1); }
-.monthHidden { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; }
+.monthHidden { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; border: none; }
 
 /* ── Hero ─────────────────────────────────────────────────────── */
 .hero {
