@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { get } from '../api/api';
 import styles from '../styles/FinanceBoard.module.css';
+import BulkFinanceModal from '../components/FinanceWidget/BulkFinanceModal';
 import { Car, Utensils, ShoppingBag, Bus, Coffee, Wallet2, Home, CircleDollarSign, BookOpen, Dumbbell } from 'lucide-react';
 
 const txIconByText = (txt) => {
@@ -83,6 +84,19 @@ export default function FinancePage() {
   const [prevBalance, setPrevBalance] = useState(null);
   const [transactions, setTx]         = useState([]);
   const [budgets, setBudgets]          = useState([]);
+  const [bulkOpen, setBulkOpen]        = useState(false);
+  const [categories, setCategories]    = useState([]);
+  const [accounts, setAccounts]        = useState([]);
+
+  useEffect(() => {
+    Promise.all([
+      get('categories').catch(() => []),
+      get('accounts').catch(() => []),
+    ]).then(([cats, accs]) => {
+      setCategories(Array.isArray(cats) ? cats : []);
+      setAccounts(Array.isArray(accs) ? accs : []);
+    });
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -144,10 +158,19 @@ export default function FinancePage() {
           <div className={styles.pageLabel}>Финансы и бюджет</div>
           <h1 className={styles.pageTitle}>{monthLabel}</h1>
         </div>
-        <label className={styles.monthChip}>
-          📅 {monthLabel}
-          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className={styles.monthHidden} />
-        </label>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={() => setBulkOpen(true)}
+            style={{ padding: '8px 14px', borderRadius: 'var(--r-md)', background: 'var(--brand)', color: 'var(--brand-ink)', border: 'none', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
+          >
+            + Операция
+          </button>
+          <label className={styles.monthChip}>
+            📅 {monthLabel}
+            <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className={styles.monthHidden} />
+          </label>
+        </div>
       </div>
 
       <div className={styles.hero}>
@@ -242,6 +265,17 @@ export default function FinancePage() {
           </div>
         </div>
       )}
+      <BulkFinanceModal
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        categories={categories}
+        accounts={accounts}
+        defaultAccountId={accounts[0]?.id}
+        onSuccess={() => {
+          setBulkOpen(false);
+          setMonth((m) => m);
+        }}
+      />
     </section>
   );
 }

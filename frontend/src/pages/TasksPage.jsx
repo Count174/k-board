@@ -2,6 +2,47 @@ import { useEffect, useMemo, useState } from 'react';
 import { get, post } from '../api/api';
 import board from '../styles/TasksBoard.module.css';
 
+function parseDateFromText(raw) {
+  const text = raw.trim();
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const fmt = (d) => d.toISOString().slice(0, 10);
+  const add = (d, n) => { const r = new Date(d); r.setDate(r.getDate() + n); return r; };
+
+  const rules = [
+    { re: /\bпослезавтра\b/i,   date: () => fmt(add(today, 2)) },
+    { re: /\bзавтра\b/i,        date: () => fmt(add(today, 1)) },
+    { re: /\bсегодня\b/i,       date: () => fmt(today) },
+    { re: /\bчерез\s+(\d+)\s+дн\w*/i, date: (m) => fmt(add(today, +m[1])) },
+    {
+      re: /\b(в\s+)?(понедельник|вторник|среду|четверг|пятницу|субботу|воскресенье)\b/i,
+      date: (m) => {
+        const map = { понедельник:1, вторник:2, среду:3, четверг:4, пятницу:5, субботу:6, воскресенье:0 };
+        const target = map[m[2].toLowerCase()];
+        let diff = target - today.getDay();
+        if (diff <= 0) diff += 7;
+        return fmt(add(today, diff));
+      },
+    },
+    {
+      re: /\b(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?\b/,
+      date: (m) => {
+        const d = new Date(m[3] ? +m[3] : today.getFullYear(), +m[2] - 1, +m[1]);
+        return isNaN(d) ? null : fmt(d);
+      },
+    },
+  ];
+
+  for (const rule of rules) {
+    const m = text.match(rule.re);
+    if (!m) continue;
+    const dueDate = rule.date(m);
+    if (!dueDate) continue;
+    const cleanText = text.replace(m[0], '').replace(/\s{2,}/g, ' ').trim();
+    return { cleanText: cleanText || text, dueDate };
+  }
+  return { cleanText: text, dueDate: null };
+}
+
 export default function TasksPage() {
   const [tasks, setTasks] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -48,7 +89,8 @@ export default function TasksPage() {
     if (!text.trim() || busy) return;
     try {
       setBusy(true);
-      await post('todos', { text: text.trim() });
+      const { cleanText, dueDate } = parseDateFromText(text);
+      await post('todos', { text: cleanText, due_date: dueDate });
       setText('');
       await load();
     } finally {
