@@ -77,6 +77,7 @@ export default function BulkFinanceModal({
   accounts,
   defaultAccountId,
   onSuccess,
+  onRefresh,
 }) {
   const [tab, setTab] = useState("manual"); // manual | xlsx
   const [rows, setRows] = useState([]);
@@ -84,6 +85,7 @@ export default function BulkFinanceModal({
   const [xlsxAccountId, setXlsxAccountId] = useState("");
   const [xlsxFile, setXlsxFile] = useState(null);
   const [xlsxResult, setXlsxResult] = useState(null);
+  const [ignoreTransfers, setIgnoreTransfers] = useState(true);
   const fileInputRef = useRef(null);
   const xlsxFileInputId = useId();
 
@@ -99,6 +101,7 @@ export default function BulkFinanceModal({
       setXlsxFile(null);
       setXlsxAccountId(defaultAccountId ? String(defaultAccountId) : "");
       setXlsxResult(null);
+      setIgnoreTransfers(true);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }, [open, resetRows, defaultAccountId]);
@@ -129,6 +132,7 @@ export default function BulkFinanceModal({
     setBusy(true);
     try {
       await post("/finances/bulk", { items });
+      onRefresh?.();
       onSuccess?.();
       onClose?.();
     } catch (e) {
@@ -163,9 +167,10 @@ export default function BulkFinanceModal({
       const fd = new FormData();
       fd.append("file", xlsxFile);
       fd.append("account_id", xlsxAccountId);
+      fd.append("ignore_transfers", ignoreTransfers ? "1" : "0");
       const data = await postForm("/finances/import-xlsx", fd);
       setXlsxResult(data);
-      onSuccess?.();
+      onRefresh?.();
     } catch (e) {
       const msg = e?.message || String(e);
       let detail = msg;
@@ -263,6 +268,7 @@ export default function BulkFinanceModal({
                 type="button"
                 className={styles.btnPrimary}
                 onClick={() => {
+                  onSuccess?.();
                   closeXlsxResult();
                   onClose?.();
                 }}
@@ -319,6 +325,17 @@ export default function BulkFinanceModal({
                 {xlsxFile?.name || "Файл не выбран"}
               </span>
             </div>
+          </div>
+          <div className={styles.bankRow}>
+            <label className={styles.checkLabel}>
+              <input
+                type="checkbox"
+                checked={ignoreTransfers}
+                onChange={(e) => setIgnoreTransfers(e.target.checked)}
+                disabled={busy}
+              />
+              Игнорировать переводы (категория «Переводы»)
+            </label>
           </div>
           <div className={styles.footer}>
             <button type="button" className={styles.btnGhost} onClick={onClose} disabled={busy}>

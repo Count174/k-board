@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { get } from '../api/api';
 import styles from '../styles/FinanceBoard.module.css';
 import BulkFinanceModal from '../components/FinanceWidget/BulkFinanceModal';
@@ -87,6 +88,7 @@ export default function FinancePage() {
   const [bulkOpen, setBulkOpen]        = useState(false);
   const [categories, setCategories]    = useState([]);
   const [accounts, setAccounts]        = useState([]);
+  const [refreshTick, setRefreshTick]  = useState(0);
 
   useEffect(() => {
     Promise.all([
@@ -116,7 +118,7 @@ export default function FinancePage() {
       setBudgets(Array.isArray(bud?.items) ? bud.items : []);
     };
     load().catch(() => {});
-  }, [month]);
+  }, [month, refreshTick]);
 
   const catRows = useMemo(() => {
     const map = new Map(); let total = 0;
@@ -144,6 +146,7 @@ export default function FinancePage() {
     return { income, expenses };
   }, [transactions]);
 
+  const navigate = useNavigate();
   const [y, m] = month.split('-').map(Number);
   const monthLabel = `${MONTHS_NOM[m - 1]} ${y}`;
   const prev = prevMonth(month);
@@ -238,7 +241,7 @@ export default function FinancePage() {
         <div className={styles.card}>
           <div className={styles.cardHead}>
             <span className={styles.cardTitle}>Бюджет месяца</span>
-            <span className={styles.cardLink}>настроить</span>
+            <button type="button" className={styles.cardLink} onClick={() => navigate('/budget')}>настроить</button>
           </div>
           <div className={styles.budgetGrid}>
             {budgets.map((b) => {
@@ -271,10 +274,8 @@ export default function FinancePage() {
         categories={categories}
         accounts={accounts}
         defaultAccountId={accounts[0]?.id}
-        onSuccess={() => {
-          setBulkOpen(false);
-          setMonth((m) => m);
-        }}
+        onSuccess={() => setBulkOpen(false)}
+        onRefresh={() => setRefreshTick((n) => n + 1)}
       />
     </section>
   );

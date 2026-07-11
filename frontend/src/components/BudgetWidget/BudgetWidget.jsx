@@ -2,6 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import styles from './BudgetWidget.module.css';
 import { get, post, remove } from '../../api/api';
 
+const fmtNum = (v) => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n.toLocaleString('ru-RU', { maximumFractionDigits: 2 }) : '—';
+};
+
 export default function BudgetWidget() {
   const [month, setMonth] = useState(() => {
     const d = new Date();
@@ -103,10 +108,10 @@ export default function BudgetWidget() {
                 </div>
               </div>
 
-              <div className={styles.row}><span>Лимит</span><b>{s.budget}</b></div>
-              <div className={styles.row}><span>Потрачено</span><b>{s.spent}</b></div>
-              <div className={styles.row}><span>Остаток</span><b>{s.remaining}</b></div>
-              <div className={styles.row}><span>Прогноз</span><b>{s.forecast}</b></div>
+              <div className={styles.row}><span>Лимит</span><b>{fmtNum(s.budget)}</b></div>
+              <div className={styles.row}><span>Потрачено</span><b>{fmtNum(s.spent)}</b></div>
+              <div className={styles.row}><span>Остаток</span><b>{fmtNum(s.remaining)}</b></div>
+              <div className={styles.row}><span>Прогноз</span><b>{fmtNum(s.forecast)}</b></div>
             </div>
           );
         })}

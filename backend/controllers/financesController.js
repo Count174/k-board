@@ -414,6 +414,18 @@ exports.importXlsx = async (req, res) => {
     if (isDebugImport()) console.log('[tinkoff-import] parse errors:', errors);
     return res.status(400).json({ error: 'parse_failed', messages: errors });
   }
+
+  const ignoreTransfers = req.body.ignore_transfers === '1' || req.body.ignore_transfers === 'true';
+  if (ignoreTransfers) {
+    for (let i = rawItems.length - 1; i >= 0; i--) {
+      const cat = String(rawItems[i].category || '').toLowerCase();
+      if (cat === 'переводы') {
+        rawItems.splice(i, 1);
+        parseSkipped.push({ reason: 'переводы (пропущены по запросу)' });
+      }
+    }
+  }
+
   if (!rawItems.length) {
     if (isDebugImport()) {
       console.log('[tinkoff-import] нет строк к импорту. parseSkipped:', JSON.stringify(parseSkipped));

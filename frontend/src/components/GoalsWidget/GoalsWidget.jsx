@@ -328,7 +328,7 @@ export default function GoalsWidget() {
     <div className={styles.widget}>
       <div className={styles.pageHeader}>
         <div>
-          <h1 className={styles.pageTitle}>Цели и кредиты</h1>
+          <h1 className={styles.pageTitle}>Цели</h1>
           <p className={styles.pageSub}>
             Прогресс целей и обязательств
             {activeGoals.length > 0 && ` · ${activeGoals.length} активных, средний прогресс ${avgProgress}%`}
