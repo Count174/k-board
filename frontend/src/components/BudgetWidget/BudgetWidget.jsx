@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import styles from './BudgetWidget.module.css';
 import { get, post, remove } from '../../api/api';
 
@@ -10,6 +10,7 @@ const fmtNum = (v) => {
 };
 
 export default function BudgetWidget() {
+  const monthInputRef = useRef(null);
   const [month, setMonth] = useState(() => {
     const d = new Date();
     const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -70,15 +71,16 @@ export default function BudgetWidget() {
     <div className={styles.widget}>
       <div className={styles.header}>
         <h3 className={styles.title}>Бюджет на месяц</h3>
-        <label className={styles.monthChip}>
+        <button type="button" className={styles.monthChip} onClick={() => monthInputRef.current?.showPicker()}>
           📅 {monthLabel}
-          <input
-            className={styles.monthHidden}
-            type="month"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-          />
-        </label>
+        </button>
+        <input
+          ref={monthInputRef}
+          className={styles.monthHidden}
+          type="month"
+          value={month}
+          onChange={(e) => setMonth(e.target.value)}
+        />
       </div>
 
       <div className={styles.summary}>

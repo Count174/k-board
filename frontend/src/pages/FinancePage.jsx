@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { get } from '../api/api';
 import styles from '../styles/FinanceBoard.module.css';
@@ -147,6 +147,7 @@ export default function FinancePage() {
   }, [transactions]);
 
   const navigate = useNavigate();
+  const monthInputRef = useRef(null);
   const [y, m] = month.split('-').map(Number);
   const monthLabel = `${MONTHS_NOM[m - 1]} ${y}`;
   const prev = prevMonth(month);
@@ -169,10 +170,16 @@ export default function FinancePage() {
           >
             + Операция
           </button>
-          <label className={styles.monthChip}>
+          <button type="button" className={styles.monthChip} onClick={() => monthInputRef.current?.showPicker()}>
             📅 {monthLabel}
-            <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className={styles.monthHidden} />
-          </label>
+          </button>
+          <input
+            ref={monthInputRef}
+            type="month"
+            value={month}
+            onChange={(e) => setMonth(e.target.value)}
+            className={styles.monthHidden}
+          />
         </div>
       </div>
 
